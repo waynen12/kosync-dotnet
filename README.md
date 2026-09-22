@@ -1,10 +1,16 @@
 # kosync-dotnet
 
+> **AI-assisted development notice:** I forked the original kosync-dotnet repo with the intention of creating kosync server with a UI dashboard for my personal use. Ongoing development of this fork (the dashboard, sync-issue tracking, and related features) is being done with the assistance of [Claude Code]. If you have concerns about AI involvement in the software you run or contribute to, please take this into account before using or contributing to this project.
+
 **kosync-dotnet** is a self-hostable implementation of the KOReader sync server built with .NET. It aims to extend the existing functionality of the official [koreader-sync-server](https://github.com/koreader/koreader-sync-server).
 
 Users of KOReader can register a user on this synchronisation server and use the inbuilt _Progress sync_ plugin to keep all reading progress synchronised between devices.
 
 All data is stored inside a [LiteDB](https://www.litedb.org/) database file.
+
+## Origin & license
+
+This is a fork of [jberlyn/kosync-dotnet](https://github.com/jberlyn/kosync-dotnet), extended with a web dashboard for tracking devices, diagnosing sync issues, book metadata, and more — see [docs/ROADMAP.md](docs/ROADMAP.md) for the plan. Licensed under [GPLv3](LICENSE), same as upstream.
 
 ## How to run your own server?
 

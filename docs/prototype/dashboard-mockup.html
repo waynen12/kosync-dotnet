@@ -1,0 +1,1087 @@
+<!doctype html>
+<!--
+  PROTOTYPE — throwaway, not production code.
+
+  Question: what should the Phase 1 dashboard (Devices + Books view) look
+  and feel like? Structurally different variants, switchable via
+  ?variant=A|B|C|D, per docs/ROADMAP.md's "Next step (external)" note under
+  Phase 1.
+
+  Run: open this file directly in a browser. No build step.
+
+  Variants:
+    A — "Ops Table"        sidebar + dense expandable table (admin console feel)
+    B — "Device Cards"     tabbed card grid, device-first
+    C — "Diagnostic Pane"  split list/detail with a sync-event timeline
+    D — "Cards + Drill-in" B's card grid as the landing screen; clicking a
+                            card pushes into a full detail view (documents +
+                            regression timeline). Round 2: user rejected A,
+                            was split B vs C, asked for B as the main screen
+                            with C's depth available on drill-in.
+
+  Data is fake and in-memory. Nothing here talks to the real API.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kosync Dashboard — UI Prototype</title>
+<style>
+  :root {
+    color-scheme: light dark;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #0f1115;
+    color: #e6e8eb;
+  }
+  #app { min-height: 100vh; }
+  a { color: inherit; }
+
+  /* ---------------------------------------------------------------- */
+  /* Shared bits: flag badges, progress bars                          */
+  /* ---------------------------------------------------------------- */
+  .flag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .flag-split { background: rgba(240, 165, 40, 0.18); color: #f0a528; }
+  .flag-regression { background: rgba(224, 74, 74, 0.18); color: #e04a4a; }
+  .flag-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .flag-dot.split { background: #f0a528; }
+  .flag-dot.regression { background: #e04a4a; }
+
+  .pbar-track {
+    background: rgba(255,255,255,0.08);
+    border-radius: 999px;
+    height: 6px;
+    width: 100%;
+    overflow: hidden;
+  }
+  .pbar-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #4c8bf5, #6fd0ff);
+  }
+
+  /* ================================================================== */
+  /* VARIANT A — Ops Table                                              */
+  /* ================================================================== */
+  body[data-variant="A"] #app {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    min-height: 100vh;
+    background: #0f1115;
+    font-size: 13px;
+  }
+  .a-sidebar {
+    background: #14171c;
+    border-right: 1px solid #262a33;
+    padding: 20px 0;
+  }
+  .a-logo {
+    padding: 0 20px 18px;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.02em;
+    color: #6fd0ff;
+    border-bottom: 1px solid #262a33;
+    margin-bottom: 12px;
+  }
+  .a-nav-item {
+    padding: 9px 20px;
+    color: #9aa1ac;
+    cursor: default;
+    border-left: 2px solid transparent;
+  }
+  .a-nav-item.active {
+    color: #e6e8eb;
+    background: #1b1f26;
+    border-left-color: #4c8bf5;
+  }
+  .a-nav-item.disabled { color: #565c66; }
+  .a-main { padding: 24px 28px 80px; }
+  .a-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .a-search {
+    background: #1b1f26;
+    border: 1px solid #2b303a;
+    color: #cdd2d9;
+    padding: 7px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    width: 240px;
+  }
+  .a-title { font-size: 18px; font-weight: 650; margin: 0 0 4px; }
+  .a-subtitle { color: #8a909b; font-size: 12.5px; margin: 0 0 18px; }
+  table.a-table { width: 100%; border-collapse: collapse; margin-bottom: 32px; }
+  table.a-table th {
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #767c87;
+    padding: 8px 10px;
+    border-bottom: 1px solid #262a33;
+  }
+  table.a-table td { padding: 10px; border-bottom: 1px solid #1c1f26; vertical-align: middle; }
+  table.a-table tr.a-row:hover { background: #161a20; }
+  .a-chevron {
+    display: inline-block;
+    width: 14px;
+    color: #6b7280;
+    cursor: pointer;
+    user-select: none;
+  }
+  .a-book-title { font-weight: 600; }
+  .a-book-author { color: #8a909b; font-size: 12px; }
+  .a-progress-cell { display: flex; align-items: center; gap: 8px; width: 140px; }
+  .a-progress-pct { font-size: 11.5px; color: #9aa1ac; width: 34px; text-align: right; }
+  .a-mono { font-family: "SFMono-Regular", Consolas, monospace; font-size: 12px; color: #9aa1ac; }
+  .a-subrow td { background: #12151a; padding: 0; border-bottom: 1px solid #1c1f26; }
+  .a-subtable { width: 100%; border-collapse: collapse; }
+  .a-subtable td { padding: 8px 10px 8px 40px; font-size: 12.5px; border-bottom: 1px solid #1a1d23; }
+  .a-subtable tr:last-child td { border-bottom: none; }
+  .a-hist { font-size: 11px; color: #767c87; margin-top: 3px; }
+  .a-hist .bad { color: #e04a4a; }
+
+  /* ================================================================== */
+  /* VARIANT B — Device Cards                                           */
+  /* ================================================================== */
+  body[data-variant="B"] #app {
+    background: #f4f5f7;
+    color: #1b1e24;
+    min-height: 100vh;
+    padding-bottom: 90px;
+  }
+  .b-header {
+    padding: 28px 36px 0;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .b-title { font-size: 24px; font-weight: 700; margin: 0 0 2px; }
+  .b-subtitle { color: #6b7280; font-size: 14px; margin: 0 0 20px; }
+  .b-tabs { display: flex; gap: 6px; border-bottom: 1px solid #e1e3e8; margin-bottom: 24px; }
+  .b-tab {
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #8a8f99;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+  .b-tab.active { color: #2f6feb; border-bottom-color: #2f6feb; }
+  .b-grid {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 36px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 18px;
+  }
+  .b-card {
+    background: #ffffff;
+    border: 1px solid #e6e8ec;
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 2px rgba(20,20,30,0.04);
+  }
+  .b-card-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2px; }
+  .b-card-title { font-size: 15.5px; font-weight: 700; }
+  .b-card-meta { font-size: 12px; color: #8a8f99; }
+  .b-card-sub { font-size: 12.5px; color: #6b7280; margin-bottom: 12px; }
+  .b-book-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid #f0f1f3; }
+  .b-book-row:first-of-type { border-top: none; }
+  .b-book-name { flex: 1; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .b-book-pct { font-size: 12px; color: #6b7280; width: 34px; text-align: right; }
+  .b-book-bar { width: 70px; }
+  .b-flags-row { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .b-empty { color: #9aa1ac; font-size: 12.5px; font-style: italic; }
+  .b-progress-ring-wrap { position: relative; width: 46px; height: 46px; flex-shrink: 0; }
+  .b-card-book { display: flex; gap: 14px; align-items: center; }
+  .b-card-book-info { flex: 1; min-width: 0; }
+  .b-doc-line { font-size: 11.5px; color: #8a8f99; margin-top: 2px; }
+
+  /* ================================================================== */
+  /* VARIANT C — Diagnostic Split Pane                                  */
+  /* ================================================================== */
+  body[data-variant="C"] #app {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    min-height: 100vh;
+    background: #101214;
+    color: #d7dadf;
+    font-size: 13.5px;
+  }
+  .c-list-pane { border-right: 1px solid #22262c; display: flex; flex-direction: column; }
+  .c-list-header { padding: 16px 16px 10px; }
+  .c-list-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #7c828c; margin-bottom: 10px; }
+  .c-toggle { display: flex; background: #1a1d22; border-radius: 7px; padding: 3px; margin-bottom: 10px; }
+  .c-toggle-opt { flex: 1; text-align: center; padding: 5px 0; font-size: 12px; font-weight: 600; color: #8a8f99; border-radius: 5px; cursor: default; }
+  .c-toggle-opt.active { background: #2a2f37; color: #e6e8eb; }
+  .c-search { width: 100%; background: #17191d; border: 1px solid #262a30; color: #cdd2d9; padding: 6px 10px; border-radius: 6px; font-size: 12.5px; }
+  .c-list-item {
+    padding: 11px 16px;
+    border-top: 1px solid #191b20;
+    cursor: default;
+  }
+  .c-list-item.selected { background: #1a2530; border-left: 3px solid #4c8bf5; padding-left: 13px; }
+  .c-item-title { font-weight: 600; font-size: 13.5px; display: flex; align-items: center; gap: 6px; }
+  .c-item-sub { font-size: 11.5px; color: #767c87; margin-top: 2px; }
+  .c-detail-pane { padding: 28px 40px; overflow-y: auto; }
+  .c-detail-head { margin-bottom: 22px; }
+  .c-detail-title { font-size: 21px; font-weight: 700; margin: 0 0 2px; display: flex; align-items: center; gap: 10px; }
+  .c-detail-sub { color: #8a8f99; font-size: 13px; }
+  .c-progress-big { display: flex; align-items: center; gap: 12px; margin-top: 14px; max-width: 420px; }
+  .c-progress-big .pbar-track { height: 8px; }
+  .c-section-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #7c828c; margin: 26px 0 10px; }
+  .c-doc-card {
+    background: #161a20;
+    border: 1px solid #21262e;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+  }
+  .c-doc-device { font-weight: 600; font-size: 13px; }
+  .c-doc-hash { font-family: Consolas, monospace; font-size: 11.5px; color: #767c87; }
+  .c-doc-pct { font-size: 13px; font-weight: 600; width: 46px; text-align: right; }
+  .c-timeline { position: relative; padding-left: 20px; }
+  .c-timeline::before {
+    content: "";
+    position: absolute;
+    left: 5px; top: 4px; bottom: 4px;
+    width: 1px;
+    background: #262a30;
+  }
+  .c-tl-item { position: relative; padding-bottom: 16px; }
+  .c-tl-dot {
+    position: absolute; left: -20px; top: 3px;
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #4c8bf5;
+    box-shadow: 0 0 0 3px #101214;
+  }
+  .c-tl-item.bad .c-tl-dot { background: #e04a4a; }
+  .c-tl-line { font-size: 13px; }
+  .c-tl-line .bad { color: #e04a4a; font-weight: 600; }
+  .c-tl-ts { font-size: 11.5px; color: #767c87; }
+
+  /* ================================================================== */
+  /* VARIANT D — Cards + Drill-in                                       */
+  /* B's landing screen; cards push into a detail view on click.        */
+  /* ================================================================== */
+  body[data-variant="D"] #app {
+    background: #f4f5f7;
+    color: #1b1e24;
+    min-height: 100vh;
+    padding-bottom: 90px;
+  }
+  .d-card-clickable { cursor: pointer; transition: box-shadow 0.12s, transform 0.12s; }
+  .d-card-clickable:hover { box-shadow: 0 4px 14px rgba(20,20,30,0.10); transform: translateY(-1px); }
+  .d-detail {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 28px 36px;
+  }
+  .d-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #2f6feb;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 18px;
+  }
+  .d-detail-title { font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 10px; margin: 0 0 2px; }
+  .d-detail-sub { color: #6b7280; font-size: 14px; margin-bottom: 16px; }
+  .d-progress-big { display: flex; align-items: center; gap: 12px; max-width: 420px; margin-bottom: 8px; }
+  .d-progress-big .pbar-track { height: 8px; background: #e6e8ec; }
+  .d-section-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #8a8f99; margin: 26px 0 10px; font-weight: 700; }
+  .d-doc-card {
+    background: #ffffff;
+    border: 1px solid #e6e8ec;
+    border-radius: 12px;
+    padding: 13px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+  }
+  .d-doc-device { font-weight: 700; font-size: 13.5px; }
+  .d-doc-hash { font-family: Consolas, monospace; font-size: 11.5px; color: #8a8f99; }
+  .d-doc-pct { font-size: 13.5px; font-weight: 700; width: 46px; text-align: right; }
+  .d-timeline { position: relative; padding-left: 20px; }
+  .d-timeline::before {
+    content: "";
+    position: absolute;
+    left: 5px; top: 4px; bottom: 4px;
+    width: 1px;
+    background: #e1e3e8;
+  }
+  .d-tl-item { position: relative; padding-bottom: 16px; }
+  .d-tl-dot {
+    position: absolute; left: -20px; top: 3px;
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #2f6feb;
+    box-shadow: 0 0 0 3px #f4f5f7;
+  }
+  .d-tl-item.bad .d-tl-dot { background: #e04a4a; }
+  .d-tl-line { font-size: 13px; }
+  .d-tl-line .bad { color: #e04a4a; font-weight: 700; }
+  .d-tl-ts { font-size: 11.5px; color: #8a8f99; }
+
+  /* -- D dark theme -------------------------------------------------- */
+  body[data-variant="D"] {
+    --ring-track: #eceef1;
+    --ring-accent: #2f6feb;
+    --ring-text: #1b1e24;
+  }
+  body[data-variant="D"][data-theme="dark"] { --ring-track: #2a2e37; --ring-accent: #6fa8ff; --ring-text: #e6e8eb; }
+  body[data-variant="D"][data-theme="dark"] #app { background: #14161a; color: #e6e8eb; }
+  body[data-variant="D"][data-theme="dark"] .b-subtitle { color: #9aa1ac; }
+  body[data-variant="D"][data-theme="dark"] .b-tabs { border-bottom-color: #262a33; }
+  body[data-variant="D"][data-theme="dark"] .b-tab { color: #767c87; }
+  body[data-variant="D"][data-theme="dark"] .b-tab.active { color: #6fa8ff; border-bottom-color: #6fa8ff; }
+  body[data-variant="D"][data-theme="dark"] .b-card { background: #1c1f26; border-color: #2a2e37; box-shadow: none; }
+  body[data-variant="D"][data-theme="dark"] .b-card-meta,
+  body[data-variant="D"][data-theme="dark"] .b-card-sub,
+  body[data-variant="D"][data-theme="dark"] .b-doc-line,
+  body[data-variant="D"][data-theme="dark"] .b-empty { color: #8a909b; }
+  body[data-variant="D"][data-theme="dark"] .b-book-row { border-top-color: #262a33; }
+  body[data-variant="D"][data-theme="dark"] .d-back { color: #6fa8ff; }
+  body[data-variant="D"][data-theme="dark"] .d-detail-sub,
+  body[data-variant="D"][data-theme="dark"] .d-section-title,
+  body[data-variant="D"][data-theme="dark"] .d-doc-hash,
+  body[data-variant="D"][data-theme="dark"] .d-tl-ts { color: #8a909b; }
+  body[data-variant="D"][data-theme="dark"] .d-doc-card { background: #1c1f26; border-color: #2a2e37; }
+  body[data-variant="D"][data-theme="dark"] .d-timeline::before { background: #2a2e37; }
+  body[data-variant="D"][data-theme="dark"] .d-tl-dot { box-shadow: 0 0 0 3px #14161a; }
+  body[data-variant="D"][data-theme="dark"] .d-progress-big .pbar-track { background: #2a2e37; }
+
+  /* ---------------------------------------------------------------- */
+  /* Theme toggle — only meaningful/visible on variant D               */
+  /* ---------------------------------------------------------------- */
+  #theme-toggle {
+    display: none;
+    position: fixed;
+    top: 20px;
+    right: 24px;
+    background: #ffffff;
+    border: 1px solid #e1e3e8;
+    color: #1b1e24;
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(20,20,30,0.08);
+    z-index: 9999;
+  }
+  body[data-variant="D"] #theme-toggle { display: block; }
+  body[data-variant="D"][data-theme="dark"] #theme-toggle { background: #1c1f26; border-color: #2a2e37; color: #e6e8eb; }
+
+  /* ---------------------------------------------------------------- */
+  /* Floating prototype switcher — not part of any variant's design   */
+  /* ---------------------------------------------------------------- */
+  #proto-switcher {
+    position: fixed;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: #ff5f3c;
+    color: #1a0d08;
+    padding: 10px 18px;
+    border-radius: 999px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.15);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    z-index: 9999;
+    user-select: none;
+  }
+  #proto-switcher button {
+    background: rgba(0,0,0,0.15);
+    border: none;
+    color: inherit;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+  }
+  #proto-switcher button:hover { background: rgba(0,0,0,0.28); }
+  #proto-switcher .ps-label { min-width: 190px; text-align: center; }
+  #proto-switcher .ps-hint { font-weight: 400; opacity: 0.75; font-size: 11px; margin-left: 6px; }
+</style>
+</head>
+<body data-variant="A">
+<div id="app"></div>
+<button id="theme-toggle" aria-label="Toggle dark theme"></button>
+<div id="proto-switcher">
+  <button id="ps-prev" aria-label="Previous variant">‹</button>
+  <span class="ps-label" id="ps-label"></span>
+  <button id="ps-next" aria-label="Next variant">›</button>
+</div>
+
+<script>
+/* ------------------------------------------------------------------ */
+/* Fake data — one shared shape driving all three variants            */
+/* ------------------------------------------------------------------ */
+const DEVICES = [
+  { id: "dev-kobo-nova", label: "Kobo Nova", deviceId: "a3f9c1d2-88e4", lastSynced: "2026-09-17T08:12:00" },
+  { id: "dev-kindle-pw", label: "Kindle Paperwhite", deviceId: "77bb4e10-0a3f", lastSynced: "2026-09-15T22:40:00" },
+  { id: "dev-pixel-tab", label: "Pixel Tablet", deviceId: "c210ffab-55d9", lastSynced: "2026-09-10T14:05:00" },
+  { id: "dev-kobo-clara", label: "Kobo Clara (retired?)", deviceId: "0091ad3e-eeb2", lastSynced: "2026-08-01T09:00:00" },
+];
+
+const BOOKS = [
+  {
+    id: "book-hail-mary", title: "Project Hail Mary", author: "Andy Weir",
+    flags: [],
+    documents: [
+      { hash: "8f2cd9e1a3", deviceId: "dev-kobo-nova", progress: 0.62, current: true },
+    ],
+  },
+  {
+    id: "book-fifth-season", title: "The Fifth Season", author: "N.K. Jemisin",
+    flags: ["split"],
+    documents: [
+      { hash: "11ab7744f0", deviceId: "dev-kobo-nova", progress: 0.71, current: true },
+      { hash: "ff03e19c2e", deviceId: "dev-pixel-tab", progress: 0.34, current: true },
+    ],
+  },
+  {
+    id: "book-piranesi", title: "Piranesi", author: "Susanna Clarke",
+    flags: [],
+    documents: [
+      { hash: "55660a11ef", deviceId: "dev-kindle-pw", progress: 1.0, current: true },
+    ],
+  },
+  {
+    id: "book-dune", title: "Dune", author: "Frank Herbert",
+    flags: ["regression"],
+    documents: [
+      {
+        hash: "9e2177bcaa", deviceId: "dev-kobo-nova", progress: 0.45, current: true,
+        history: [
+          { ts: "2026-09-01T19:20:00", pct: 0.40, current: true },
+          { ts: "2026-09-05T21:05:00", pct: 0.45, current: true },
+          { ts: "2026-09-06T07:50:00", pct: 0.12, current: false },
+        ],
+      },
+    ],
+  },
+  {
+    id: "book-klara", title: "Klara and the Sun", author: "Kazuo Ishiguro",
+    flags: [],
+    documents: [
+      { hash: "2b7ae4109c", deviceId: "dev-kobo-clara", progress: 0.08, current: true },
+    ],
+  },
+];
+
+/* Derived helpers ---------------------------------------------------- */
+function deviceById(id) { return DEVICES.find(d => d.id === id); }
+function bookProgress(book) { return Math.max(...book.documents.map(d => d.progress)); }
+function pct(n) { return Math.round(n * 100) + "%"; }
+function relTime(iso) {
+  const d = new Date(iso);
+  const now = new Date("2026-09-17T09:00:00");
+  const diffMs = now - d;
+  const hrs = diffMs / 36e5;
+  if (hrs < 1) return "just now";
+  if (hrs < 24) return Math.floor(hrs) + "h ago";
+  const days = Math.floor(hrs / 24);
+  return days + "d ago";
+}
+function flagBadges(flags) {
+  return flags.map(f => f === "split"
+    ? `<span class="flag flag-split">Split Book</span>`
+    : `<span class="flag flag-regression">Regression</span>`
+  ).join("");
+}
+function booksForDevice(deviceId) {
+  return BOOKS.filter(b => b.documents.some(d => d.deviceId === deviceId))
+    .map(b => ({ book: b, doc: b.documents.find(d => d.deviceId === deviceId) }));
+}
+function pbar(fraction, width) {
+  return `<div class="pbar-track" style="${width ? "width:" + width + "px" : ""}"><div class="pbar-fill" style="width:${Math.round(fraction*100)}%"></div></div>`;
+}
+
+/* ==================================================================== */
+/* VARIANT A — Ops Table                                                */
+/* ==================================================================== */
+function renderA(root) {
+  const rows = BOOKS.map(book => {
+    const bp = bookProgress(book);
+    const subRows = book.documents.map(doc => {
+      const dev = deviceById(doc.deviceId);
+      let hist = "";
+      if (doc.history) {
+        hist = `<div class="a-hist">` + doc.history.map(h =>
+          `${h.current ? "" : '<span class="bad">✕</span> '}${new Date(h.ts).toLocaleDateString()} → ${pct(h.pct)}${h.current ? "" : " (did not become current)"}`
+        ).join(" &nbsp;·&nbsp; ") + `</div>`;
+      }
+      return `<tr><td colspan="5">
+        <table class="a-subtable"><tr>
+          <td style="width:180px">${dev.label}</td>
+          <td class="a-mono" style="width:140px">${doc.hash}</td>
+          <td style="width:160px">
+            <div class="a-progress-cell">${pbar(doc.progress)}<span class="a-progress-pct">${pct(doc.progress)}</span></div>
+          </td>
+          <td>${doc.current ? "current" : "superseded"}${hist}</td>
+        </tr></table>
+      </td></tr>`;
+    }).join("");
+    return `
+      <tr class="a-row" data-toggle="${book.id}">
+        <td><span class="a-chevron" data-chevron="${book.id}">▸</span></td>
+        <td><div class="a-book-title">${book.title}</div><div class="a-book-author">${book.author}</div></td>
+        <td><div class="a-progress-cell">${pbar(bp)}<span class="a-progress-pct">${pct(bp)}</span></div></td>
+        <td>${book.documents.length}</td>
+        <td>${flagBadges(book.flags) || "—"}</td>
+      </tr>
+      <tr class="a-subrow" id="sub-${book.id}" style="display:none">${subRows}</tr>
+    `;
+  }).join("");
+
+  const deviceRows = DEVICES.map(d => `
+    <tr>
+      <td>${d.label}</td>
+      <td class="a-mono">${d.deviceId}</td>
+      <td>${relTime(d.lastSynced)}</td>
+    </tr>
+  `).join("");
+
+  root.innerHTML = `
+    <div class="a-sidebar">
+      <div class="a-logo">KOSYNC</div>
+      <div class="a-nav-item active">Overview</div>
+      <div class="a-nav-item">Devices</div>
+      <div class="a-nav-item">Books</div>
+      <div class="a-nav-item disabled">Metadata (soon)</div>
+      <div class="a-nav-item disabled">AI (soon)</div>
+    </div>
+    <div class="a-main">
+      <div class="a-topbar">
+        <div>
+          <div class="a-title">Books</div>
+          <div class="a-subtitle">${BOOKS.length} books · ${BOOKS.filter(b=>b.flags.length).length} flagged</div>
+        </div>
+        <input class="a-search" placeholder="Search books…" />
+      </div>
+      <table class="a-table">
+        <tr><th></th><th>Book</th><th>Progress</th><th>Docs</th><th>Flags</th></tr>
+        ${rows}
+      </table>
+
+      <div class="a-title" style="font-size:15px">Devices</div>
+      <table class="a-table" style="margin-top:10px">
+        <tr><th>Label</th><th>Device ID</th><th>Last synced</th></tr>
+        ${deviceRows}
+      </table>
+    </div>
+  `;
+
+  root.querySelectorAll("[data-toggle]").forEach(row => {
+    row.addEventListener("click", () => {
+      const id = row.getAttribute("data-toggle");
+      const sub = root.querySelector("#sub-" + id);
+      const chevron = root.querySelector(`[data-chevron="${id}"]`);
+      const open = sub.style.display !== "none";
+      sub.style.display = open ? "none" : "table-row";
+      chevron.textContent = open ? "▸" : "▾";
+    });
+  });
+}
+
+/* ==================================================================== */
+/* VARIANT B — Device Cards                                             */
+/* ==================================================================== */
+function renderB(root, state) {
+  const tab = state.bTab || "devices";
+
+  const deviceCards = DEVICES.map(d => {
+    const entries = booksForDevice(d.id);
+    const rows = entries.length
+      ? entries.map(({book, doc}) => `
+          <div class="b-book-row">
+            <div class="b-book-name">${book.title}</div>
+            <div class="b-book-bar">${pbar(doc.progress)}</div>
+            <div class="b-book-pct">${pct(doc.progress)}</div>
+          </div>
+        `).join("")
+      : `<div class="b-empty">No books synced yet</div>`;
+    const flags = [...new Set(entries.flatMap(e => e.book.flags))];
+    return `
+      <div class="b-card">
+        <div class="b-card-head">
+          <div class="b-card-title">${d.label}</div>
+          <div class="b-card-meta">${relTime(d.lastSynced)}</div>
+        </div>
+        <div class="b-card-sub">${entries.length} book${entries.length===1?"":"s"} in progress</div>
+        ${rows}
+        ${flags.length ? `<div class="b-flags-row">${flagBadges(flags)}</div>` : ""}
+      </div>
+    `;
+  }).join("");
+
+  const bookCards = BOOKS.map(book => {
+    const bp = bookProgress(book);
+    const docLines = book.documents.map(doc => {
+      const dev = deviceById(doc.deviceId);
+      return `<div class="b-doc-line">${dev.label} — ${pct(doc.progress)}</div>`;
+    }).join("");
+    return `
+      <div class="b-card">
+        <div class="b-card-book">
+          <div class="b-progress-ring-wrap">${ringSvg(bp)}</div>
+          <div class="b-card-book-info">
+            <div class="b-card-title">${book.title}</div>
+            <div class="b-card-meta" style="margin-bottom:4px">${book.author}</div>
+            ${docLines}
+          </div>
+        </div>
+        ${book.flags.length ? `<div class="b-flags-row">${flagBadges(book.flags)}</div>` : ""}
+      </div>
+    `;
+  }).join("");
+
+  root.innerHTML = `
+    <div class="b-header">
+      <div class="b-title">Kosync Dashboard</div>
+      <div class="b-subtitle">Your reading, across every device.</div>
+      <div class="b-tabs">
+        <div class="b-tab ${tab === "devices" ? "active" : ""}" data-tab="devices">Devices</div>
+        <div class="b-tab ${tab === "books" ? "active" : ""}" data-tab="books">Books</div>
+      </div>
+    </div>
+    <div class="b-grid">${tab === "devices" ? deviceCards : bookCards}</div>
+  `;
+
+  root.querySelectorAll("[data-tab]").forEach(el => {
+    el.addEventListener("click", () => {
+      state.bTab = el.getAttribute("data-tab");
+      renderB(root, state);
+    });
+  });
+}
+
+function ringSvg(fraction) {
+  const r = 18, c = 2 * Math.PI * r;
+  const off = c * (1 - fraction);
+  return `
+    <svg width="46" height="46" viewBox="0 0 46 46">
+      <circle cx="23" cy="23" r="${r}" fill="none" stroke="var(--ring-track, #eceef1)" stroke-width="5"/>
+      <circle cx="23" cy="23" r="${r}" fill="none" stroke="var(--ring-accent, #2f6feb)" stroke-width="5"
+        stroke-dasharray="${c}" stroke-dashoffset="${off}" stroke-linecap="round"
+        transform="rotate(-90 23 23)"/>
+      <text x="23" y="27" text-anchor="middle" font-size="11" font-weight="700" fill="var(--ring-text, #1b1e24)">${Math.round(fraction*100)}</text>
+    </svg>
+  `;
+}
+
+/* ==================================================================== */
+/* VARIANT C — Diagnostic Split Pane                                    */
+/* ==================================================================== */
+function renderC(root, state) {
+  const listMode = state.cListMode || "books";
+  const selected = state.cSelected || BOOKS[0].id;
+
+  const items = listMode === "books"
+    ? BOOKS.map(b => ({
+        id: b.id,
+        title: b.title,
+        sub: b.author,
+        dot: b.flags[0] || null,
+      }))
+    : DEVICES.map(d => ({
+        id: d.id,
+        title: d.label,
+        sub: "Synced " + relTime(d.lastSynced),
+        dot: null,
+      }));
+
+  const listHtml = items.map(it => `
+    <div class="c-list-item ${it.id === selected ? "selected" : ""}" data-select="${it.id}">
+      <div class="c-item-title">${it.dot ? `<span class="flag-dot ${it.dot}"></span>` : ""}${it.title}</div>
+      <div class="c-item-sub">${it.sub}</div>
+    </div>
+  `).join("");
+
+  let detailHtml;
+  if (listMode === "books") {
+    const book = BOOKS.find(b => b.id === selected) || BOOKS[0];
+    const bp = bookProgress(book);
+    const docCards = book.documents.map(doc => {
+      const dev = deviceById(doc.deviceId);
+      return `
+        <div class="c-doc-card">
+          <div>
+            <div class="c-doc-device">${dev.label}</div>
+            <div class="c-doc-hash">${doc.hash}</div>
+          </div>
+          <div class="c-doc-pct">${pct(doc.progress)}</div>
+        </div>
+      `;
+    }).join("");
+
+    const historyDoc = book.documents.find(d => d.history);
+    const timeline = historyDoc ? `
+      <div class="c-section-title">Sync history — ${deviceById(historyDoc.deviceId).label}</div>
+      <div class="c-timeline">
+        ${historyDoc.history.map(h => `
+          <div class="c-tl-item ${h.current ? "" : "bad"}">
+            <div class="c-tl-dot"></div>
+            <div class="c-tl-line">
+              ${h.current ? "" : '<span class="bad">Regression —</span> '}
+              pushed ${pct(h.pct)}${h.current ? " (became current)" : " (did not become current)"}
+            </div>
+            <div class="c-tl-ts">${new Date(h.ts).toLocaleString()}</div>
+          </div>
+        `).join("")}
+      </div>
+    ` : "";
+
+    detailHtml = `
+      <div class="c-detail-head">
+        <div class="c-detail-title">${book.title} ${flagBadges(book.flags)}</div>
+        <div class="c-detail-sub">${book.author}</div>
+        <div class="c-progress-big">${pbar(bp)}<span>${pct(bp)}</span></div>
+      </div>
+      <div class="c-section-title">Documents (${book.documents.length})</div>
+      ${docCards}
+      ${timeline}
+    `;
+  } else {
+    const device = DEVICES.find(d => d.id === selected) || DEVICES[0];
+    const entries = booksForDevice(device.id);
+    const docCards = entries.map(({book, doc}) => `
+      <div class="c-doc-card">
+        <div>
+          <div class="c-doc-device">${book.title}</div>
+          <div class="c-doc-hash">${doc.hash}</div>
+        </div>
+        <div class="c-doc-pct">${pct(doc.progress)}</div>
+      </div>
+    `).join("") || `<div class="c-item-sub">No sync history yet.</div>`;
+
+    detailHtml = `
+      <div class="c-detail-head">
+        <div class="c-detail-title">${device.label}</div>
+        <div class="c-detail-sub">Device ID ${device.deviceId} · last synced ${relTime(device.lastSynced)}</div>
+      </div>
+      <div class="c-section-title">Books on this device</div>
+      ${docCards}
+    `;
+  }
+
+  root.innerHTML = `
+    <div class="c-list-pane">
+      <div class="c-list-header">
+        <div class="c-list-title">Diagnose</div>
+        <div class="c-toggle">
+          <div class="c-toggle-opt ${listMode === "books" ? "active" : ""}" data-mode="books">Books</div>
+          <div class="c-toggle-opt ${listMode === "devices" ? "active" : ""}" data-mode="devices">Devices</div>
+        </div>
+        <input class="c-search" placeholder="Filter…" />
+      </div>
+      <div style="overflow-y:auto">${listHtml}</div>
+    </div>
+    <div class="c-detail-pane">${detailHtml}</div>
+  `;
+
+  root.querySelectorAll("[data-mode]").forEach(el => {
+    el.addEventListener("click", () => {
+      state.cListMode = el.getAttribute("data-mode");
+      state.cSelected = null;
+      renderC(root, state);
+    });
+  });
+  root.querySelectorAll("[data-select]").forEach(el => {
+    el.addEventListener("click", () => {
+      state.cSelected = el.getAttribute("data-select");
+      renderC(root, state);
+    });
+  });
+}
+
+/* ==================================================================== */
+/* VARIANT D — Cards + Drill-in                                         */
+/* Landing screen reuses B's card grid; clicking a card drills into a   */
+/* full detail view (documents + regression timeline), then back.      */
+/* ==================================================================== */
+function renderD(root, state) {
+  if (state.dSelected) {
+    renderDDetail(root, state);
+  } else {
+    renderDGrid(root, state);
+  }
+}
+
+function renderDGrid(root, state) {
+  const tab = state.dTab || "devices";
+
+  const deviceCards = DEVICES.map(d => {
+    const entries = booksForDevice(d.id);
+    const rows = entries.length
+      ? entries.map(({book, doc}) => `
+          <div class="b-book-row">
+            <div class="b-book-name">${book.title}</div>
+            <div class="b-book-bar">${pbar(doc.progress)}</div>
+            <div class="b-book-pct">${pct(doc.progress)}</div>
+          </div>
+        `).join("")
+      : `<div class="b-empty">No books synced yet</div>`;
+    const flags = [...new Set(entries.flatMap(e => e.book.flags))];
+    return `
+      <div class="b-card d-card-clickable" data-drill="device:${d.id}">
+        <div class="b-card-head">
+          <div class="b-card-title">${d.label}</div>
+          <div class="b-card-meta">${relTime(d.lastSynced)}</div>
+        </div>
+        <div class="b-card-sub">${entries.length} book${entries.length===1?"":"s"} in progress</div>
+        ${rows}
+        ${flags.length ? `<div class="b-flags-row">${flagBadges(flags)}</div>` : ""}
+      </div>
+    `;
+  }).join("");
+
+  const bookCards = BOOKS.map(book => {
+    const bp = bookProgress(book);
+    const docLines = book.documents.map(doc => {
+      const dev = deviceById(doc.deviceId);
+      return `<div class="b-doc-line">${dev.label} — ${pct(doc.progress)}</div>`;
+    }).join("");
+    return `
+      <div class="b-card d-card-clickable" data-drill="book:${book.id}">
+        <div class="b-card-book">
+          <div class="b-progress-ring-wrap">${ringSvg(bp)}</div>
+          <div class="b-card-book-info">
+            <div class="b-card-title">${book.title}</div>
+            <div class="b-card-meta" style="margin-bottom:4px">${book.author}</div>
+            ${docLines}
+          </div>
+        </div>
+        ${book.flags.length ? `<div class="b-flags-row">${flagBadges(book.flags)}</div>` : ""}
+      </div>
+    `;
+  }).join("");
+
+  root.innerHTML = `
+    <div class="b-header">
+      <div class="b-title">Kosync Dashboard</div>
+      <div class="b-subtitle">Your reading, across every device.</div>
+      <div class="b-tabs">
+        <div class="b-tab ${tab === "devices" ? "active" : ""}" data-tab="devices">Devices</div>
+        <div class="b-tab ${tab === "books" ? "active" : ""}" data-tab="books">Books</div>
+      </div>
+    </div>
+    <div class="b-grid">${tab === "devices" ? deviceCards : bookCards}</div>
+  `;
+
+  root.querySelectorAll("[data-tab]").forEach(el => {
+    el.addEventListener("click", () => {
+      state.dTab = el.getAttribute("data-tab");
+      renderDGrid(root, state);
+    });
+  });
+  root.querySelectorAll("[data-drill]").forEach(el => {
+    el.addEventListener("click", () => {
+      const [type, id] = el.getAttribute("data-drill").split(":");
+      drillTo(type, id);
+    });
+  });
+}
+
+function renderDDetail(root, state) {
+  const { type, id } = state.dSelected;
+  let body;
+
+  if (type === "book") {
+    const book = BOOKS.find(b => b.id === id);
+    const bp = bookProgress(book);
+    const docCards = book.documents.map(doc => {
+      const dev = deviceById(doc.deviceId);
+      return `
+        <div class="d-doc-card">
+          <div>
+            <div class="d-doc-device">${dev.label}</div>
+            <div class="d-doc-hash">${doc.hash}</div>
+          </div>
+          <div class="d-doc-pct">${pct(doc.progress)}</div>
+        </div>
+      `;
+    }).join("");
+
+    const historyDoc = book.documents.find(d => d.history);
+    const timeline = historyDoc ? `
+      <div class="d-section-title">Sync history — ${deviceById(historyDoc.deviceId).label}</div>
+      <div class="d-timeline">
+        ${historyDoc.history.map(h => `
+          <div class="d-tl-item ${h.current ? "" : "bad"}">
+            <div class="d-tl-dot"></div>
+            <div class="d-tl-line">
+              ${h.current ? "" : '<span class="bad">Regression —</span> '}
+              pushed ${pct(h.pct)}${h.current ? " (became current)" : " (did not become current)"}
+            </div>
+            <div class="d-tl-ts">${new Date(h.ts).toLocaleString()}</div>
+          </div>
+        `).join("")}
+      </div>
+    ` : "";
+
+    body = `
+      <div class="d-detail-title">${book.title} ${flagBadges(book.flags)}</div>
+      <div class="d-detail-sub">${book.author}</div>
+      <div class="d-progress-big">${pbar(bp)}<span>${pct(bp)}</span></div>
+      <div class="d-section-title">Documents (${book.documents.length})</div>
+      ${docCards}
+      ${timeline}
+    `;
+  } else {
+    const device = DEVICES.find(d => d.id === id);
+    const entries = booksForDevice(device.id);
+    const docCards = entries.map(({book, doc}) => `
+      <div class="d-doc-card">
+        <div>
+          <div class="d-doc-device">${book.title}</div>
+          <div class="d-doc-hash">${doc.hash}</div>
+        </div>
+        <div class="d-doc-pct">${pct(doc.progress)}</div>
+      </div>
+    `).join("") || `<div class="b-empty">No sync history yet.</div>`;
+
+    body = `
+      <div class="d-detail-title">${device.label}</div>
+      <div class="d-detail-sub">Device ID ${device.deviceId} · last synced ${relTime(device.lastSynced)}</div>
+      <div class="d-section-title">Books on this device</div>
+      ${docCards}
+    `;
+  }
+
+  root.innerHTML = `
+    <div class="d-detail">
+      <div class="d-back" data-back="1">← Back</div>
+      ${body}
+    </div>
+  `;
+
+  root.querySelector("[data-back]").addEventListener("click", () => history.back());
+}
+
+/* Drill-in is real navigation: pushState so the URL reflects the open
+   book/device and the browser back button un-drills, not just an in-app
+   "back" link. */
+function drillTo(type, id) {
+  const params = new URLSearchParams(location.search);
+  params.set("sel", type + ":" + id);
+  history.pushState(null, "", "?" + params.toString());
+  variantState.D.dSelected = { type, id };
+  renderDDetail(app, variantState.D);
+}
+
+/* ==================================================================== */
+/* Switcher plumbing                                                    */
+/* ==================================================================== */
+const VARIANTS = [
+  { key: "A", name: "Ops Table", render: renderA },
+  { key: "B", name: "Device Cards", render: renderB },
+  { key: "C", name: "Diagnostic Pane", render: renderC },
+  { key: "D", name: "Cards + Drill-in", render: renderD },
+];
+const variantState = { A: {}, B: {}, C: {}, D: {} };
+const app = document.getElementById("app");
+const psLabel = document.getElementById("ps-label");
+const themeToggle = document.getElementById("theme-toggle");
+
+function currentIndex() {
+  const v = new URLSearchParams(location.search).get("variant");
+  const idx = VARIANTS.findIndex(x => x.key === v);
+  return idx === -1 ? 0 : idx;
+}
+
+/* Theme is a sticky preference (localStorage), not URL state — toggling
+   it is independent of drill-in/back navigation, unlike variant/sel. */
+const THEME_KEY = "kosync-proto-theme";
+function applyTheme(theme) {
+  document.body.setAttribute("data-theme", theme);
+  themeToggle.textContent = theme === "dark" ? "☀ Light" : "🌙 Dark";
+}
+
+/* Single source of truth: read variant/sel off the URL and render.
+   Used on first load, on popstate (browser back/forward), and after any
+   navigation helper below updates the URL. */
+function renderCurrent() {
+  const params = new URLSearchParams(location.search);
+  const v = VARIANTS[currentIndex()];
+  document.body.setAttribute("data-variant", v.key);
+
+  if (v.key === "D") {
+    const sel = params.get("sel");
+    variantState.D.dSelected = sel
+      ? { type: sel.split(":")[0], id: sel.split(":").slice(1).join(":") }
+      : null;
+  }
+
+  app.innerHTML = "";
+  v.render(app, variantState[v.key]);
+  psLabel.textContent = `${v.key} — ${v.name}`;
+}
+
+function go(delta) {
+  const next = VARIANTS[(currentIndex() + delta + VARIANTS.length) % VARIANTS.length];
+  const params = new URLSearchParams(location.search);
+  params.set("variant", next.key);
+  params.delete("sel");
+  history.replaceState(null, "", "?" + params.toString());
+  renderCurrent();
+}
+
+document.getElementById("ps-prev").addEventListener("click", () => go(-1));
+document.getElementById("ps-next").addEventListener("click", () => go(1));
+document.addEventListener("keydown", e => {
+  const tag = document.activeElement.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || document.activeElement.isContentEditable) return;
+  if (e.key === "ArrowLeft") go(-1);
+  if (e.key === "ArrowRight") go(1);
+});
+
+themeToggle.addEventListener("click", () => {
+  const next = document.body.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  localStorage.setItem(THEME_KEY, next);
+  applyTheme(next);
+});
+
+window.addEventListener("popstate", renderCurrent);
+
+applyTheme(localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "light");
+renderCurrent();
+</script>
+</body>
+</html>
