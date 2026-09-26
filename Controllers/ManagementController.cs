@@ -9,11 +9,11 @@ public class ManagementController : ControllerBase
 
     private ProxyService _proxyService;
     private IPService _ipService;
-    private KosyncDb _db;
+    private KosyncDbContext _db;
     private UserService _userService;
 
 
-    public ManagementController(ILogger<ManagementController> logger, ProxyService proxyService, IPService ipService, KosyncDb db, UserService userService)
+    public ManagementController(ILogger<ManagementController> logger, ProxyService proxyService, IPService ipService, KosyncDbContext db, UserService userService)
     {
         _logger = logger;
         _proxyService = proxyService;
@@ -63,16 +63,14 @@ public class ManagementController : ControllerBase
         }
 
 
-        var userCollection = _db.Context.GetCollection<User>("users");
-
-        var users = userCollection.FindAll().Select(i => new
+        var users = _db.Users.Select(i => new
         {
             id = i.Id,
             username = i.Username,
             isAdministrator = i.IsAdministrator,
             isActive = i.IsActive,
             documentCount = i.Documents.Count()
-        });
+        }).ToList();
 
         LogInfo($"User [{_userService.Username}] requested /manage/users");
         return StatusCode(200, users);
@@ -118,9 +116,7 @@ public class ManagementController : ControllerBase
             });
         }
 
-        var userCollection = _db.Context.GetCollection<User>("users");
-
-        var existingUser = userCollection.FindOne(i => i.Username == payload.username);
+        var existingUser = _db.Users.FirstOrDefault(i => i.Username == payload.username);
         if (existingUser is not null)
         {
             return StatusCode(400, new
@@ -138,8 +134,8 @@ public class ManagementController : ControllerBase
             IsAdministrator = false
         };
 
-        userCollection.Insert(user);
-        userCollection.EnsureIndex(u => u.Username);
+        _db.Users.Add(user);
+        _db.SaveChanges();
 
         LogInfo($"User [{payload.username}] created by user [{_userService.Username}]");
         return StatusCode(200, new
@@ -191,9 +187,7 @@ public class ManagementController : ControllerBase
             });
         }
 
-        var userCollection = _db.Context.GetCollection<User>("users");
-
-        var user = userCollection.FindOne(u => u.Username == username);
+        var user = _db.Users.Include(u => u.Documents).FirstOrDefault(u => u.Username == username);
 
         if (user is null)
         {
@@ -215,7 +209,12 @@ public class ManagementController : ControllerBase
             });
         }
 
-        userCollection.Delete(user.Id);
+        var bookIds = user.Documents.Select(d => d.BookId).ToList();
+
+        _db.Users.Remove(user);
+        _db.SaveChanges();
+
+        RemoveOrphanedBooks(bookIds);
 
         LogInfo($"User [{username}] has been deleted by [{_userService.Username}]");
 
@@ -270,9 +269,7 @@ public class ManagementController : ControllerBase
 
         LogInfo($"User [{username}]'s documents requested by [{_userService.Username}]");
 
-        var userCollection = _db.Context.GetCollection<User>("users");
-
-        var user = userCollection.FindOne(i => i.Username == username);
+        var user = _db.Users.FirstOrDefault(i => i.Username == username);
         if (user is null)
         {
             return StatusCode(400, new
@@ -281,7 +278,27 @@ public class ManagementController : ControllerBase
             });
         }
 
-        return StatusCode(200, user.Documents);
+        var documents = _db.Documents
+            .Where(d => d.UserId == user.Id)
+            .Include(d => d.SyncEvents)
+            .ThenInclude(s => s.Device)
+            .ToList()
+            .Select(d =>
+            {
+                var current = d.SyncEvents.Current();
+
+                return new
+                {
+                    documentHash = d.DocumentHash,
+                    progress = current?.Progress,
+                    percentage = current?.Percentage,
+                    device = current?.Device.DeviceName,
+                    deviceId = current?.Device.DeviceId,
+                    timestamp = current?.Timestamp,
+                };
+            });
+
+        return StatusCode(200, documents);
     }
 
     [HttpDelete("/manage/users/documents")]
@@ -325,9 +342,7 @@ public class ManagementController : ControllerBase
             });
         }
 
-        var userCollection = _db.Context.GetCollection<User>("users").Include(i => i.Documents);
-
-        var user = userCollection.FindOne(i => i.Username == username);
+        var user = _db.Users.Include(i => i.Documents).FirstOrDefault(i => i.Username == username)!;
 
         var document = user.Documents.SingleOrDefault(i => i.DocumentHash == documentHash);
 
@@ -339,9 +354,12 @@ public class ManagementController : ControllerBase
             });
         }
 
-        user.Documents.Remove(document);
+        var bookId = document.BookId;
 
-        userCollection.Update(user);
+        _db.Documents.Remove(document);
+        _db.SaveChanges();
+
+        RemoveOrphanedBooks([bookId]);
 
         LogInfo($"User [{_userService.Username}] deleted document with hash [{documentHash}] for user [{username}].");
 
@@ -391,9 +409,7 @@ public class ManagementController : ControllerBase
             });
         }
 
-        var userCollection = _db.Context.GetCollection<User>("users");
-
-        var user = userCollection.FindOne(i => i.Username == username);
+        var user = _db.Users.FirstOrDefault(i => i.Username == username);
         if (user is null)
         {
             LogInfo($"PUT request to /manage/users/active received from [{_userService.Username}] but target username [{username}] does not exist.");
@@ -415,7 +431,7 @@ public class ManagementController : ControllerBase
         }
 
         user.IsActive = !user.IsActive;
-        userCollection.Update(user);
+        _db.SaveChanges();
 
         LogInfo($"User [{username}] set to {(user.IsActive ? "active" : "inactive")} by user [{_userService.Username}]");
 
@@ -474,9 +490,7 @@ public class ManagementController : ControllerBase
             });
         }
 
-        var userCollection = _db.Context.GetCollection<User>("users");
-
-        var user = userCollection.FindOne(i => i.Username == username);
+        var user = _db.Users.FirstOrDefault(i => i.Username == username);
         if (user is null)
         {
             LogWarning($"Password change request received from [{_userService.Username}] but target username [{username}] does not exist.");
@@ -496,13 +510,20 @@ public class ManagementController : ControllerBase
         }
 
         user.PasswordHash = Utility.HashPassword(payload.password);
-        userCollection.Update(user);
+        _db.SaveChanges();
 
         LogInfo($"User [{username}]'s password updated by [{_userService.Username}].");
         return StatusCode(200, new
         {
             message = "Password changed successfully"
         });
+    }
+
+    private void RemoveOrphanedBooks(IEnumerable<int> bookIds)
+    {
+        var orphanedBooks = _db.Books.Where(b => bookIds.Contains(b.Id) && !b.Documents.Any());
+        _db.Books.RemoveRange(orphanedBooks);
+        _db.SaveChanges();
     }
 
     private void LogInfo(string text)

@@ -1,16 +1,15 @@
 namespace Kosync.Database.Entities;
 
-public class Document
+public class Device
 {
     public int Id { get; set; }
 
-    public string DocumentHash { get; set; } = default!;
+    public string DeviceId { get; set; } = default!;
+
+    public string DeviceName { get; set; } = default!;
 
     public int UserId { get; set; }
     public User User { get; set; } = default!;
-
-    public int BookId { get; set; }
-    public Book Book { get; set; } = default!;
 
     public List<SyncEvent> SyncEvents { get; set; } = new();
 }

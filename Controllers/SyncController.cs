@@ -9,11 +9,11 @@ public class SyncController : ControllerBase
 
     private ProxyService _proxyService;
     private IPService _ipService;
-    private KosyncDb _db;
+    private KosyncDbContext _db;
     private UserService _userService;
 
 
-    public SyncController(ILogger<SyncController> logger, ProxyService proxyService, IPService ipService, KosyncDb db, UserService userService)
+    public SyncController(ILogger<SyncController> logger, ProxyService proxyService, IPService ipService, KosyncDbContext db, UserService userService)
     {
         _logger = logger;
         _proxyService = proxyService;
@@ -92,9 +92,7 @@ public class SyncController : ControllerBase
             });
         }
 
-        var userCollection = _db.Context.GetCollection<User>("users");
-
-        var existing = userCollection.FindOne(u => u.Username == payload.username);
+        var existing = _db.Users.FirstOrDefault(u => u.Username == payload.username);
         if (existing is not null)
         {
             LogInfo($"Account creation attempted with existing username - [{payload.username}].");
@@ -110,9 +108,8 @@ public class SyncController : ControllerBase
             PasswordHash = payload.password,
         };
 
-        userCollection.Insert(user);
-        userCollection.EnsureIndex(u => u.Username);
-
+        _db.Users.Add(user);
+        _db.SaveChanges();
 
         LogInfo($"User [{payload.username}] created.");
         return StatusCode(201, new
@@ -151,31 +148,59 @@ public class SyncController : ControllerBase
             });
         }
 
-        var userCollection = _db.Context.GetCollection<User>("users").Include(i => i.Documents);
-
-        var user = userCollection.FindOne(i => i.Username == _userService.Username);
+        var user = _db.Users
+            .Include(i => i.Documents)
+            .Include(i => i.Devices)
+            .FirstOrDefault(i => i.Username == _userService.Username)!;
 
         var document = user.Documents.SingleOrDefault(i => i.DocumentHash == payload.document);
         if (document is null)
         {
-            document = new Document();
-            document.DocumentHash = payload.document;
+            document = new Document()
+            {
+                DocumentHash = payload.document,
+                User = user,
+                Book = new Book(),
+            };
             user.Documents.Add(document);
         }
 
-        document.Progress = payload.progress;
-        document.Percentage = payload.percentage;
-        document.Device = payload.device;
-        document.DeviceId = payload.device_id;
-        document.Timestamp = DateTime.UtcNow;
+        var device = user.Devices.SingleOrDefault(i => i.DeviceId == payload.device_id);
+        if (device is null)
+        {
+            device = new Device()
+            {
+                DeviceId = payload.device_id,
+                DeviceName = payload.device,
+                User = user,
+            };
+            user.Devices.Add(device);
+        }
+        else
+        {
+            device.DeviceName = payload.device;
+        }
 
-        userCollection.Update(user);
+        var timestamp = DateTime.UtcNow;
+
+        var syncEvent = new SyncEvent()
+        {
+            Document = document,
+            Device = device,
+            Progress = payload.progress,
+            Percentage = payload.percentage,
+            Timestamp = timestamp,
+            IsCurrent = true,
+        };
+
+        _db.SyncEvents.Add(syncEvent);
+        _db.SaveChanges();
 
         LogInfo($"Received progress update for user [{_userService.Username}] from device [{payload.device}] with document hash [{payload.document}].");
         return StatusCode(200, new
         {
             document = document.DocumentHash,
-            timestamp = document.Timestamp
+            timestamp = syncEvent.Timestamp
         });
     }
 
@@ -209,13 +234,16 @@ public class SyncController : ControllerBase
             });
         }
 
-        var userCollection = _db.Context.GetCollection<User>("users").Include(i => i.Documents);
+        var user = _db.Users.FirstOrDefault(i => i.Username == _userService.Username)!;
 
-        var user = userCollection.FindOne(i => i.Username == _userService.Username);
+        var document = _db.Documents
+            .Include(d => d.SyncEvents)
+            .ThenInclude(s => s.Device)
+            .SingleOrDefault(d => d.UserId == user.Id && d.DocumentHash == documentHash);
 
-        var document = user.Documents.SingleOrDefault(i => i.DocumentHash == documentHash);
+        var syncEvent = document?.SyncEvents.Current();
 
-        if (document is null)
+        if (syncEvent is null)
         {
             LogInfo($"Document hash [{documentHash}] not found for user [{_userService.Username}].");
             return StatusCode(502, new
@@ -226,15 +254,15 @@ public class SyncController : ControllerBase
 
         LogInfo($"Received progress request for user [{_userService.Username}] with document hash [{documentHash}].");
 
-        var time = new DateTimeOffset(document.Timestamp);
+        var time = new DateTimeOffset(syncEvent.Timestamp);
 
         var result = new
         {
-            device = document.Device,
-            device_id = document.DeviceId,
-            document = document.DocumentHash,
-            percentage = document.Percentage,
-            progress = document.Progress,
+            device = syncEvent.Device.DeviceName,
+            device_id = syncEvent.Device.DeviceId,
+            document = document!.DocumentHash,
+            percentage = syncEvent.Percentage,
+            progress = syncEvent.Progress,
             timestamp = time.ToUnixTimeSeconds()
         };
 

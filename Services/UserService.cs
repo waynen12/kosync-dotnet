@@ -3,7 +3,7 @@ namespace Kosync.Services;
 public class UserService
 {
     private IHttpContextAccessor _contextAccessor;
-    private KosyncDb _db;
+    private KosyncDbContext _db;
 
     private bool userLoadAttempted = false;
 
@@ -49,7 +49,7 @@ public class UserService
     }
 
 
-    public UserService(IHttpContextAccessor contextAccessor, KosyncDb db)
+    public UserService(IHttpContextAccessor contextAccessor, KosyncDbContext db)
     {
         _contextAccessor = contextAccessor;
         _db = db;
@@ -65,9 +65,7 @@ public class UserService
 
         string? passwordHash = _contextAccessor?.HttpContext?.Request.Headers["x-auth-key"];
 
-        var userCollection = _db.Context.GetCollection<User>("users");
-
-        var user = userCollection.FindOne(i => i.Username == _username && i.PasswordHash == passwordHash);
+        var user = _db.Users.FirstOrDefault(i => i.Username == _username && i.PasswordHash == passwordHash);
 
         if (user is null) { return; }
 
