@@ -1,0 +1,75 @@
+@* @page requires a literal - keep this in sync with AppRoutes.Login *@
+@page "/login"
+@attribute [AllowAnonymous]
+@inject KosyncDbContext Db
+@inject NavigationManager Navigation
+@inject IPService IPService
+@inject ILogger<Login> Logger
+
+<PageTitle>Log in</PageTitle>
+
+<h1>Log in</h1>
+
+@if (showError)
+{
+    <p class="error">Invalid username or password.</p>
+}
+
+<EditForm Model="Input" FormName="login" OnSubmit="HandleLogin" method="post">
+    <div>
+        <label>
+            Username
+            <InputText @bind-Value="Input.Username" />
+        </label>
+    </div>
+    <div>
+        <label>
+            Password
+            <InputText type="password" @bind-Value="Input.Password" />
+        </label>
+    </div>
+    <button type="submit">Log in</button>
+</EditForm>
+
+@code {
+    [SupplyParameterFromForm]
+    private LoginModel Input { get; set; } = new();
+
+    private bool showError;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private async Task HandleLogin()
+    {
+        var user = Db.Users.FirstOrDefault(u => u.Username == Input.Username);
+
+        var passwordMatches = user is not null
+            && user.PasswordHash == Utility.HashPassword(Input.Password ?? string.Empty);
+
+        if (user is null || !user.IsAdministrator || !user.IsActive || !passwordMatches)
+        {
+            Logger.LogWarning("[{ip}] Failed dashboard login attempt for [{username}].", IPService.ClientIP, Input.Username);
+            showError = true;
+            return;
+        }
+
+        var identity = new ClaimsIdentity(
+            [new Claim(ClaimTypes.Name, user.Username)],
+            CookieAuthenticationDefaults.AuthenticationScheme);
+
+        await HttpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            new ClaimsPrincipal(identity));
+
+        Logger.LogInformation("[{ip}] User [{username}] logged into dashboard.", IPService.ClientIP, user.Username);
+
+        Navigation.NavigateTo(AppRoutes.Dashboard, forceLoad: true);
+    }
+
+    private class LoginModel
+    {
+        public string Username { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+}

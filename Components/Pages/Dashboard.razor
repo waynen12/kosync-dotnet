@@ -1,0 +1,30 @@
+@* @page requires a literal - keep this in sync with AppRoutes.Dashboard *@
+@page "/dashboard"
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+<PageTitle>Dashboard</PageTitle>
+
+<h1>Dashboard</h1>
+
+<p>Logged in as @Username.</p>
+
+<p>
+    Circuit check: <button @onclick="Increment">Click me</button> clicked @clickCount time(s).
+</p>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private string? Username;
+    private int clickCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateTask!;
+        Username = state.User.Identity?.Name;
+    }
+
+    private void Increment() => clickCount++;
+}

@@ -17,6 +17,20 @@ builder.Services.AddDbContext<KosyncDbContext>(options =>
 
 builder.Services.AddControllers();
 
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
+
+builder.Services.AddCascadingAuthenticationState();
+
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.LoginPath = AppRoutes.Login;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+    });
+
+builder.Services.AddAuthorization();
+
 
 if (Environment.GetEnvironmentVariable("SINGLE_LINE_LOGGING") == "true")
 {
@@ -40,9 +54,17 @@ using (var scope = app.Services.CreateScope())
 
 app.UseForwardedHeaders();
 
+app.UseStaticFiles();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.UseAntiforgery();
+
 app.MapControllers();
 
-
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode();
 
 app.Run();
 
