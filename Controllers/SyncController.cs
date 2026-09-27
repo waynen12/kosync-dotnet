@@ -150,6 +150,7 @@ public class SyncController : ControllerBase
 
         var user = _db.Users
             .Include(i => i.Documents)
+                .ThenInclude(d => d.SyncEvents)
             .Include(i => i.Devices)
             .FirstOrDefault(i => i.Username == _userService.Username)!;
 
@@ -183,6 +184,22 @@ public class SyncController : ControllerBase
 
         var timestamp = DateTime.UtcNow;
 
+        // Regression protection: a SyncEvent only becomes the Document's
+        // current progress if it's at least as far along as the existing
+        // current SyncEvent. Comparison is scoped to this Document alone -
+        // never against other Documents on the same Book (they may be
+        // different editions with incomparable percentages). Every push is
+        // still recorded either way so nothing is silently lost, just not
+        // promoted. The superseded event's IsCurrent is cleared so exactly
+        // one SyncEvent per Document ever holds the current-progress pointer.
+        var existingCurrent = document.SyncEvents.Current();
+        var isCurrent = existingCurrent is null || payload.percentage >= existingCurrent.Percentage;
+
+        if (isCurrent && existingCurrent is not null)
+        {
+            existingCurrent.IsCurrent = false;
+        }
+
         var syncEvent = new SyncEvent()
         {
             Document = document,
@@ -190,7 +207,7 @@ public class SyncController : ControllerBase
             Progress = payload.progress,
             Percentage = payload.percentage,
             Timestamp = timestamp,
-            IsCurrent = true,
+            IsCurrent = isCurrent,
         };
 
         _db.SyncEvents.Add(syncEvent);

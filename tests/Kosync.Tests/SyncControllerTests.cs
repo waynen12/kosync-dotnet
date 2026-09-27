@@ -1,6 +1,9 @@
 using System.Net;
+using Kosync.Database;
 using Kosync.Models;
 using Kosync.Tests.TestSupport;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Kosync.Tests;
 
@@ -179,5 +182,163 @@ public class SyncControllerTests : IntegrationTestBase
         Assert.Equal("Kobo2", body.GetProperty("device").GetString());
         Assert.Equal("device-2", body.GetProperty("device_id").GetString());
         Assert.True(body.GetProperty("timestamp").GetInt64() > 0);
+    }
+
+    [Fact]
+    public async Task SyncProgress_IncreasingPush_BecomesCurrent()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1",
+            progress = "p1",
+            percentage = 0.25m,
+            device = "Kobo",
+            device_id = "device-1"
+        }, "admin", "admin");
+
+        var response = await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1",
+            progress = "p2",
+            percentage = 0.50m,
+            device = "Kobo",
+            device_id = "device-1"
+        }, "admin", "admin");
+        var body = await BodyAsync(response);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("hash1", body.GetProperty("document").GetString());
+        Assert.True(body.TryGetProperty("timestamp", out _));
+
+        var progress = await GetAsync("/syncs/progress/hash1", "admin", "admin");
+        var progressBody = await BodyAsync(progress);
+        Assert.Equal("p2", progressBody.GetProperty("progress").GetString());
+        Assert.Equal(0.50m, progressBody.GetProperty("percentage").GetDecimal());
+    }
+
+    [Fact]
+    public async Task SyncProgress_EqualPush_BecomesCurrent()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1",
+            progress = "p1",
+            percentage = 0.50m,
+            device = "Kobo",
+            device_id = "device-1"
+        }, "admin", "admin");
+
+        var response = await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1",
+            progress = "p2",
+            percentage = 0.50m,
+            device = "Kobo2",
+            device_id = "device-2"
+        }, "admin", "admin");
+        var body = await BodyAsync(response);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("hash1", body.GetProperty("document").GetString());
+        Assert.True(body.TryGetProperty("timestamp", out _));
+
+        var progress = await GetAsync("/syncs/progress/hash1", "admin", "admin");
+        var progressBody = await BodyAsync(progress);
+        Assert.Equal("p2", progressBody.GetProperty("progress").GetString());
+        Assert.Equal("device-2", progressBody.GetProperty("device_id").GetString());
+    }
+
+    [Fact]
+    public async Task SyncProgress_RegressingPush_DoesNotBecomeCurrent_ButResponseIsIdentical()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1",
+            progress = "p1",
+            percentage = 0.75m,
+            device = "Kobo",
+            device_id = "device-1"
+        }, "admin", "admin");
+
+        var response = await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1",
+            progress = "p2",
+            percentage = 0.25m,
+            device = "Kobo2",
+            device_id = "device-2"
+        }, "admin", "admin");
+        var body = await BodyAsync(response);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("hash1", body.GetProperty("document").GetString());
+        Assert.True(body.TryGetProperty("timestamp", out _));
+
+        var progress = await GetAsync("/syncs/progress/hash1", "admin", "admin");
+        var progressBody = await BodyAsync(progress);
+        Assert.Equal("p1", progressBody.GetProperty("progress").GetString());
+        Assert.Equal(0.75m, progressBody.GetProperty("percentage").GetDecimal());
+        Assert.Equal("device-1", progressBody.GetProperty("device_id").GetString());
+    }
+
+    [Fact]
+    public async Task SyncProgress_RegressionProtection_IsScopedToSameDocument()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1",
+            progress = "p1",
+            percentage = 0.90m,
+            device = "Kobo",
+            device_id = "device-1"
+        }, "admin", "admin");
+
+        var response = await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash2",
+            progress = "p1",
+            percentage = 0.10m,
+            device = "Kobo",
+            device_id = "device-1"
+        }, "admin", "admin");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var progress = await GetAsync("/syncs/progress/hash2", "admin", "admin");
+        var progressBody = await BodyAsync(progress);
+        Assert.Equal("p1", progressBody.GetProperty("progress").GetString());
+        Assert.Equal(0.10m, progressBody.GetProperty("percentage").GetDecimal());
+    }
+
+    [Fact]
+    public async Task SyncProgress_PromotingANewPush_SupersedesThePreviousCurrentEvent()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1",
+            progress = "p1",
+            percentage = 0.25m,
+            device = "Kobo",
+            device_id = "device-1"
+        }, "admin", "admin");
+
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1",
+            progress = "p2",
+            percentage = 0.50m,
+            device = "Kobo",
+            device_id = "device-1"
+        }, "admin", "admin");
+
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+        var events = await db.SyncEvents
+            .Where(e => e.Document.DocumentHash == "hash1")
+            .ToListAsync();
+
+        Assert.Equal(2, events.Count);
+        Assert.Single(events, e => e.IsCurrent);
+        Assert.Equal("p2", events.Single(e => e.IsCurrent).Progress);
     }
 }

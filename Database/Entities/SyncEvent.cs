@@ -16,7 +16,9 @@ public class SyncEvent
 
     public DateTime Timestamp { get; set; }
 
-    // Always true for now - no push is ever rejected yet. Regression protection
-    // (issue #3) is what will start setting this false for superseded pushes.
+    // True if this push was at least as far along as the Document's current
+    // progress at the time it was received, and so became the current
+    // progress pointer. False for a blocked regression - still recorded in
+    // history, just never promoted.
     public bool IsCurrent { get; set; }
 }
