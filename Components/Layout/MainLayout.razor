@@ -1,5 +1,16 @@
 @inherits LayoutComponentBase
 
-<main>
+<header class="ks-shell-header">
+    <a class="ks-shell-brand" href="@AppRoutes.Dashboard">Kosync</a>
+    <div class="ks-shell-actions">
+        <AuthorizeView>
+            <Authorized>
+                <span class="ks-shell-user">Logged in as @(context.User.Identity!.Name).</span>
+            </Authorized>
+        </AuthorizeView>
+        <button type="button" class="ks-theme-toggle" data-theme-toggle onclick="window.kosyncTheme.toggle()">🌙 Dark</button>
+    </div>
+</header>
+<main class="ks-shell-main">
     @Body
 </main>

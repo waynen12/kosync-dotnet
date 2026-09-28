@@ -2,29 +2,67 @@
 @page "/dashboard"
 @attribute [Authorize]
 @rendermode InteractiveServer
+@inject DeviceDashboardService DeviceDashboardService
 
 <PageTitle>Dashboard</PageTitle>
 
-<h1>Dashboard</h1>
+<div class="ks-header">
+    <h1 class="ks-title">Kosync Dashboard</h1>
+    <p class="ks-subtitle">Your reading, across every device.</p>
+    <div class="ks-tabs">
+        <button type="button" class="ks-tab @(activeTab == Constants.DevicesTab ? "active" : "")" @onclick="() => activeTab = Constants.DevicesTab">Devices</button>
+        <button type="button" class="ks-tab @(activeTab == Constants.BooksTab ? "active" : "")" @onclick="() => activeTab = Constants.BooksTab">Books</button>
+    </div>
+</div>
 
-<p>Logged in as @Username.</p>
-
-<p>
-    Circuit check: <button @onclick="Increment">Click me</button> clicked @clickCount time(s).
-</p>
+@if (activeTab == Constants.DevicesTab)
+{
+    @if (devices.Count == 0)
+    {
+        <p class="ks-empty">No devices have synced yet.</p>
+    }
+    else
+    {
+        <div class="ks-grid">
+            @foreach (var device in devices)
+            {
+                <a class="ks-card ks-card-clickable" href="@AppRoutes.DeviceDetail(device.Id)">
+                    <div class="ks-card-head">
+                        <span class="ks-card-title">@device.DeviceName</span>
+                        <span class="ks-card-meta">@DashboardFormatting.RelativeTime(device.LastSyncedAt, DateTime.UtcNow)</span>
+                    </div>
+                    <div class="ks-card-sub">@device.Documents.Count document@(device.Documents.Count == 1 ? "" : "s") synced</div>
+                    @if (device.Documents.Count == 0)
+                    {
+                        <div class="ks-empty ks-empty-inline">No books synced yet</div>
+                    }
+                    else
+                    {
+                        @foreach (var doc in device.Documents)
+                        {
+                            <div class="ks-doc-row">
+                                <span class="ks-doc-hash">@doc.DocumentHash</span>
+                                <span class="ks-pbar-track"><span class="ks-pbar-fill" style="width: @DashboardFormatting.Percentage(doc.Percentage)"></span></span>
+                                <span class="ks-doc-pct">@DashboardFormatting.Percentage(doc.Percentage)</span>
+                            </div>
+                        }
+                    }
+                </a>
+            }
+        </div>
+    }
+}
+else
+{
+    <p class="ks-empty">Books view coming soon.</p>
+}
 
 @code {
-    [CascadingParameter]
-    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
-
-    private string? Username;
-    private int clickCount;
+    private string activeTab = Constants.DevicesTab;
+    private List<DeviceSummary> devices = new();
 
     protected override async Task OnInitializedAsync()
     {
-        var state = await AuthenticationStateTask!;
-        Username = state.User.Identity?.Name;
+        devices = await DeviceDashboardService.GetDevicesAsync();
     }
-
-    private void Increment() => clickCount++;
 }

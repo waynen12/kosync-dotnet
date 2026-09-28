@@ -1,0 +1,50 @@
+@* @page requires a literal - keep this in sync with AppRoutes.DeviceDetailTemplate *@
+@page "/dashboard/devices/{Id:int}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject DeviceDashboardService DeviceDashboardService
+
+<PageTitle>@(device?.DeviceName ?? "Device")</PageTitle>
+
+<div class="ks-detail">
+    <a class="ks-back" href="@AppRoutes.Dashboard">&larr; Back</a>
+
+    @if (device is null)
+    {
+        <p class="ks-empty ks-empty-inline">Device not found.</p>
+    }
+    else
+    {
+        <h1 class="ks-detail-title">@device.DeviceName</h1>
+        <p class="ks-detail-sub">Device ID @device.DeviceId &middot; last synced @DashboardFormatting.RelativeTime(device.LastSyncedAt, DateTime.UtcNow)</p>
+
+        <div class="ks-section-title">Documents (@device.Documents.Count)</div>
+
+        @if (device.Documents.Count == 0)
+        {
+            <p class="ks-empty ks-empty-inline">No sync history yet.</p>
+        }
+        else
+        {
+            @foreach (var doc in device.Documents)
+            {
+                <div class="ks-doc-card">
+                    <span class="ks-doc-hash">@doc.DocumentHash</span>
+                    <span class="ks-doc-pct">@DashboardFormatting.Percentage(doc.Percentage)</span>
+                </div>
+            }
+        }
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private DeviceSummary? device;
+
+    protected override async Task OnInitializedAsync()
+    {
+        device = await DeviceDashboardService.GetDeviceAsync(Id);
+    }
+}

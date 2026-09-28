@@ -1,0 +1,286 @@
+:root {
+    color-scheme: light dark;
+
+    --ks-bg: #f4f5f7;
+    --ks-fg: #1b1e24;
+    --ks-muted: #6b7280;
+    --ks-border: #e6e8ec;
+    --ks-card-bg: #ffffff;
+    --ks-accent: #2f6feb;
+    --ks-track: #e6e8ec;
+    --ks-shell-bg: #ffffff;
+}
+
+:root[data-theme="dark"] {
+    --ks-bg: #14161a;
+    --ks-fg: #e6e8eb;
+    --ks-muted: #8a909b;
+    --ks-border: #2a2e37;
+    --ks-card-bg: #1c1f26;
+    --ks-accent: #6fa8ff;
+    --ks-track: #2a2e37;
+    --ks-shell-bg: #1c1f26;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--ks-bg);
+    color: var(--ks-fg);
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+/* Shell chrome - shared across every authenticated page and reused by the
+   Books view (issue #5's "reusable shell"). */
+.ks-shell-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 28px;
+    background: var(--ks-shell-bg);
+    border-bottom: 1px solid var(--ks-border);
+}
+
+.ks-shell-brand {
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.02em;
+}
+
+.ks-shell-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.ks-shell-user {
+    font-size: 13px;
+    color: var(--ks-muted);
+}
+
+.ks-theme-toggle {
+    background: var(--ks-card-bg);
+    border: 1px solid var(--ks-border);
+    color: var(--ks-fg);
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.ks-shell-main {
+    padding-bottom: 80px;
+}
+
+/* Card grid landing screen */
+.ks-header {
+    padding: 28px 36px 0;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.ks-title {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0 0 2px;
+}
+
+.ks-subtitle {
+    color: var(--ks-muted);
+    font-size: 14px;
+    margin: 0 0 20px;
+}
+
+.ks-tabs {
+    display: flex;
+    gap: 6px;
+    border-bottom: 1px solid var(--ks-border);
+    margin-bottom: 24px;
+}
+
+.ks-tab {
+    background: none;
+    border: none;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ks-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+}
+
+.ks-tab.active {
+    color: var(--ks-accent);
+    border-bottom-color: var(--ks-accent);
+}
+
+.ks-grid {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 36px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 18px;
+}
+
+.ks-card {
+    display: block;
+    background: var(--ks-card-bg);
+    border: 1px solid var(--ks-border);
+    border-radius: 14px;
+    padding: 18px 20px;
+}
+
+.ks-card-clickable {
+    cursor: pointer;
+    transition: box-shadow 0.12s, transform 0.12s;
+}
+
+.ks-card-clickable:hover {
+    box-shadow: 0 4px 14px rgba(20, 20, 30, 0.12);
+    transform: translateY(-1px);
+}
+
+.ks-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 2px;
+}
+
+.ks-card-title {
+    font-size: 15.5px;
+    font-weight: 700;
+}
+
+.ks-card-meta {
+    font-size: 12px;
+    color: var(--ks-muted);
+}
+
+.ks-card-sub {
+    font-size: 12.5px;
+    color: var(--ks-muted);
+    margin-bottom: 12px;
+}
+
+.ks-doc-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+    border-top: 1px solid var(--ks-border);
+}
+
+.ks-doc-row:first-of-type {
+    border-top: none;
+}
+
+.ks-doc-hash {
+    flex: 1;
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 12px;
+    color: var(--ks-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ks-doc-pct {
+    font-size: 12px;
+    font-weight: 600;
+    width: 38px;
+    text-align: right;
+}
+
+.ks-empty {
+    color: var(--ks-muted);
+    font-size: 12.5px;
+    font-style: italic;
+    padding: 0 36px;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.ks-empty-inline {
+    padding: 0;
+    max-width: none;
+    margin: 0;
+}
+
+.ks-pbar-track {
+    background: var(--ks-track);
+    border-radius: 999px;
+    height: 6px;
+    width: 70px;
+    display: inline-block;
+    overflow: hidden;
+}
+
+.ks-pbar-fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--ks-accent);
+}
+
+/* Drill-in detail page */
+.ks-detail {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 28px 36px;
+}
+
+.ks-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--ks-accent);
+    font-size: 13.5px;
+    font-weight: 600;
+    margin-bottom: 18px;
+}
+
+.ks-detail-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 2px;
+}
+
+.ks-detail-sub {
+    color: var(--ks-muted);
+    font-size: 14px;
+    margin-bottom: 16px;
+}
+
+.ks-section-title {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ks-muted);
+    margin: 26px 0 10px;
+    font-weight: 700;
+}
+
+.ks-doc-card {
+    background: var(--ks-card-bg);
+    border: 1px solid var(--ks-border);
+    border-radius: 12px;
+    padding: 13px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+}
