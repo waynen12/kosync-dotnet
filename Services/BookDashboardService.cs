@@ -1,8 +1,8 @@
 namespace Kosync.Services;
 
-public record SyncEventSummary(string DeviceName, decimal Percentage, DateTime Timestamp, bool IsCurrent);
+public record SyncEventSummary(string DeviceName, decimal Percentage, DateTime Timestamp, bool IsCurrent, bool IsReset = false);
 
-public record BookDocumentSummary(string DocumentHash, string DeviceName, decimal Percentage, DateTime Timestamp, IReadOnlyList<SyncEventSummary> History);
+public record BookDocumentSummary(int DocumentId, string DocumentHash, string DeviceName, decimal Percentage, DateTime Timestamp, bool HasCurrentProgress, IReadOnlyList<SyncEventSummary> History);
 
 public record BookSummary(int Id, decimal Percentage, DateTime? LastSyncedAt, bool IsSplitBook, IReadOnlyList<BookDocumentSummary> Documents);
 
@@ -11,6 +11,12 @@ public enum MergeBooksResult
     Success,
     SameBook,
     BookNotFound
+}
+
+public enum ResetProgressResult
+{
+    Success,
+    DocumentNotFound
 }
 
 // Backs the Books dashboard view (issue #6): a Book card grid and its
@@ -85,17 +91,47 @@ public class BookDashboardService
         return MergeBooksResult.Success;
     }
 
+    // "Delete progress" dashboard action (issue #9): clears the Document's
+    // current-progress pointer so the reader can deliberately restart a
+    // book, without touching SyncEvent history underneath. Unlike
+    // DELETE /manage/users/documents (unmodified, unrelated), this never
+    // removes SyncEvents - the next push simply has nothing to regress
+    // against and becomes current regardless of percentage.
+    public async Task<ResetProgressResult> ResetProgressAsync(int documentId)
+    {
+        var document = await _db.Documents
+            .Include(d => d.SyncEvents)
+            .FirstOrDefaultAsync(d => d.Id == documentId);
+
+        if (document is null)
+        {
+            return ResetProgressResult.DocumentNotFound;
+        }
+
+        var current = document.SyncEvents.Current();
+        if (current is not null)
+        {
+            current.IsCurrent = false;
+        }
+
+        document.LastResetAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return ResetProgressResult.Success;
+    }
+
     private static BookSummary Summarize(Book book)
     {
         var documents = book.Documents
-            .Select(d => new
-            {
-                d.DocumentHash,
-                History = d.SyncEvents.History().Select(s => new SyncEventSummary(s.Device.DeviceName, s.Percentage, s.Timestamp, s.IsCurrent)).ToList()
-            })
-            .Select(x => new { x.DocumentHash, x.History, Current = x.History.FirstOrDefault(h => h.IsCurrent) })
-            .Where(x => x.Current is not null)
-            .Select(x => new BookDocumentSummary(x.DocumentHash, x.Current!.DeviceName, x.Current.Percentage, x.Current.Timestamp, x.History))
+            .Select(d => new { d.Id, d.DocumentHash, History = BuildHistory(d) })
+            .Where(x => x.History.Count > 0)
+            .Select(x => new { x.Id, x.DocumentHash, x.History, Current = x.History.FirstOrDefault(h => h.IsCurrent) })
+            .Select(x => x.Current is not null
+                ? new BookDocumentSummary(x.Id, x.DocumentHash, x.Current.DeviceName, x.Current.Percentage, x.Current.Timestamp, HasCurrentProgress: true, x.History)
+                // No current push - either freshly reset, or (in principle)
+                // never synced. Stays visible in its Book at 0% (rather than
+                // being hidden entirely) until the next push lands.
+                : new BookDocumentSummary(x.Id, x.DocumentHash, string.Empty, 0m, x.History[0].Timestamp, HasCurrentProgress: false, x.History))
             .OrderByDescending(d => d.Percentage)
             .ToList();
 
@@ -104,5 +140,27 @@ public class BookDashboardService
         var isSplitBook = SplitBookRule.IsSplit(book);
 
         return new BookSummary(book.Id, percentage, lastSyncedAt, isSplitBook, documents);
+    }
+
+    // Merges a Document's push history with its reset marker (issue #9)
+    // into one timeline. The reset marker isn't a SyncEvent - CONTEXT.md
+    // ties SyncEvent to a Device push - but it still needs to appear
+    // alongside them as a distinct, identifiable entry rather than a
+    // separate view.
+    private static List<SyncEventSummary> BuildHistory(Document document)
+    {
+        var pushes = document.SyncEvents.History()
+            .Select(s => new SyncEventSummary(s.Device.DeviceName, s.Percentage, s.Timestamp, s.IsCurrent))
+            .ToList();
+
+        if (document.LastResetAt is not DateTime resetAt)
+        {
+            return pushes;
+        }
+
+        return pushes
+            .Append(new SyncEventSummary(string.Empty, 0m, resetAt, IsCurrent: false, IsReset: true))
+            .OrderByDescending(h => h.Timestamp)
+            .ToList();
     }
 }

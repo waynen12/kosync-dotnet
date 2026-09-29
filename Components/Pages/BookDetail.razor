@@ -46,20 +46,37 @@
             {
                 <div class="ks-doc-card">
                     <span class="ks-doc-hash">@doc.DocumentHash</span>
-                    <span class="ks-card-meta">@doc.DeviceName</span>
+                    @if (doc.HasCurrentProgress)
+                    {
+                        <span class="ks-card-meta">@doc.DeviceName</span>
+                    }
                     <span class="ks-doc-pct">@DashboardFormatting.Percentage(doc.Percentage)</span>
+                    <button type="button" class="ks-reset-button" @onclick="() => ResetProgressAsync(doc.DocumentId)">@Constants.ResetProgressButton</button>
                 </div>
+                @if (resetError is not null && resetErrorDocumentId == doc.DocumentId)
+                {
+                    <p class="ks-flag-regression ks-merge-error">@resetError</p>
+                }
 
                 <div class="ks-history">
                     @foreach (var syncEvent in doc.History)
                     {
                         <div class="ks-history-row">
-                            <span class="ks-doc-pct">@DashboardFormatting.Percentage(syncEvent.Percentage)</span>
-                            <span class="ks-card-meta">@syncEvent.DeviceName</span>
-                            <span class="ks-card-meta">@DashboardFormatting.RelativeTime(syncEvent.Timestamp, DateTime.UtcNow)</span>
-                            @if (!syncEvent.IsCurrent)
+                            @if (syncEvent.IsReset)
                             {
-                                <span class="ks-flag-regression">@Constants.ProgressRegressionFlag</span>
+                                <span class="ks-card-meta">@Constants.ProgressResetLabel</span>
+                                <span class="ks-card-meta">@DashboardFormatting.RelativeTime(syncEvent.Timestamp, DateTime.UtcNow)</span>
+                                <span class="ks-flag-reset">@Constants.ProgressResetFlag</span>
+                            }
+                            else
+                            {
+                                <span class="ks-doc-pct">@DashboardFormatting.Percentage(syncEvent.Percentage)</span>
+                                <span class="ks-card-meta">@syncEvent.DeviceName</span>
+                                <span class="ks-card-meta">@DashboardFormatting.RelativeTime(syncEvent.Timestamp, DateTime.UtcNow)</span>
+                                @if (!syncEvent.IsCurrent)
+                                {
+                                    <span class="ks-flag-regression">@Constants.ProgressRegressionFlag</span>
+                                }
                             }
                         </div>
                     }
@@ -76,9 +93,28 @@
     private BookSummary? book;
     private int? mergeBookIdInput;
     private string? mergeError;
+    private string? resetError;
+    private int? resetErrorDocumentId;
 
     protected override async Task OnInitializedAsync()
     {
+        book = await BookDashboardService.GetBookAsync(Id);
+    }
+
+    private async Task ResetProgressAsync(int documentId)
+    {
+        resetError = null;
+        resetErrorDocumentId = null;
+
+        var result = await BookDashboardService.ResetProgressAsync(documentId);
+
+        if (result == ResetProgressResult.DocumentNotFound)
+        {
+            resetError = Constants.ResetProgressFailedError;
+            resetErrorDocumentId = documentId;
+            return;
+        }
+
         book = await BookDashboardService.GetBookAsync(Id);
     }
 

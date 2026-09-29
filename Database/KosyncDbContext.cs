@@ -23,6 +23,10 @@ public class KosyncDbContext : DbContext
             v => v,
             v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
 
+        var nullableUtcTimestamp = new ValueConverter<DateTime?, DateTime?>(
+            v => v,
+            v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
+
         modelBuilder.Entity<User>()
             .HasIndex(u => u.Username)
             .IsUnique();
@@ -64,5 +68,9 @@ public class KosyncDbContext : DbContext
         modelBuilder.Entity<SyncEvent>()
             .Property(s => s.Timestamp)
             .HasConversion(utcTimestamp);
+
+        modelBuilder.Entity<Document>()
+            .Property(d => d.LastResetAt)
+            .HasConversion(nullableUtcTimestamp);
     }
 }

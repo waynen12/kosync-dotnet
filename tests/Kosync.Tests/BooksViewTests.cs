@@ -1,6 +1,7 @@
 using System.Net;
 using Kosync.Database;
 using Kosync.Models;
+using Kosync.Services;
 using Kosync.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -233,6 +234,50 @@ public class BooksViewTests : IntegrationTestBase
 
         Assert.Contains("Merge another Book into this one", html);
         Assert.Contains("ks-merge-form", html);
+    }
+
+    [Fact]
+    public async Task BookDetail_ShowsAResetProgressButtonPerDocument()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.42m, device = "Kobo Nova", device_id = "device-1"
+        }, "admin", "admin");
+
+        var bookId = await GetBookIdAsync("hash1");
+
+        using var client = Factory.NoRedirectClient();
+        await DashboardLogin.LogInAsync(client, "admin", "admin");
+
+        var html = await (await client.GetAsync(AppRoutes.BookDetail(bookId))).Content.ReadAsStringAsync();
+
+        Assert.Contains(Constants.ResetProgressButton, html);
+    }
+
+    [Fact]
+    public async Task BookDetail_AfterReset_ShowsTheResetFlaggedInHistory()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.80m, device = "Kobo Nova", device_id = "device-1"
+        }, "admin", "admin");
+
+        var bookId = await GetBookIdAsync("hash1");
+
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+            var document = await db.Documents.SingleAsync(d => d.DocumentHash == "hash1");
+            var service = new BookDashboardService(db);
+            await service.ResetProgressAsync(document.Id);
+        }
+
+        using var client = Factory.NoRedirectClient();
+        await DashboardLogin.LogInAsync(client, "admin", "admin");
+
+        var html = await (await client.GetAsync(AppRoutes.BookDetail(bookId))).Content.ReadAsStringAsync();
+
+        Assert.Contains(Constants.ProgressResetFlag, html);
     }
 
     [Fact]

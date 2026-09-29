@@ -258,6 +258,103 @@ public class BookDashboardServiceTests : IntegrationTestBase
         Assert.Equal(MergeBooksResult.BookNotFound, result);
     }
 
+    [Fact]
+    public async Task ResetProgressAsync_ClearsTheCurrentProgressPointer()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.80m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        var bookId = await GetBookIdAsync("hash1");
+        var documentId = await GetDocumentIdAsync("hash1");
+
+        var result = await ResetProgressAsync(documentId);
+        Assert.Equal(ResetProgressResult.Success, result);
+
+        var book = await GetBookAsync(bookId);
+        Assert.NotNull(book);
+        var doc = Assert.Single(book!.Documents);
+
+        Assert.DoesNotContain(doc.History, h => h.IsCurrent);
+        Assert.Equal(0m, doc.Percentage);
+    }
+
+    [Fact]
+    public async Task ResetProgressAsync_LeavesSyncEventHistoryIntact()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.80m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        var bookId = await GetBookIdAsync("hash1");
+        var documentId = await GetDocumentIdAsync("hash1");
+
+        await ResetProgressAsync(documentId);
+
+        var book = await GetBookAsync(bookId);
+        var doc = Assert.Single(book!.Documents);
+
+        Assert.Contains(doc.History, h => !h.IsReset && h.Percentage == 0.80m);
+    }
+
+    [Fact]
+    public async Task ResetProgressAsync_AddsADistinctResetEntryToHistory()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.80m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        var bookId = await GetBookIdAsync("hash1");
+        var documentId = await GetDocumentIdAsync("hash1");
+
+        await ResetProgressAsync(documentId);
+
+        var book = await GetBookAsync(bookId);
+        var doc = Assert.Single(book!.Documents);
+
+        Assert.Single(doc.History, h => h.IsReset);
+    }
+
+    [Fact]
+    public async Task ResetProgressAsync_NextPushBecomesCurrentRegardlessOfPercentage()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.80m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        var bookId = await GetBookIdAsync("hash1");
+        var documentId = await GetDocumentIdAsync("hash1");
+
+        await ResetProgressAsync(documentId);
+
+        // Lower than the pre-reset progress - would have been blocked as a
+        // regression before the reset, but there's nothing to regress
+        // against now.
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p0", percentage = 0.05m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        var book = await GetBookAsync(bookId);
+        var doc = Assert.Single(book!.Documents);
+
+        Assert.Equal(0.05m, doc.Percentage);
+        var current = Assert.Single(doc.History, h => h.IsCurrent);
+        Assert.Equal(0.05m, current.Percentage);
+    }
+
+    [Fact]
+    public async Task ResetProgressAsync_UnknownDocumentId_ReturnsDocumentNotFound()
+    {
+        var result = await ResetProgressAsync(999);
+
+        Assert.Equal(ResetProgressResult.DocumentNotFound, result);
+    }
+
     // Gets hash1 and hash2 each their own Document, then merges them into a
     // single Book via the shared IntegrationTestBase helper.
     private async Task<int> CreateMergedBookAsync()
@@ -305,5 +402,21 @@ public class BookDashboardServiceTests : IntegrationTestBase
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var service = new BookDashboardService(db);
         return await service.MergeBooksAsync(keepBookId, mergeBookId);
+    }
+
+    private async Task<int> GetDocumentIdAsync(string documentHash)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+        var document = await db.Documents.SingleAsync(d => d.DocumentHash == documentHash);
+        return document.Id;
+    }
+
+    private async Task<ResetProgressResult> ResetProgressAsync(int documentId)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+        var service = new BookDashboardService(db);
+        return await service.ResetProgressAsync(documentId);
     }
 }

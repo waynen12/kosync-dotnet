@@ -352,6 +352,29 @@ a {
     font-weight: 700;
 }
 
+/* "Delete progress" dashboard action (issue #9) - a deliberate restart,
+   flagged neutrally (not danger/warning like a detected issue) since the
+   reader chose this. */
+.ks-flag-reset {
+    color: var(--ks-muted);
+    background: var(--ks-track);
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.ks-reset-button {
+    padding: 5px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--ks-border);
+    background: transparent;
+    color: var(--ks-muted);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
 /* A Book (or one of its Documents, on a Device) whose Documents disagree on
    current progress (CONTEXT.md "Split Book", issue #8) - the signal that a
    manual merge may be needed. Shown inline, not in a separate inbox. */
