@@ -9,6 +9,7 @@ builder.Services.AddSingleton<ProxyService, ProxyService>();
 builder.Services.AddScoped<IPService, IPService>();
 builder.Services.AddScoped<UserService, UserService>();
 builder.Services.AddScoped<DeviceDashboardService, DeviceDashboardService>();
+builder.Services.AddScoped<BookDashboardService, BookDashboardService>();
 
 var dataDirectory = Path.Combine(builder.Environment.ContentRootPath, "data");
 

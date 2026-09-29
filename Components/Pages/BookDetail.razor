@@ -1,0 +1,51 @@
+@* @page requires a literal - keep this in sync with AppRoutes.BookDetailTemplate *@
+@page "/dashboard/books/{Id:int}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject BookDashboardService BookDashboardService
+
+<PageTitle>@(book is null ? "Book" : $"Book #{book.Id}")</PageTitle>
+
+<div class="ks-detail">
+    <a class="ks-back" href="@AppRoutes.DashboardBooksTab">&larr; Back</a>
+
+    @if (book is null)
+    {
+        <p class="ks-empty ks-empty-inline">Book not found.</p>
+    }
+    else
+    {
+        <h1 class="ks-detail-title">Book #@book.Id</h1>
+        <p class="ks-detail-sub">@DashboardFormatting.Percentage(book.Percentage) progress &middot; last synced @DashboardFormatting.RelativeTime(book.LastSyncedAt, DateTime.UtcNow)</p>
+
+        <div class="ks-section-title">Documents (@book.Documents.Count)</div>
+
+        @if (book.Documents.Count == 0)
+        {
+            <p class="ks-empty ks-empty-inline">No sync history yet.</p>
+        }
+        else
+        {
+            @foreach (var doc in book.Documents)
+            {
+                <div class="ks-doc-card">
+                    <span class="ks-doc-hash">@doc.DocumentHash</span>
+                    <span class="ks-card-meta">@doc.DeviceName</span>
+                    <span class="ks-doc-pct">@DashboardFormatting.Percentage(doc.Percentage)</span>
+                </div>
+            }
+        }
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private BookSummary? book;
+
+    protected override async Task OnInitializedAsync()
+    {
+        book = await BookDashboardService.GetBookAsync(Id);
+    }
+}

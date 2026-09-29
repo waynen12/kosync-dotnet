@@ -3,6 +3,7 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject DeviceDashboardService DeviceDashboardService
+@inject BookDashboardService BookDashboardService
 
 <PageTitle>Dashboard</PageTitle>
 
@@ -54,15 +55,58 @@
 }
 else
 {
-    <p class="ks-empty">Books view coming soon.</p>
+    @if (books.Count == 0)
+    {
+        <p class="ks-empty">No books have synced yet.</p>
+    }
+    else
+    {
+        <div class="ks-grid">
+            @foreach (var book in books)
+            {
+                <a class="ks-card ks-card-clickable" href="@AppRoutes.BookDetail(book.Id)">
+                    <div class="ks-card-head">
+                        <span class="ks-card-title">Book #@book.Id</span>
+                        <span class="ks-card-meta">@DashboardFormatting.RelativeTime(book.LastSyncedAt, DateTime.UtcNow)</span>
+                    </div>
+                    <div class="ks-card-sub">@book.Documents.Count document@(book.Documents.Count == 1 ? "" : "s") &middot; @DashboardFormatting.Percentage(book.Percentage) progress</div>
+                    @if (book.Documents.Count == 0)
+                    {
+                        <div class="ks-empty ks-empty-inline">No progress yet</div>
+                    }
+                    else
+                    {
+                        @foreach (var doc in book.Documents)
+                        {
+                            <div class="ks-doc-row">
+                                <span class="ks-doc-hash">@doc.DocumentHash</span>
+                                <span class="ks-pbar-track"><span class="ks-pbar-fill" style="width: @DashboardFormatting.Percentage(doc.Percentage)"></span></span>
+                                <span class="ks-doc-pct">@DashboardFormatting.Percentage(doc.Percentage)</span>
+                            </div>
+                        }
+                    }
+                </a>
+            }
+        </div>
+    }
 }
 
 @code {
+    // Deep-links the Books tab (e.g. AppRoutes.DashboardBooksTab) into its
+    // initial server-rendered HTML instead of only reachable by clicking the
+    // tab client-side - lets both users and tests land on it directly.
+    [SupplyParameterFromQuery(Name = "tab")]
+    [Parameter]
+    public string? Tab { get; set; }
+
     private string activeTab = Constants.DevicesTab;
     private List<DeviceSummary> devices = new();
+    private List<BookSummary> books = new();
 
     protected override async Task OnInitializedAsync()
     {
+        activeTab = Tab == Constants.BooksTab ? Constants.BooksTab : Constants.DevicesTab;
         devices = await DeviceDashboardService.GetDevicesAsync();
+        books = await BookDashboardService.GetBooksAsync();
     }
 }

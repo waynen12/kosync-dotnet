@@ -1,5 +1,8 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using Kosync.Database;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Kosync.Tests.TestSupport;
 
@@ -71,6 +74,28 @@ public abstract class IntegrationTestBase : IDisposable
     {
         var text = await response.Content.ReadAsStringAsync();
         return JsonSerializer.Deserialize<JsonElement>(text);
+    }
+
+    // Simulates the manual Split Book merge action (docs/ROADMAP.md): two
+    // Documents that already exist (each auto-created its own 1:1 Book on
+    // first sync) are repointed onto a single Book, and the now-orphaned
+    // Book is removed. Returns the surviving Book's id.
+    protected async Task<int> MergeIntoOneBookAsync(string keepDocumentHash, string mergeDocumentHash)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+
+        var keep = await db.Documents.SingleAsync(d => d.DocumentHash == keepDocumentHash);
+        var merge = await db.Documents.SingleAsync(d => d.DocumentHash == mergeDocumentHash);
+        var staleBookId = merge.BookId;
+
+        merge.BookId = keep.BookId;
+        await db.SaveChangesAsync();
+
+        db.Books.Remove(await db.Books.SingleAsync(b => b.Id == staleBookId));
+        await db.SaveChangesAsync();
+
+        return keep.BookId;
     }
 
     public void Dispose()

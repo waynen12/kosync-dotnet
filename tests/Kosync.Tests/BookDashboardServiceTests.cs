@@ -1,0 +1,125 @@
+using Kosync.Database;
+using Kosync.Models;
+using Kosync.Services;
+using Kosync.Tests.TestSupport;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Kosync.Tests;
+
+// Unit-level coverage for the aggregation logic behind the Books view
+// (issue #6): a Book's displayed progress is the furthest-along current
+// progress across its Documents, not whichever synced most recently.
+public class BookDashboardServiceTests : IntegrationTestBase
+{
+    [Fact]
+    public async Task GetBooksAsync_SingleDocumentBook_ProgressIsItsCurrentPercentage()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.42m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        var books = await GetBooksAsync();
+
+        var book = Assert.Single(books);
+        Assert.Equal(0.42m, book.Percentage);
+    }
+
+    [Fact]
+    public async Task GetBooksAsync_MergedBook_ProgressIsMaxAcrossDocumentsNotMostRecentlySynced()
+    {
+        var bookId = await CreateMergedBookAsync();
+
+        // hash1 is further along but synced first; hash2 synced more
+        // recently but is behind. The furthest-along Document must win.
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.80m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash2", progress = "p1", percentage = 0.20m, device = "Phone", device_id = "device-2"
+        }, "admin", "admin");
+
+        var book = await GetBookAsync(bookId);
+
+        Assert.NotNull(book);
+        Assert.Equal(0.80m, book!.Percentage);
+    }
+
+    [Fact]
+    public async Task GetBookAsync_ListsEveryDocumentWithItsOwnDeviceAndProgress()
+    {
+        var bookId = await CreateMergedBookAsync();
+
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.80m, device = "Kobo Nova", device_id = "device-1"
+        }, "admin", "admin");
+
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash2", progress = "p1", percentage = 0.20m, device = "Pixel Phone", device_id = "device-2"
+        }, "admin", "admin");
+
+        var book = await GetBookAsync(bookId);
+
+        Assert.NotNull(book);
+        Assert.Equal(2, book!.Documents.Count);
+
+        var doc1 = Assert.Single(book.Documents, d => d.DocumentHash == "hash1");
+        Assert.Equal("Kobo Nova", doc1.DeviceName);
+        Assert.Equal(0.80m, doc1.Percentage);
+
+        var doc2 = Assert.Single(book.Documents, d => d.DocumentHash == "hash2");
+        Assert.Equal("Pixel Phone", doc2.DeviceName);
+        Assert.Equal(0.20m, doc2.Percentage);
+    }
+
+    [Fact]
+    public async Task GetBookAsync_UnknownId_ReturnsNull()
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+        var service = new BookDashboardService(db);
+
+        var book = await service.GetBookAsync(999);
+
+        Assert.Null(book);
+    }
+
+    // Gets hash1 and hash2 each their own Document, then merges them into a
+    // single Book via the shared IntegrationTestBase helper.
+    private async Task<int> CreateMergedBookAsync()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p0", percentage = 0.01m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash2", progress = "p0", percentage = 0.01m, device = "Phone", device_id = "device-2"
+        }, "admin", "admin");
+
+        return await MergeIntoOneBookAsync("hash1", "hash2");
+    }
+
+    private async Task<List<BookSummary>> GetBooksAsync()
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+        var service = new BookDashboardService(db);
+        return await service.GetBooksAsync();
+    }
+
+    private async Task<BookSummary?> GetBookAsync(int id)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+        var service = new BookDashboardService(db);
+        return await service.GetBookAsync(id);
+    }
+}
