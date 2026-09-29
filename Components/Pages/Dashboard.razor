@@ -45,6 +45,10 @@
                                 <span class="ks-doc-hash">@doc.DocumentHash</span>
                                 <span class="ks-pbar-track"><span class="ks-pbar-fill" style="width: @DashboardFormatting.Percentage(doc.Percentage)"></span></span>
                                 <span class="ks-doc-pct">@DashboardFormatting.Percentage(doc.Percentage)</span>
+                                @if (doc.IsSplitBook)
+                                {
+                                    <span class="ks-flag-split">@Constants.SplitBookFlag</span>
+                                }
                             </div>
                         }
                     }
@@ -67,6 +71,10 @@ else
                 <a class="ks-card ks-card-clickable" href="@AppRoutes.BookDetail(book.Id)">
                     <div class="ks-card-head">
                         <span class="ks-card-title">Book #@book.Id</span>
+                        @if (book.IsSplitBook)
+                        {
+                            <span class="ks-flag-split">@Constants.SplitBookFlag</span>
+                        }
                         <span class="ks-card-meta">@DashboardFormatting.RelativeTime(book.LastSyncedAt, DateTime.UtcNow)</span>
                     </div>
                     <div class="ks-card-sub">@book.Documents.Count document@(book.Documents.Count == 1 ? "" : "s") &middot; @DashboardFormatting.Percentage(book.Percentage) progress</div>

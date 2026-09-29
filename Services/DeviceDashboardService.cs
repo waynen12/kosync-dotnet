@@ -1,6 +1,6 @@
 namespace Kosync.Services;
 
-public record DeviceDocumentSummary(string DocumentHash, decimal Percentage, DateTime Timestamp);
+public record DeviceDocumentSummary(string DocumentHash, decimal Percentage, DateTime Timestamp, bool IsSplitBook);
 
 public record DeviceSummary(int Id, string DeviceName, string DeviceId, DateTime? LastSyncedAt, IReadOnlyList<DeviceDocumentSummary> Documents);
 
@@ -23,6 +23,9 @@ public class DeviceDashboardService
         var devices = await _db.Devices
             .Include(d => d.SyncEvents)
                 .ThenInclude(s => s.Document)
+                    .ThenInclude(doc => doc.Book)
+                        .ThenInclude(b => b.Documents)
+                            .ThenInclude(bd => bd.SyncEvents)
             .ToListAsync();
 
         return devices
@@ -36,6 +39,9 @@ public class DeviceDashboardService
         var device = await _db.Devices
             .Include(d => d.SyncEvents)
                 .ThenInclude(s => s.Document)
+                    .ThenInclude(doc => doc.Book)
+                        .ThenInclude(b => b.Documents)
+                            .ThenInclude(bd => bd.SyncEvents)
             .FirstOrDefaultAsync(d => d.Id == id);
 
         return device is null ? null : Summarize(device);
@@ -47,7 +53,7 @@ public class DeviceDashboardService
             .GroupBy(s => s.DocumentId)
             .Select(g => g.OrderByDescending(s => s.Timestamp).ThenByDescending(s => s.Id).First())
             .OrderByDescending(s => s.Timestamp)
-            .Select(s => new DeviceDocumentSummary(s.Document.DocumentHash, s.Percentage, s.Timestamp))
+            .Select(s => new DeviceDocumentSummary(s.Document.DocumentHash, s.Percentage, s.Timestamp, SplitBookRule.IsSplit(s.Document.Book)))
             .ToList();
 
         var lastSyncedAt = device.SyncEvents.Count == 0

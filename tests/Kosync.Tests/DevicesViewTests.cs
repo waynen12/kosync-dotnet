@@ -104,6 +104,31 @@ public class DevicesViewTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task DeviceDetail_FlagsADocumentBelongingToASplitBookInline()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.10m, device = "Kobo Nova", device_id = "device-1"
+        }, "admin", "admin");
+
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash2", progress = "p1", percentage = 0.20m, device = "Phone", device_id = "device-2"
+        }, "admin", "admin");
+
+        await MergeIntoOneBookAsync("hash1", "hash2");
+
+        var deviceId = await GetDeviceIdAsync("device-1");
+
+        using var client = Factory.NoRedirectClient();
+        await DashboardLogin.LogInAsync(client, "admin", "admin");
+
+        var html = await (await client.GetAsync(AppRoutes.DeviceDetail(deviceId))).Content.ReadAsStringAsync();
+
+        Assert.Contains(Constants.SplitBookFlag, html);
+    }
+
+    [Fact]
     public async Task DeviceDetail_UnknownDevice_ShowsNotFoundMessage()
     {
         using var client = Factory.NoRedirectClient();

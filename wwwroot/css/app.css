@@ -11,6 +11,8 @@
     --ks-shell-bg: #ffffff;
     --ks-danger: #b3261e;
     --ks-danger-bg: #fbeaea;
+    --ks-warning: #8a5a00;
+    --ks-warning-bg: #fdf0d5;
 }
 
 :root[data-theme="dark"] {
@@ -24,6 +26,8 @@
     --ks-shell-bg: #1c1f26;
     --ks-danger: #f2938c;
     --ks-danger-bg: #3a2224;
+    --ks-warning: #e8b84b;
+    --ks-warning-bg: #3a2e14;
 }
 
 * {
@@ -277,6 +281,40 @@ a {
     font-weight: 700;
 }
 
+/* Manual Book merge action (issue #8) - discovery of merge candidates is
+   fully manual, so this is just a plain "merge into Book #" form. */
+.ks-merge-form {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.ks-merge-input {
+    width: 100px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--ks-border);
+    background: var(--ks-card-bg);
+    color: var(--ks-fg);
+    font-size: 14px;
+}
+
+.ks-merge-button {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: none;
+    background: var(--ks-accent);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.ks-merge-error {
+    display: inline-block;
+    margin: 0 0 16px;
+}
+
 .ks-doc-card {
     background: var(--ks-card-bg);
     border: 1px solid var(--ks-border);
@@ -308,6 +346,18 @@ a {
 .ks-flag-regression {
     color: var(--ks-danger);
     background: var(--ks-danger-bg);
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+/* A Book (or one of its Documents, on a Device) whose Documents disagree on
+   current progress (CONTEXT.md "Split Book", issue #8) - the signal that a
+   manual merge may be needed. Shown inline, not in a separate inbox. */
+.ks-flag-split {
+    color: var(--ks-warning);
+    background: var(--ks-warning-bg);
     border-radius: 999px;
     padding: 2px 9px;
     font-size: 11px;

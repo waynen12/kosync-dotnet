@@ -31,6 +31,10 @@
                 <div class="ks-doc-card">
                     <span class="ks-doc-hash">@doc.DocumentHash</span>
                     <span class="ks-doc-pct">@DashboardFormatting.Percentage(doc.Percentage)</span>
+                    @if (doc.IsSplitBook)
+                    {
+                        <span class="ks-flag-split">@Constants.SplitBookFlag</span>
+                    }
                 </div>
             }
         }

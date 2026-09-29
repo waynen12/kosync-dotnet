@@ -155,6 +155,87 @@ public class BooksViewTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Dashboard_BooksTab_FlagsASplitBookInline()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.10m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash2", progress = "p1", percentage = 0.20m, device = "Phone", device_id = "device-2"
+        }, "admin", "admin");
+
+        await MergeIntoOneBookAsync("hash1", "hash2");
+
+        using var client = Factory.NoRedirectClient();
+        await DashboardLogin.LogInAsync(client, "admin", "admin");
+
+        var html = await (await client.GetAsync(AppRoutes.DashboardBooksTab)).Content.ReadAsStringAsync();
+
+        Assert.Contains(Constants.SplitBookFlag, html);
+    }
+
+    [Fact]
+    public async Task Dashboard_BooksTab_DoesNotFlagASingleDocumentBookAsSplit()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.10m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        using var client = Factory.NoRedirectClient();
+        await DashboardLogin.LogInAsync(client, "admin", "admin");
+
+        var html = await (await client.GetAsync(AppRoutes.DashboardBooksTab)).Content.ReadAsStringAsync();
+
+        Assert.DoesNotContain(Constants.SplitBookFlag, html);
+    }
+
+    [Fact]
+    public async Task BookDetail_FlagsASplitBookInline()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.10m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash2", progress = "p1", percentage = 0.20m, device = "Phone", device_id = "device-2"
+        }, "admin", "admin");
+
+        var bookId = await MergeIntoOneBookAsync("hash1", "hash2");
+
+        using var client = Factory.NoRedirectClient();
+        await DashboardLogin.LogInAsync(client, "admin", "admin");
+
+        var html = await (await client.GetAsync(AppRoutes.BookDetail(bookId))).Content.ReadAsStringAsync();
+
+        Assert.Contains(Constants.SplitBookFlag, html);
+    }
+
+    [Fact]
+    public async Task BookDetail_ShowsAMergeForm()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.42m, device = "Kobo Nova", device_id = "device-1"
+        }, "admin", "admin");
+
+        var bookId = await GetBookIdAsync("hash1");
+
+        using var client = Factory.NoRedirectClient();
+        await DashboardLogin.LogInAsync(client, "admin", "admin");
+
+        var html = await (await client.GetAsync(AppRoutes.BookDetail(bookId))).Content.ReadAsStringAsync();
+
+        Assert.Contains("Merge another Book into this one", html);
+        Assert.Contains("ks-merge-form", html);
+    }
+
+    [Fact]
     public async Task BookDetail_BackLinkReturnsToTheBooksTabNotDevices()
     {
         await PutAsync("/syncs/progress", new DocumentRequest

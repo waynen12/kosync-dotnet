@@ -119,6 +119,145 @@ public class BookDashboardServiceTests : IntegrationTestBase
         Assert.Null(book);
     }
 
+    [Fact]
+    public async Task GetBooksAsync_MergedBookWithDisagreeingProgress_IsFlaggedAsSplitBook()
+    {
+        var bookId = await CreateMergedBookAsync();
+
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.80m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash2", progress = "p1", percentage = 0.20m, device = "Phone", device_id = "device-2"
+        }, "admin", "admin");
+
+        var book = await GetBookAsync(bookId);
+
+        Assert.NotNull(book);
+        Assert.True(book!.IsSplitBook);
+    }
+
+    [Fact]
+    public async Task GetBooksAsync_MergedBookWithAgreeingProgress_IsNotFlaggedAsSplitBook()
+    {
+        var bookId = await CreateMergedBookAsync();
+
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.50m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash2", progress = "p1", percentage = 0.50m, device = "Phone", device_id = "device-2"
+        }, "admin", "admin");
+
+        var book = await GetBookAsync(bookId);
+
+        Assert.NotNull(book);
+        Assert.False(book!.IsSplitBook);
+    }
+
+    [Fact]
+    public async Task GetBooksAsync_SingleDocumentBook_IsNeverFlaggedAsSplitBook()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.42m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        var books = await GetBooksAsync();
+
+        var book = Assert.Single(books);
+        Assert.False(book.IsSplitBook);
+    }
+
+    [Fact]
+    public async Task MergeBooksAsync_UnionsDocumentsOntoTheSurvivingBook()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p0", percentage = 0.10m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash2", progress = "p0", percentage = 0.20m, device = "Phone", device_id = "device-2"
+        }, "admin", "admin");
+
+        var keepBookId = await GetBookIdAsync("hash1");
+        var mergeBookId = await GetBookIdAsync("hash2");
+
+        var result = await MergeBooksAsync(keepBookId, mergeBookId);
+
+        Assert.Equal(MergeBooksResult.Success, result);
+
+        var book = await GetBookAsync(keepBookId);
+        Assert.NotNull(book);
+        Assert.Equal(2, book!.Documents.Count);
+        Assert.Contains(book.Documents, d => d.DocumentHash == "hash1");
+        Assert.Contains(book.Documents, d => d.DocumentHash == "hash2");
+    }
+
+    [Fact]
+    public async Task MergeBooksAsync_RemovesTheMergedAwayBook()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p0", percentage = 0.10m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash2", progress = "p0", percentage = 0.20m, device = "Phone", device_id = "device-2"
+        }, "admin", "admin");
+
+        var keepBookId = await GetBookIdAsync("hash1");
+        var mergeBookId = await GetBookIdAsync("hash2");
+
+        await MergeBooksAsync(keepBookId, mergeBookId);
+
+        var mergedAwayBook = await GetBookAsync(mergeBookId);
+        Assert.Null(mergedAwayBook);
+    }
+
+    [Fact]
+    public async Task MergeBooksAsync_SameBookId_ReturnsSameBookWithoutChanges()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p0", percentage = 0.10m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        var bookId = await GetBookIdAsync("hash1");
+
+        var result = await MergeBooksAsync(bookId, bookId);
+
+        Assert.Equal(MergeBooksResult.SameBook, result);
+
+        var book = await GetBookAsync(bookId);
+        Assert.NotNull(book);
+        Assert.Single(book!.Documents);
+    }
+
+    [Fact]
+    public async Task MergeBooksAsync_UnknownMergeBookId_ReturnsBookNotFound()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p0", percentage = 0.10m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        var bookId = await GetBookIdAsync("hash1");
+
+        var result = await MergeBooksAsync(bookId, 999);
+
+        Assert.Equal(MergeBooksResult.BookNotFound, result);
+    }
+
     // Gets hash1 and hash2 each their own Document, then merges them into a
     // single Book via the shared IntegrationTestBase helper.
     private async Task<int> CreateMergedBookAsync()
@@ -158,5 +297,13 @@ public class BookDashboardServiceTests : IntegrationTestBase
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var document = await db.Documents.SingleAsync(d => d.DocumentHash == documentHash);
         return document.BookId;
+    }
+
+    private async Task<MergeBooksResult> MergeBooksAsync(int keepBookId, int mergeBookId)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+        var service = new BookDashboardService(db);
+        return await service.MergeBooksAsync(keepBookId, mergeBookId);
     }
 }

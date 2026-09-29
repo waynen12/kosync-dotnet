@@ -15,8 +15,24 @@
     }
     else
     {
-        <h1 class="ks-detail-title">Book #@book.Id</h1>
+        <h1 class="ks-detail-title">
+            Book #@book.Id
+            @if (book.IsSplitBook)
+            {
+                <span class="ks-flag-split">@Constants.SplitBookFlag</span>
+            }
+        </h1>
         <p class="ks-detail-sub">@DashboardFormatting.Percentage(book.Percentage) progress &middot; last synced @DashboardFormatting.RelativeTime(book.LastSyncedAt, DateTime.UtcNow)</p>
+
+        <div class="ks-section-title">Merge another Book into this one</div>
+        <form class="ks-merge-form" @onsubmit="MergeAsync" @onsubmit:preventDefault="true">
+            <input type="number" min="1" class="ks-merge-input" placeholder="Book #" @bind="mergeBookIdInput" />
+            <button type="submit" class="ks-merge-button">Merge</button>
+        </form>
+        @if (mergeError is not null)
+        {
+            <p class="ks-flag-regression ks-merge-error">@mergeError</p>
+        }
 
         <div class="ks-section-title">Documents (@book.Documents.Count)</div>
 
@@ -58,9 +74,38 @@
     public int Id { get; set; }
 
     private BookSummary? book;
+    private int? mergeBookIdInput;
+    private string? mergeError;
 
     protected override async Task OnInitializedAsync()
     {
         book = await BookDashboardService.GetBookAsync(Id);
+    }
+
+    private async Task MergeAsync()
+    {
+        mergeError = null;
+
+        if (mergeBookIdInput is not int mergeBookId)
+        {
+            mergeError = Constants.MergeBookIdRequiredError;
+            return;
+        }
+
+        var result = await BookDashboardService.MergeBooksAsync(Id, mergeBookId);
+
+        mergeError = result switch
+        {
+            MergeBooksResult.Success => null,
+            MergeBooksResult.SameBook => Constants.MergeSameBookError,
+            MergeBooksResult.BookNotFound => string.Format(Constants.MergeBookNotFoundErrorFormat, mergeBookId),
+            _ => Constants.MergeFailedError
+        };
+
+        if (result == MergeBooksResult.Success)
+        {
+            mergeBookIdInput = null;
+            book = await BookDashboardService.GetBookAsync(Id);
+        }
     }
 }

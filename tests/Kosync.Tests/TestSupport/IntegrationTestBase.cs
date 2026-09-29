@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Kosync.Database;
+using Kosync.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -76,10 +77,11 @@ public abstract class IntegrationTestBase : IDisposable
         return JsonSerializer.Deserialize<JsonElement>(text);
     }
 
-    // Simulates the manual Split Book merge action (docs/ROADMAP.md): two
-    // Documents that already exist (each auto-created its own 1:1 Book on
-    // first sync) are repointed onto a single Book, and the now-orphaned
-    // Book is removed. Returns the surviving Book's id.
+    // Drives the manual Split Book merge action (issue #8) for tests that
+    // just need two Documents already merged into one Book: each
+    // auto-created its own 1:1 Book on first sync, this repoints both onto
+    // a single Book via the real BookDashboardService. Returns the
+    // surviving Book's id.
     protected async Task<int> MergeIntoOneBookAsync(string keepDocumentHash, string mergeDocumentHash)
     {
         using var scope = Factory.Services.CreateScope();
@@ -87,13 +89,9 @@ public abstract class IntegrationTestBase : IDisposable
 
         var keep = await db.Documents.SingleAsync(d => d.DocumentHash == keepDocumentHash);
         var merge = await db.Documents.SingleAsync(d => d.DocumentHash == mergeDocumentHash);
-        var staleBookId = merge.BookId;
 
-        merge.BookId = keep.BookId;
-        await db.SaveChangesAsync();
-
-        db.Books.Remove(await db.Books.SingleAsync(b => b.Id == staleBookId));
-        await db.SaveChangesAsync();
+        var service = new BookDashboardService(db);
+        await service.MergeBooksAsync(keep.BookId, merge.BookId);
 
         return keep.BookId;
     }
