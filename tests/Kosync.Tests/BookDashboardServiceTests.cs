@@ -79,6 +79,35 @@ public class BookDashboardServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task GetBookAsync_DocumentHistory_IncludesEveryPushWithCurrentFlag()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.50m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        // A regression - lower than the existing current push, so it's
+        // recorded but never promoted.
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p0", percentage = 0.30m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        var bookId = await GetBookIdAsync("hash1");
+        var book = await GetBookAsync(bookId);
+
+        Assert.NotNull(book);
+        var doc = Assert.Single(book!.Documents);
+        Assert.Equal(2, doc.History.Count);
+
+        var current = Assert.Single(doc.History, h => h.IsCurrent);
+        Assert.Equal(0.50m, current.Percentage);
+
+        var regression = Assert.Single(doc.History, h => !h.IsCurrent);
+        Assert.Equal(0.30m, regression.Percentage);
+    }
+
+    [Fact]
     public async Task GetBookAsync_UnknownId_ReturnsNull()
     {
         using var scope = Factory.Services.CreateScope();
@@ -121,5 +150,13 @@ public class BookDashboardServiceTests : IntegrationTestBase
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var service = new BookDashboardService(db);
         return await service.GetBookAsync(id);
+    }
+
+    private async Task<int> GetBookIdAsync(string documentHash)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+        var document = await db.Documents.SingleAsync(d => d.DocumentHash == documentHash);
+        return document.BookId;
     }
 }

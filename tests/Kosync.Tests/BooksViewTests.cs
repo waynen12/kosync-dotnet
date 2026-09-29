@@ -125,6 +125,36 @@ public class BooksViewTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task BookDetail_ShowsFullSyncEventHistoryWithRegressionFlaggedInline()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.50m, device = "Kobo Nova", device_id = "device-1"
+        }, "admin", "admin");
+
+        // Regresses below the existing current push - still recorded, but
+        // must be flagged inline rather than silently promoted.
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p0", percentage = 0.30m, device = "Kobo Nova", device_id = "device-1"
+        }, "admin", "admin");
+
+        var bookId = await GetBookIdAsync("hash1");
+
+        using var client = Factory.NoRedirectClient();
+        await DashboardLogin.LogInAsync(client, "admin", "admin");
+
+        var html = await (await client.GetAsync(AppRoutes.BookDetail(bookId))).Content.ReadAsStringAsync();
+
+        Assert.Contains("50%", html);
+        Assert.Contains("30%", html);
+
+        // Only the regressed push is flagged - the promoted one is not.
+        var regressionCount = html.Split(Constants.ProgressRegressionFlag).Length - 1;
+        Assert.Equal(1, regressionCount);
+    }
+
+    [Fact]
     public async Task BookDetail_BackLinkReturnsToTheBooksTabNotDevices()
     {
         await PutAsync("/syncs/progress", new DocumentRequest

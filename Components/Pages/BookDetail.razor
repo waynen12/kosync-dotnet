@@ -33,6 +33,21 @@
                     <span class="ks-card-meta">@doc.DeviceName</span>
                     <span class="ks-doc-pct">@DashboardFormatting.Percentage(doc.Percentage)</span>
                 </div>
+
+                <div class="ks-history">
+                    @foreach (var syncEvent in doc.History)
+                    {
+                        <div class="ks-history-row">
+                            <span class="ks-doc-pct">@DashboardFormatting.Percentage(syncEvent.Percentage)</span>
+                            <span class="ks-card-meta">@syncEvent.DeviceName</span>
+                            <span class="ks-card-meta">@DashboardFormatting.RelativeTime(syncEvent.Timestamp, DateTime.UtcNow)</span>
+                            @if (!syncEvent.IsCurrent)
+                            {
+                                <span class="ks-flag-regression">@Constants.ProgressRegressionFlag</span>
+                            }
+                        </div>
+                    }
+                </div>
             }
         }
     }

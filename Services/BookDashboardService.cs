@@ -1,6 +1,8 @@
 namespace Kosync.Services;
 
-public record BookDocumentSummary(string DocumentHash, string DeviceName, decimal Percentage, DateTime Timestamp);
+public record SyncEventSummary(string DeviceName, decimal Percentage, DateTime Timestamp, bool IsCurrent);
+
+public record BookDocumentSummary(string DocumentHash, string DeviceName, decimal Percentage, DateTime Timestamp, IReadOnlyList<SyncEventSummary> History);
 
 public record BookSummary(int Id, decimal Percentage, DateTime? LastSyncedAt, IReadOnlyList<BookDocumentSummary> Documents);
 
@@ -46,9 +48,14 @@ public class BookDashboardService
     private static BookSummary Summarize(Book book)
     {
         var documents = book.Documents
-            .Select(d => new { d.DocumentHash, Current = d.SyncEvents.Current() })
+            .Select(d => new
+            {
+                d.DocumentHash,
+                History = d.SyncEvents.History().Select(s => new SyncEventSummary(s.Device.DeviceName, s.Percentage, s.Timestamp, s.IsCurrent)).ToList()
+            })
+            .Select(x => new { x.DocumentHash, x.History, Current = x.History.FirstOrDefault(h => h.IsCurrent) })
             .Where(x => x.Current is not null)
-            .Select(x => new BookDocumentSummary(x.DocumentHash, x.Current!.Device.DeviceName, x.Current.Percentage, x.Current.Timestamp))
+            .Select(x => new BookDocumentSummary(x.DocumentHash, x.Current!.DeviceName, x.Current.Percentage, x.Current.Timestamp, x.History))
             .OrderByDescending(d => d.Percentage)
             .ToList();
 

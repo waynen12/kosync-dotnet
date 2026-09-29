@@ -9,6 +9,8 @@
     --ks-accent: #2f6feb;
     --ks-track: #e6e8ec;
     --ks-shell-bg: #ffffff;
+    --ks-danger: #b3261e;
+    --ks-danger-bg: #fbeaea;
 }
 
 :root[data-theme="dark"] {
@@ -20,6 +22,8 @@
     --ks-accent: #6fa8ff;
     --ks-track: #2a2e37;
     --ks-shell-bg: #1c1f26;
+    --ks-danger: #f2938c;
+    --ks-danger-bg: #3a2224;
 }
 
 * {
@@ -283,4 +287,29 @@ a {
     justify-content: space-between;
     align-items: center;
     gap: 16px;
+}
+
+/* SyncEvent history under each Document, with regressed pushes flagged
+   inline (issue #7) rather than surfaced in a separate issues inbox. */
+.ks-history {
+    margin: 0 0 18px 4px;
+    padding-left: 12px;
+    border-left: 2px solid var(--ks-border);
+}
+
+.ks-history-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 0;
+    font-size: 12.5px;
+}
+
+.ks-flag-regression {
+    color: var(--ks-danger);
+    background: var(--ks-danger-bg);
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-size: 11px;
+    font-weight: 700;
 }
