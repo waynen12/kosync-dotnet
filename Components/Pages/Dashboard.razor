@@ -18,85 +18,11 @@
 
 @if (activeTab == Constants.DevicesTab)
 {
-    @if (devices.Count == 0)
-    {
-        <p class="ks-empty">No devices have synced yet.</p>
-    }
-    else
-    {
-        <div class="ks-grid">
-            @foreach (var device in devices)
-            {
-                <a class="ks-card ks-card-clickable" href="@AppRoutes.DeviceDetail(device.Id)">
-                    <div class="ks-card-head">
-                        <span class="ks-card-title">@device.DeviceName</span>
-                        <span class="ks-card-meta">@DashboardFormatting.RelativeTime(device.LastSyncedAt, DateTime.UtcNow)</span>
-                    </div>
-                    <div class="ks-card-sub">@device.Documents.Count document@(device.Documents.Count == 1 ? "" : "s") synced</div>
-                    @if (device.Documents.Count == 0)
-                    {
-                        <div class="ks-empty ks-empty-inline">No books synced yet</div>
-                    }
-                    else
-                    {
-                        @foreach (var doc in device.Documents)
-                        {
-                            <div class="ks-doc-row">
-                                <span class="ks-doc-hash">@doc.DocumentHash</span>
-                                <span class="ks-pbar-track"><span class="ks-pbar-fill" style="width: @DashboardFormatting.Percentage(doc.Percentage)"></span></span>
-                                <span class="ks-doc-pct">@DashboardFormatting.Percentage(doc.Percentage)</span>
-                                @if (doc.IsSplitBook)
-                                {
-                                    <span class="ks-flag-split">@Constants.SplitBookFlag</span>
-                                }
-                            </div>
-                        }
-                    }
-                </a>
-            }
-        </div>
-    }
+    <CardGrid Items="deviceCards" EmptyText="No devices have synced yet." />
 }
 else
 {
-    @if (books.Count == 0)
-    {
-        <p class="ks-empty">No books have synced yet.</p>
-    }
-    else
-    {
-        <div class="ks-grid">
-            @foreach (var book in books)
-            {
-                <a class="ks-card ks-card-clickable" href="@AppRoutes.BookDetail(book.Id)">
-                    <div class="ks-card-head">
-                        <span class="ks-card-title">Book #@book.Id</span>
-                        @if (book.IsSplitBook)
-                        {
-                            <span class="ks-flag-split">@Constants.SplitBookFlag</span>
-                        }
-                        <span class="ks-card-meta">@DashboardFormatting.RelativeTime(book.LastSyncedAt, DateTime.UtcNow)</span>
-                    </div>
-                    <div class="ks-card-sub">@book.Documents.Count document@(book.Documents.Count == 1 ? "" : "s") &middot; @DashboardFormatting.Percentage(book.Percentage) progress</div>
-                    @if (book.Documents.Count == 0)
-                    {
-                        <div class="ks-empty ks-empty-inline">No progress yet</div>
-                    }
-                    else
-                    {
-                        @foreach (var doc in book.Documents)
-                        {
-                            <div class="ks-doc-row">
-                                <span class="ks-doc-hash">@doc.DocumentHash</span>
-                                <span class="ks-pbar-track"><span class="ks-pbar-fill" style="width: @DashboardFormatting.Percentage(doc.Percentage)"></span></span>
-                                <span class="ks-doc-pct">@DashboardFormatting.Percentage(doc.Percentage)</span>
-                            </div>
-                        }
-                    }
-                </a>
-            }
-        </div>
-    }
+    <CardGrid Items="bookCards" EmptyText="No books have synced yet." />
 }
 
 @code {
@@ -108,13 +34,37 @@ else
     public string? Tab { get; set; }
 
     private string activeTab = Constants.DevicesTab;
-    private List<DeviceSummary> devices = new();
-    private List<BookSummary> books = new();
+    private List<CardGridItem> deviceCards = new();
+    private List<CardGridItem> bookCards = new();
 
     protected override async Task OnInitializedAsync()
     {
         activeTab = Tab == Constants.BooksTab ? Constants.BooksTab : Constants.DevicesTab;
-        devices = await DeviceDashboardService.GetDevicesAsync();
-        books = await BookDashboardService.GetBooksAsync();
+
+        var devices = await DeviceDashboardService.GetDevicesAsync();
+        deviceCards = devices.Select(device => new CardGridItem(
+            Href: AppRoutes.DeviceDetail(device.Id),
+            Title: device.DeviceName,
+            ShowSplitFlagOnTitle: false,
+            LastSyncedAt: device.LastSyncedAt,
+            Sub: $"{DashboardFormatting.Pluralize(device.Documents.Count, "document")} synced",
+            DocEmptyText: "No books synced yet",
+            DocRows: device.Documents
+                .Select(doc => new CardGridDocRow(doc.DocumentHash, doc.Percentage, doc.IsSplitBook))
+                .ToList()))
+            .ToList();
+
+        var books = await BookDashboardService.GetBooksAsync();
+        bookCards = books.Select(book => new CardGridItem(
+            Href: AppRoutes.BookDetail(book.Id),
+            Title: $"Book #{book.Id}",
+            ShowSplitFlagOnTitle: book.IsSplitBook,
+            LastSyncedAt: book.LastSyncedAt,
+            Sub: $"{DashboardFormatting.Pluralize(book.Documents.Count, "document")} · {DashboardFormatting.Percentage(book.Percentage)} progress",
+            DocEmptyText: "No progress yet",
+            DocRows: book.Documents
+                .Select(doc => new CardGridDocRow(doc.DocumentHash, doc.Percentage, ShowSplitFlag: false))
+                .ToList()))
+            .ToList();
     }
 }

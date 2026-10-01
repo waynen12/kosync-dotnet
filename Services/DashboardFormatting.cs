@@ -7,6 +7,8 @@ public static class DashboardFormatting
 {
     public static string Percentage(decimal percentage) => Math.Round(percentage * 100) + "%";
 
+    public static string Pluralize(int count, string singular) => $"{count} {singular}{(count == 1 ? "" : "s")}";
+
     public static string RelativeTime(DateTime? timestamp, DateTime utcNow)
     {
         if (timestamp is null)

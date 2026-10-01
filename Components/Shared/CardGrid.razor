@@ -1,0 +1,51 @@
+@* Shared card-grid shape for the Devices and Books dashboard tabs (issue #11). *@
+@if (Items.Count == 0)
+{
+    <p class="ks-empty">@EmptyText</p>
+}
+else
+{
+    <div class="ks-grid">
+        @foreach (var item in Items)
+        {
+            <a class="ks-card ks-card-clickable" href="@item.Href">
+                <div class="ks-card-head">
+                    <span class="ks-card-title">@item.Title</span>
+                    @if (item.ShowSplitFlagOnTitle)
+                    {
+                        <span class="ks-flag-split">@Constants.SplitBookFlag</span>
+                    }
+                    <span class="ks-card-meta">@DashboardFormatting.RelativeTime(item.LastSyncedAt, DateTime.UtcNow)</span>
+                </div>
+                <div class="ks-card-sub">@item.Sub</div>
+                @if (item.DocRows.Count == 0)
+                {
+                    <div class="ks-empty ks-empty-inline">@item.DocEmptyText</div>
+                }
+                else
+                {
+                    @foreach (var doc in item.DocRows)
+                    {
+                        <div class="ks-doc-row">
+                            <span class="ks-doc-hash">@doc.DocumentHash</span>
+                            <span class="ks-pbar-track"><span class="ks-pbar-fill" style="width: @DashboardFormatting.Percentage(doc.Percentage)"></span></span>
+                            <span class="ks-doc-pct">@DashboardFormatting.Percentage(doc.Percentage)</span>
+                            @if (doc.ShowSplitFlag)
+                            {
+                                <span class="ks-flag-split">@Constants.SplitBookFlag</span>
+                            }
+                        </div>
+                    }
+                }
+            </a>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<CardGridItem> Items { get; set; } = Array.Empty<CardGridItem>();
+
+    [Parameter, EditorRequired]
+    public string EmptyText { get; set; } = "";
+}
