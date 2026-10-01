@@ -79,6 +79,12 @@ public class BookDashboardService
             return MergeBooksResult.BookNotFound;
         }
 
+        // Both writes must land together - if the process dies or an
+        // exception strikes between them, Documents must stay attached to
+        // mergeBook rather than being left pointed at keepBook while
+        // mergeBook still exists (issue #10).
+        await using var transaction = await _db.Database.BeginTransactionAsync();
+
         foreach (var document in mergeBook.Documents)
         {
             document.BookId = keepBook.Id;
@@ -87,6 +93,8 @@ public class BookDashboardService
 
         _db.Books.Remove(mergeBook);
         await _db.SaveChangesAsync();
+
+        await transaction.CommitAsync();
 
         return MergeBooksResult.Success;
     }

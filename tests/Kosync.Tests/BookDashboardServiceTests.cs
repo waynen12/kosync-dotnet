@@ -1,8 +1,11 @@
 using Kosync.Database;
+using Kosync.Database.Entities;
 using Kosync.Models;
 using Kosync.Services;
 using Kosync.Tests.TestSupport;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Kosync.Tests;
@@ -241,6 +244,78 @@ public class BookDashboardServiceTests : IntegrationTestBase
         var book = await GetBookAsync(bookId);
         Assert.NotNull(book);
         Assert.Single(book!.Documents);
+    }
+
+    // Regression test for issue #10: MergeBooksAsync does two writes
+    // (reassign Documents, then remove the merged-away Book). A failure
+    // between them must roll back the first write too, rather than leaving
+    // Documents repointed at keepBook while mergeBook still exists.
+    [Fact]
+    public async Task MergeBooksAsync_FailureBetweenWrites_RollsBackPartialMerge()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
+
+        var options = new DbContextOptionsBuilder<KosyncDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        int keepBookId, mergeBookId;
+        using (var setup = new KosyncDbContext(options))
+        {
+            setup.Database.Migrate();
+
+            var user = new User { Username = "u", PasswordHash = "x" };
+            var keepBook = new Book();
+            var mergeBook = new Book();
+            setup.Users.Add(user);
+            setup.Books.AddRange(keepBook, mergeBook);
+            await setup.SaveChangesAsync();
+
+            setup.Documents.Add(new Document { DocumentHash = "hash1", UserId = user.Id, BookId = mergeBook.Id });
+            await setup.SaveChangesAsync();
+
+            keepBookId = keepBook.Id;
+            mergeBookId = mergeBook.Id;
+        }
+
+        var faultyOptions = new DbContextOptionsBuilder<KosyncDbContext>()
+            .UseSqlite(connection)
+            .AddInterceptors(new ThrowOnSecondSaveInterceptor())
+            .Options;
+
+        using (var faultyContext = new KosyncDbContext(faultyOptions))
+        {
+            var service = new BookDashboardService(faultyContext);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.MergeBooksAsync(keepBookId, mergeBookId));
+        }
+
+        using var verify = new KosyncDbContext(options);
+        var document = await verify.Documents.SingleAsync(d => d.DocumentHash == "hash1");
+        Assert.Equal(mergeBookId, document.BookId);
+        Assert.NotNull(await verify.Books.FindAsync(mergeBookId));
+    }
+
+    // Throws on the second SaveChanges call within a unit of work, so tests
+    // can simulate a failure landing between MergeBooksAsync's two writes.
+    private class ThrowOnSecondSaveInterceptor : SaveChangesInterceptor
+    {
+        private int _count;
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (++_count == 2)
+            {
+                throw new InvalidOperationException("Simulated failure mid-merge");
+            }
+
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
     }
 
     [Fact]
