@@ -6,6 +6,14 @@ public static class Constants
 
     public const string BooksTab = "books";
 
+    public const string NoDevicesSyncedText = "No devices have synced yet.";
+
+    public const string NoBooksSyncedText = "No books have synced yet.";
+
+    public const string NoDeviceDocumentsSyncedText = "No books synced yet";
+
+    public const string NoBookProgressText = "No progress yet";
+
     public const string ProgressRegressionFlag = "Progress Regression";
 
     public const string SplitBookFlag = "Split Book";

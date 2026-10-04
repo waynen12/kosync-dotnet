@@ -18,11 +18,11 @@
 
 @if (activeTab == Constants.DevicesTab)
 {
-    <CardGrid Items="deviceCards" EmptyText="No devices have synced yet." />
+    <CardGrid Items="deviceCards" EmptyText="@Constants.NoDevicesSyncedText" />
 }
 else
 {
-    <CardGrid Items="bookCards" EmptyText="No books have synced yet." />
+    <CardGrid Items="bookCards" EmptyText="@Constants.NoBooksSyncedText" />
 }
 
 @code {
@@ -48,7 +48,7 @@ else
             ShowSplitFlagOnTitle: false,
             LastSyncedAt: device.LastSyncedAt,
             Sub: $"{DashboardFormatting.Pluralize(device.Documents.Count, "document")} synced",
-            DocEmptyText: "No books synced yet",
+            DocEmptyText: Constants.NoDeviceDocumentsSyncedText,
             DocRows: device.Documents
                 .Select(doc => new CardGridDocRow(doc.DocumentHash, doc.Percentage, doc.IsSplitBook))
                 .ToList()))
@@ -61,7 +61,7 @@ else
             ShowSplitFlagOnTitle: book.IsSplitBook,
             LastSyncedAt: book.LastSyncedAt,
             Sub: $"{DashboardFormatting.Pluralize(book.Documents.Count, "document")} · {DashboardFormatting.Percentage(book.Percentage)} progress",
-            DocEmptyText: "No progress yet",
+            DocEmptyText: Constants.NoBookProgressText,
             DocRows: book.Documents
                 .Select(doc => new CardGridDocRow(doc.DocumentHash, doc.Percentage, ShowSplitFlag: false))
                 .ToList()))

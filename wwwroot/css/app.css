@@ -315,6 +315,11 @@ a {
     margin: 0 0 16px;
 }
 
+.ks-login-error {
+    display: inline-block;
+    margin: 0 0 16px;
+}
+
 .ks-doc-card {
     background: var(--ks-card-bg);
     border: 1px solid var(--ks-border);
