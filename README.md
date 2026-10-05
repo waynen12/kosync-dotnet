@@ -12,6 +12,18 @@ All data is stored inside a [LiteDB](https://www.litedb.org/) database file.
 
 This is a fork of [jberlyn/kosync-dotnet](https://github.com/jberlyn/kosync-dotnet), extended with a web dashboard for tracking devices, diagnosing sync issues, book metadata, and more — see [docs/ROADMAP.md](docs/ROADMAP.md) for the plan. Licensed under [GPLv3](LICENSE), same as upstream.
 
+## Web dashboard
+
+Past the KOReader sync protocol itself, this fork adds a browser-based dashboard for keeping an eye on your library:
+
+- **Devices** — every device that's synced, when it last synced, and the books on it.
+- **Books** — every book across all your devices, with its overall progress shown as however far the furthest-along device has gotten.
+- **Split Book** flags — when the same physical book ends up as two unrelated-looking entries because KOReader hashed it differently on different devices (common after Calibre re-converts a file). Merge them manually from the Books view once you spot it.
+- **Progress Regression** flags — a device pushing a lower reading position than what's already recorded never silently overwrites your real progress; the blocked push still shows up in that book's history so you can see it happened.
+- A **reset progress** action per document, for when you genuinely want to restart a book.
+
+Log in at `/login` with the same admin account used for the management API below (username `admin`, password from `ADMIN_PASSWORD` or `admin` by default). The dashboard is a single-operator tool — there's no separate user system for it.
+
 ## How to run your own server?
 
 The recommendation is to use [Docker](https://www.docker.com/) with [Docker Compose](https://docs.docker.com/compose/).
@@ -50,6 +62,24 @@ Mapping user to `1000:1000` is just a way to ensure the database files are creat
 This example doesn't expose any ports for the container, however the sync server is accessible via port `8080` inside the container. The recommendation is to expose the server via a reverse proxy such as [Nginx Proxy Manager](https://nginxproxymanager.com/).
 
 Prior to .NET 8, the default port was `80`. This was changed for [various reasons](https://learn.microsoft.com/en-us/dotnet/core/compatibility/containers/8.0/aspnet-port) by Microsoft. You can manually set the port using the `ASPNETCORE_HTTP_PORTS` environment variable, if this is something you would like to configure.
+
+### Running locally (e.g. to test against real KOReader devices)
+
+For development, or to manually test against physical e-readers on your network, running directly with `dotnet run` is simpler than building a container image:
+
+```
+dotnet run
+```
+
+By default (`Properties/launchSettings.json`) this binds to `http://localhost:5181`, which is only reachable from the same machine. A KOReader device on your network needs the server bound to all interfaces instead:
+
+```
+dotnet run --urls http://0.0.0.0:5181
+```
+
+Then find this machine's LAN IP (`ip addr` / `ifconfig` on Linux, `ipconfig` on Windows) and, on the KOReader device, open the *Progress sync* plugin's settings, choose a custom server, and enter `http://<your-lan-ip>:5181` as the server address. Register or log in with a non-admin user there — the `admin` account is for the dashboard and management API, not for syncing a device's reading progress.
+
+The SQLite database is created under a `data/` folder relative to wherever you run the app from; delete it to start from a clean slate between test runs.
 
 ## Management API
 

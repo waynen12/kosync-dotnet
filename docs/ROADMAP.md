@@ -1,10 +1,14 @@
 # Roadmap: Dashboard & Beyond
 
-Status: **domain model and Phase 0-2 requirements grilled and resolved**;
-nothing built yet. This doc exists to get the plan out of chat and into
-the repo so it survives between sessions. Domain vocabulary lives in
-[CONTEXT.md](../CONTEXT.md) — read that first, this doc assumes its terms
-(Book, Document, Device, SyncEvent, Split Book).
+Status: **Phases 0-2 implemented, code-reviewed, and merged to `main`**
+(issues [#2](https://github.com/waynen12/kosync-dotnet/issues/2)-[#13](https://github.com/waynen12/kosync-dotnet/issues/13),
+spec [#1](https://github.com/waynen12/kosync-dotnet/issues/1)). Manual
+testing against real KOReader devices is next. Phases 3 (metadata) and 4
+(AI) are not started — see Open Questions below. This doc exists to get
+the plan out of chat and into the repo so it survives between sessions.
+Domain vocabulary lives in [CONTEXT.md](../CONTEXT.md) — read that first,
+this doc assumes its terms (Book, Document, Device, SyncEvent, Split Book,
+Progress Reset).
 
 Decisions with real reasoning behind them are recorded as ADRs in
 [docs/adr/](adr/) rather than repeated here.
@@ -47,33 +51,37 @@ response.
 
 ## Phased plan
 
-### Phase 0 — Foundations
+### Phase 0 — Foundations — ✅ Done ([#2](https://github.com/waynen12/kosync-dotnet/issues/2), [#3](https://github.com/waynen12/kosync-dotnet/issues/3))
 - xUnit test project, `WebApplicationFactory` integration tests over the
   *existing* Sync/Management endpoints — a regression baseline before
   anything underneath them changes.
-- Introduce EF Core + SQLite. Initial schema shape:
+- Introduce EF Core + SQLite. Schema shape, as built:
   - `Users` — migrated as-is.
   - `Books` — new. A Document always belongs to exactly one Book.
-  - `Documents` — hash, belongs to a Book.
+  - `Documents` — hash, belongs to a Book. Also carries `LastResetAt`
+    for Progress Reset (see Phase 2).
   - `Devices` (new) — identity is `device_id`; `device` label is mutable.
   - `SyncEvents` (new) — append-only: Device, Document, percentage,
-    progress, timestamp, whether it became current. This is the full
-    history sync-issue tracking and diagnosis are built on.
-- One-time LiteDB → SQLite migration path for existing installs.
+    progress, timestamp, `IsCurrent`. This is the full history sync-issue
+    tracking and diagnosis are built on.
+- One-time LiteDB → SQLite migration runs automatically on startup if a
+  LiteDB data file is found (`LiteDbMigrator`).
 - Hand-rolled cookie auth for the dashboard login (ADR 0002); `/login` is
   Static SSR, everything past it is `InteractiveServer` (ADR 0003).
   `Cookie.SecurePolicy = SameAsRequest` for now — see the pre-deployment
   checklist below.
-- Implement regression protection in `PUT /syncs/progress`: always insert
-  a SyncEvent, only update the Document's current-progress pointer if
-  percentage ≥ current. Wire the existing document-delete action to clear
-  the pointer instead of hard-deleting history.
+- Regression protection implemented in `PUT /syncs/progress`: every push
+  inserts a SyncEvent, only promoted to the Document's current-progress
+  pointer if percentage ≥ current.
 
-### Phase 1 — Dashboard MVP
+### Phase 1 — Dashboard MVP — ✅ Done ([#4](https://github.com/waynen12/kosync-dotnet/issues/4), [#5](https://github.com/waynen12/kosync-dotnet/issues/5), [#6](https://github.com/waynen12/kosync-dotnet/issues/6))
 - Devices view: last-synced timestamp, associated Books/Documents,
   editable label.
 - Books/documents list with per-Document sync status.
 - Book-level progress = furthest-along Document, once merges exist.
+- Shared card-grid component (`Components/Shared/CardGrid.razor`) backs
+  both tabs, extracted after the first review round found the two tabs'
+  markup duplicated ([#11](https://github.com/waynen12/kosync-dotnet/issues/11)).
 - **UI direction — resolved:** four layouts were prototyped as a throwaway
   HTML mockup (`docs/prototype/dashboard-mockup.html`, untracked/uncommitted,
   switchable via `?variant=A|B|C|D`). A sidebar table, a device-first card
@@ -90,13 +98,25 @@ response.
   - Dark/light theme is a sticky per-user preference (survives
     navigation), not something encoded in the route.
 
-### Phase 2 — Sync issue detection & diagnostics
+### Phase 2 — Sync issue detection & diagnostics — ✅ Done ([#7](https://github.com/waynen12/kosync-dotnet/issues/7), [#8](https://github.com/waynen12/kosync-dotnet/issues/8), [#9](https://github.com/waynen12/kosync-dotnet/issues/9))
 - Split Book flag: shown inline on affected Books/Devices, not a separate
   inbox. Discovery is manual — you notice mismatched hashes and merge them
   yourself; no auto-suggestion heuristic in v1.
 - Progress Regression flag: a SyncEvent that didn't become current is
   visible inline on that Document's history.
-- Manual merge action for two Books believed to be the same title.
+- Manual merge action for two Books believed to be the same title
+  (`BookDashboardService.MergeBooksAsync`, transactional after
+  [#10](https://github.com/waynen12/kosync-dotnet/issues/10) found the
+  first version could partially apply on failure).
+- Progress Reset: a "delete progress" dashboard action distinct from a
+  SyncEvent (see CONTEXT.md) — clears a Document's current-progress
+  pointer, keeps its SyncEvent history intact, recorded as `LastResetAt`.
+
+**Hardening after the initial build:** issues
+[#10](https://github.com/waynen12/kosync-dotnet/issues/10)-[#13](https://github.com/waynen12/kosync-dotnet/issues/13)
+were opened from code review and are now all closed — a merge
+transaction gap, duplicated tab markup, hardcoded strings bypassing
+`Constants.cs`, and a couple of minor text/naming nits.
 
 ### Phase 3 — Book metadata
 - Metadata extraction — source not yet decided (on-device EPUB/OPF
