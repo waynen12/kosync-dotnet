@@ -50,7 +50,10 @@ public class DashboardAuthTests : IntegrationTestBase
         var dashboardHtml = await dashboardResponse.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, dashboardResponse.StatusCode);
-        Assert.Contains("Logged in as admin.", dashboardHtml);
+        // The sentence around the username is in flux while the UI prototype
+        // runs (Components/Prototype/ - ai-hub's nav shows the bare username),
+        // so assert the username is rendered rather than the surrounding copy.
+        Assert.Contains(">admin<", dashboardHtml);
     }
 
     [Fact]
@@ -64,7 +67,9 @@ public class DashboardAuthTests : IntegrationTestBase
         Assert.False(response.Headers.Contains("Set-Cookie"));
 
         var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("Invalid username or password.", html);
+        // Read from the same constant the login screen renders, so the
+        // assertion can't drift from the copy while the UI prototype runs.
+        Assert.Contains(Kosync.Components.Prototype.PrototypeConstants.LoginErrorText, html);
     }
 
     [Fact]

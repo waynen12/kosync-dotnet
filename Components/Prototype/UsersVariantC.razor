@@ -1,0 +1,165 @@
+@* THROWAWAY PROTOTYPE - Users variant C: "Zero round-trips".
+   Same tokens, badges, icons and orange primary as A and B. The structural
+   bet is different: no dialog, no slide-over, no table. One command bar that
+   doubles as filter and verb entry, and full-width rows that expand in place
+   via native <details> to reveal that account's edit form.
+
+   Nothing on this page sends a SignalR message. Expanding a row is <details>,
+   filtering is the few lines of JS in prototype.js. The switcher's
+   click→paint readout reports "client-only" here, against measured
+   milliseconds on A and B - that comparison is the point of this variant and
+   the evidence for the ADR 0003 question. *@
+
+<div class="hub-root">
+    <HubNav />
+
+    <div class="hub-page-head">
+        <h1 class="hub-page-title">@PrototypeConstants.UsersTitle</h1>
+        <p class="hub-page-sub">@PrototypeConstants.UsersSubtitle</p>
+
+        <div class="hub-notice">
+            <HubIcon Name="alert" Size="15" />
+            <span>@PrototypeConstants.StubNoticeText</span>
+        </div>
+
+        <div class="hub-command">
+            <HubIcon Name="search" Size="16" />
+            <input class="hub-input" placeholder="@PrototypeConstants.CommandBarPlaceholder"
+                   data-pt-filter="#pt-users-list" autocomplete="off" />
+        </div>
+        <p class="hub-command-hint">@PrototypeConstants.CommandBarHint</p>
+    </div>
+
+    <div class="hub-main" data-pt-root>
+        <div class="hub-list" id="pt-users-list">
+            @foreach (var user in PrototypeConstants.StubUsers)
+            {
+                <details class="hub-list-item @(user.IsActive ? "" : "hub-list-item-inactive")"
+                         data-pt-text="@user.SearchText">
+                    <summary data-pt-probe="expand row">
+                        <span class="hub-item-caret"><HubIcon Name="chevron-right" Size="14" /></span>
+
+                        <span class="hub-item-main">
+                            <span class="hub-item-name">
+                                @user.Username
+                                @if (user.IsSelf)
+                                {
+                                    <span class="hub-account-self">@PrototypeConstants.SelfSuffix</span>
+                                }
+                                @if (user.IsAdministrator)
+                                {
+                                    <span class="hub-badge hub-badge-admin">
+                                        <HubIcon Name="shield" Size="12" />
+                                        @PrototypeConstants.RoleAdministrator
+                                    </span>
+                                }
+                                @if (user.IsProvisional)
+                                {
+                                    <span class="hub-badge hub-badge-warn">
+                                        <HubIcon Name="alert" Size="12" />
+                                        @PrototypeConstants.PasswordProvisional
+                                    </span>
+                                }
+                                @if (!user.IsActive)
+                                {
+                                    <span class="hub-badge hub-badge-muted">@PrototypeConstants.StatusInactive</span>
+                                }
+                            </span>
+                            <span class="hub-item-meta">
+                                @($"{DashboardFormatting.Pluralize(user.Devices, "device")} · {DashboardFormatting.Pluralize(user.Books, "book")} · last sync {user.LastSync ?? PrototypeConstants.NeverSyncedText}")
+                            </span>
+                        </span>
+                    </summary>
+
+                    <div class="hub-list-body">
+                        @if (user.IsProvisional)
+                        {
+                            <div class="hub-notice" style="margin: 0">
+                                <HubIcon Name="alert" Size="15" />
+                                <span>@PrototypeConstants.ProvisionalHint</span>
+                            </div>
+                        }
+
+                        <div class="hub-inline-form">
+                            <div class="hub-inline-row">
+                                <div class="hub-field">
+                                    <label class="hub-label">@PrototypeConstants.RoleLabel</label>
+                                    <select class="hub-select" style="height: 36px" disabled="@user.IsGuarded">
+                                        <option selected="@user.IsAdministrator">@PrototypeConstants.RoleAdministrator</option>
+                                        <option selected="@(!user.IsAdministrator)">@PrototypeConstants.RoleReader</option>
+                                    </select>
+                                </div>
+                                <div class="hub-field">
+                                    <label class="hub-label">@PrototypeConstants.ResetPasswordAction</label>
+                                    <input type="password" class="hub-input" placeholder="@PrototypeConstants.NewPasswordPlaceholder" />
+                                </div>
+                            </div>
+
+                            @if (user.GuardReason is not null)
+                            {
+                                <p class="hub-guard">@user.GuardReason</p>
+                            }
+
+                            <div class="hub-item-actions">
+                                <button type="button" class="hub-btn hub-btn-brand hub-btn-sm">
+                                    <HubIcon Name="key-round" Size="14" />
+                                    @PrototypeConstants.SetText
+                                </button>
+                                <button type="button" class="hub-btn hub-btn-danger hub-btn-sm" disabled="@user.IsSelf">
+                                    <HubIcon Name="@(user.IsActive ? "user-x" : "user-check")" Size="14" />
+                                    @(user.IsActive ? PrototypeConstants.DeactivateAction : PrototypeConstants.ReactivateAction)
+                                </button>
+                                <button type="button" class="hub-btn hub-btn-danger hub-btn-sm" disabled="@user.IsGuarded">
+                                    <HubIcon Name="trash" Size="14" />
+                                    @PrototypeConstants.DeleteAction
+                                </button>
+                            </div>
+
+                            <p class="hub-xs hub-muted" style="margin: 0">Created @user.Created</p>
+                        </div>
+                    </div>
+                </details>
+            }
+            <p class="hub-list-none">@PrototypeConstants.NoMatchesText</p>
+        </div>
+
+        <details class="hub-list-item" style="border-bottom: none; margin-top: 16px">
+            <summary data-pt-probe="expand new">
+                <span class="hub-item-caret"><HubIcon Name="chevron-right" Size="14" /></span>
+                <span class="hub-item-main">
+                    <span class="hub-item-name" style="color: var(--hub-brand)">
+                        <HubIcon Name="user-plus" Size="15" />
+                        @PrototypeConstants.NewUserButtonText
+                    </span>
+                </span>
+            </summary>
+            <div class="hub-list-body">
+                <div class="hub-inline-form">
+                    <div class="hub-field">
+                        <label class="hub-label" for="pt-c-username">@PrototypeConstants.LoginUsernameLabel</label>
+                        <input id="pt-c-username" class="hub-input" placeholder="@PrototypeConstants.UsernamePlaceholder" />
+                    </div>
+                    <div class="hub-inline-row">
+                        <div class="hub-field">
+                            <label class="hub-label" for="pt-c-role">@PrototypeConstants.RoleLabel</label>
+                            <select id="pt-c-role" class="hub-select" style="height: 36px">
+                                <option>@PrototypeConstants.RoleReader</option>
+                                <option>@PrototypeConstants.RoleAdministrator</option>
+                            </select>
+                        </div>
+                        <div class="hub-field">
+                            <label class="hub-label" for="pt-c-password">@PrototypeConstants.LoginPasswordLabel</label>
+                            <input id="pt-c-password" type="password" class="hub-input" placeholder="@PrototypeConstants.NewPasswordHint" />
+                        </div>
+                    </div>
+                    <p class="hub-xs hub-muted" style="margin: 0; line-height: 1.5">@PrototypeConstants.ProvisionalHint</p>
+                    <div>
+                        <button type="button" class="hub-btn hub-btn-brand hub-btn-sm">
+                            @PrototypeConstants.CreateUserSubmitText
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </details>
+    </div>
+</div>

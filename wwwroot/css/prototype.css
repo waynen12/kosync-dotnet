@@ -1,0 +1,830 @@
+/* =========================================================================
+   THROWAWAY PROTOTYPE STYLESHEET - delete with Components/Prototype/.
+
+   Ports the ai-hub design language (/home/wayne/repos/AIResources/ai-hub)
+   into plain CSS so the Blazor prototype can be judged against it directly:
+     - Geist / Geist Mono
+     - shadcn's achromatic oklch surface ramp (globals.css)
+     - the orange -> amber -> violet -> indigo 135deg gradient
+     - #F57C00 as the one brand accent, amber-500/600 for active tabs
+     - --radius 0.625rem, rounded-lg/xl/2xl, shadow-xl cards
+   Dark mode keys off kosync's existing [data-theme="dark"] (theme.js), not
+   ai-hub's `.dark` class - same tokens, different switch.
+
+   Everything is namespaced hub-/pt-, so nothing leaks into the real
+   dashboard's .ks-* styles.
+   ========================================================================= */
+
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@300..900&family=Geist+Mono:wght@300..700&display=swap");
+
+:root {
+    /* shadcn neutral ramp, light - ai-hub globals.css :root */
+    --hub-bg: oklch(1 0 0);
+    --hub-fg: oklch(0.145 0 0);
+    --hub-card: oklch(1 0 0);
+    --hub-card-fg: oklch(0.145 0 0);
+    --hub-primary: oklch(0.205 0 0);
+    --hub-primary-fg: oklch(0.985 0 0);
+    --hub-secondary: oklch(0.97 0 0);
+    --hub-muted: oklch(0.97 0 0);
+    --hub-muted-fg: oklch(0.556 0 0);
+    --hub-border: oklch(0.922 0 0);
+    --hub-input: oklch(0.922 0 0);
+    --hub-ring: oklch(0.708 0 0);
+    --hub-destructive: oklch(0.577 0.245 27.325);
+    --hub-sidebar: oklch(0.985 0 0);
+
+    /* Brand - the only chromatic colour in the system */
+    --hub-brand: #f57c00;
+    --hub-brand-2: #ff8f00;
+    --hub-violet: #7b6fbd;
+    --hub-indigo: #4a5baa;
+    --hub-gradient: linear-gradient(135deg, #f57c00 0%, #ff8f00 40%, #7b6fbd 80%, #4a5baa 100%);
+    --hub-amber: #f59e0b;
+    --hub-amber-strong: #d97706;
+    --hub-amber-soft: #fffbeb;
+    --hub-ok: #15803d;
+    --hub-ok-soft: #f0fdf4;
+
+    --hub-radius: 0.625rem;
+    --hub-radius-sm: calc(var(--hub-radius) * 0.6);
+    --hub-radius-md: calc(var(--hub-radius) * 0.8);
+    --hub-radius-lg: var(--hub-radius);
+    --hub-radius-xl: calc(var(--hub-radius) * 1.4);
+    --hub-radius-2xl: calc(var(--hub-radius) * 1.8);
+
+    --hub-gutter: 24px;
+    --hub-maxw: 72rem; /* max-w-6xl */
+}
+
+:root[data-theme="dark"] {
+    /* ai-hub globals.css .dark */
+    --hub-bg: oklch(0.145 0 0);
+    --hub-fg: oklch(0.985 0 0);
+    --hub-card: oklch(0.205 0 0);
+    --hub-card-fg: oklch(0.985 0 0);
+    --hub-primary: oklch(0.922 0 0);
+    --hub-primary-fg: oklch(0.205 0 0);
+    --hub-secondary: oklch(0.269 0 0);
+    --hub-muted: oklch(0.269 0 0);
+    --hub-muted-fg: oklch(0.708 0 0);
+    --hub-border: oklch(1 0 0 / 10%);
+    --hub-input: oklch(1 0 0 / 15%);
+    --hub-ring: oklch(0.556 0 0);
+    --hub-destructive: oklch(0.704 0.191 22.216);
+    --hub-sidebar: oklch(0.205 0 0);
+
+    --hub-amber: #fbbf24;
+    --hub-amber-strong: #fbbf24;
+    --hub-amber-soft: oklch(0.269 0 0);
+    --hub-ok: #4ade80;
+    --hub-ok-soft: oklch(0.269 0 0);
+}
+
+/* app.css paints body with the --ks-* tokens, which would show through
+   around the prototype shells. Override only on prototype pages. */
+html:has(.hub-root),
+body:has(.hub-root) {
+    background: var(--hub-bg);
+    color: var(--hub-fg);
+    font-family: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+.hub-root {
+    min-height: 100vh;
+    background: var(--hub-bg);
+    color: var(--hub-fg);
+    font-family: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+}
+
+.hub-mono { font-family: "Geist Mono", "SFMono-Regular", Consolas, monospace; }
+.hub-icon { display: inline-block; vertical-align: -0.125em; flex: 0 0 auto; }
+
+/* -------------------------------------------------------------------------
+   Primitives (shadcn shapes, hand-written)
+   ------------------------------------------------------------------------- */
+.hub-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    white-space: nowrap;
+    border: 1px solid transparent;
+    border-radius: var(--hub-radius-lg);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 0 10px;
+    height: 32px;
+    cursor: pointer;
+    transition: background-color 0.14s, color 0.14s, border-color 0.14s, filter 0.14s;
+    user-select: none;
+}
+
+.hub-btn:active:not(:disabled) { transform: translateY(1px); }
+.hub-btn:disabled { opacity: 0.5; pointer-events: none; }
+.hub-btn:focus-visible { outline: none; border-color: var(--hub-ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--hub-ring) 50%, transparent); }
+
+.hub-btn-default { background: var(--hub-primary); color: var(--hub-primary-fg); }
+.hub-btn-default:hover { filter: brightness(1.18); }
+
+/* ai-hub overrides the primary button to the brand orange on the two actions
+   that matter most (Sign in, Create Account, Add Resource). */
+.hub-btn-brand { background: var(--hub-brand); color: #fff; }
+.hub-btn-brand:hover { filter: brightness(1.1); }
+
+.hub-btn-outline { border-color: var(--hub-border); background: var(--hub-bg); color: var(--hub-fg); }
+.hub-btn-outline:hover { background: var(--hub-muted); }
+:root[data-theme="dark"] .hub-btn-outline { border-color: var(--hub-input); background: color-mix(in srgb, var(--hub-input) 30%, transparent); }
+:root[data-theme="dark"] .hub-btn-outline:hover { background: color-mix(in srgb, var(--hub-input) 50%, transparent); }
+
+.hub-btn-ghost { background: transparent; color: var(--hub-fg); }
+.hub-btn-ghost:hover { background: var(--hub-muted); }
+
+.hub-btn-danger {
+    border-color: color-mix(in srgb, var(--hub-destructive) 30%, transparent);
+    background: transparent;
+    color: var(--hub-destructive);
+}
+.hub-btn-danger:hover { background: color-mix(in srgb, var(--hub-destructive) 10%, transparent); }
+
+.hub-btn-sm { height: 28px; font-size: 0.8rem; padding: 0 10px; border-radius: var(--hub-radius-md); gap: 4px; }
+.hub-btn-lg { height: 40px; font-size: 15px; padding: 0 16px; }
+.hub-btn-block { width: 100%; font-weight: 600; }
+
+/* Round translucent icon button used in ai-hub's nav, over the gradient. */
+.hub-icon-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    transition: background-color 0.14s, color 0.14s;
+}
+
+.hub-icon-btn:hover { background: rgba(255, 255, 255, 0.18); color: #fff; }
+
+/* theme.js rewrites the textContent of [data-theme-toggle], which would wipe
+   an inline SVG - so the hub toggle carries both icons and swaps them in CSS
+   instead of taking that attribute. */
+.hub-theme-sun { display: none; }
+:root[data-theme="dark"] .hub-theme-sun { display: inline-block; }
+:root[data-theme="dark"] .hub-theme-moon { display: none; }
+
+.hub-input {
+    width: 100%;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--hub-input);
+    border-radius: var(--hub-radius-lg);
+    background: var(--hub-bg);
+    color: var(--hub-fg);
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.hub-input::placeholder { color: var(--hub-muted-fg); }
+.hub-input:focus { outline: none; border-color: var(--hub-ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--hub-ring) 40%, transparent); }
+.hub-input-sm { height: 32px; font-size: 13px; }
+
+.hub-label { display: block; font-size: 14px; font-weight: 500; color: var(--hub-fg); }
+
+.hub-field { display: grid; gap: 6px; }
+.hub-stack-4 { display: grid; gap: 16px; }
+.hub-stack-3 { display: grid; gap: 12px; }
+.hub-stack-2 { display: grid; gap: 8px; }
+
+.hub-select {
+    height: 32px;
+    padding: 0 8px;
+    border: 1px solid var(--hub-input);
+    border-radius: var(--hub-radius-md);
+    background: var(--hub-bg);
+    color: var(--hub-fg);
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.hub-card {
+    background: var(--hub-card);
+    color: var(--hub-card-fg);
+    border: 1px solid var(--hub-border);
+    border-radius: var(--hub-radius-xl);
+}
+
+.hub-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    padding: 2px 9px;
+    font-size: 11.5px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.hub-badge-outline { border-color: var(--hub-border); color: var(--hub-muted-fg); }
+.hub-badge-admin { background: color-mix(in srgb, var(--hub-brand) 14%, transparent); color: var(--hub-brand); }
+.hub-badge-ok { background: var(--hub-ok-soft); color: var(--hub-ok); }
+.hub-badge-warn { background: var(--hub-amber-soft); color: var(--hub-amber-strong); }
+.hub-badge-muted { background: var(--hub-muted); color: var(--hub-muted-fg); }
+.hub-badge-danger { background: color-mix(in srgb, var(--hub-destructive) 12%, transparent); color: var(--hub-destructive); }
+
+.hub-muted { color: var(--hub-muted-fg); }
+.hub-xs { font-size: 12px; }
+.hub-sm { font-size: 14px; }
+.hub-section-label {
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--hub-muted-fg);
+}
+
+.hub-divider { border: none; border-top: 1px solid var(--hub-border); margin: 0; }
+
+/* -------------------------------------------------------------------------
+   Shell - translucent nav over the brand gradient, then a gradient hero
+   ------------------------------------------------------------------------- */
+.hub-gradient { background: var(--hub-gradient); }
+
+.hub-nav {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px var(--hub-gutter);
+    background: rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(8px);
+}
+
+.hub-nav-brand { color: #fff; font-weight: 700; font-size: 20px; letter-spacing: -0.015em; }
+.hub-nav-actions { display: flex; align-items: center; gap: 8px; }
+.hub-nav-user { color: rgba(255, 255, 255, 0.8); font-size: 14px; }
+
+/* The gradient band behind the nav, so the nav's black overlay reads. */
+.hub-topband { background: var(--hub-gradient); }
+
+.hub-hero { padding: 0 var(--hub-gutter) 48px; text-align: center; }
+.hub-hero-title { color: #fff; font-size: 36px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 8px; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+.hub-hero-sub { color: rgba(255, 255, 255, 0.85); font-size: 16px; margin: 0 0 24px; }
+
+.hub-hero-search { position: relative; max-width: 36rem; margin: 0 auto; }
+.hub-hero-search .hub-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #9ca3af; z-index: 1; }
+
+.hub-hero-search .hub-input {
+    height: 44px;
+    padding-left: 36px;
+    border: none;
+    background: #fff;
+    color: #111827;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+
+:root[data-theme="dark"] .hub-hero-search .hub-input { background: #fff; color: #111827; }
+.hub-hero-search .hub-input::placeholder { color: #9ca3af; }
+
+.hub-tabbar { border-bottom: 1px solid var(--hub-border); background: var(--hub-bg); }
+.hub-tabbar-inner { max-width: var(--hub-maxw); margin: 0 auto; padding: 0 var(--hub-gutter); display: flex; overflow-x: auto; }
+
+.hub-tab {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 12px 16px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--hub-muted-fg);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.14s, border-color 0.14s;
+}
+
+.hub-tab:hover { color: var(--hub-fg); }
+.hub-tab.active { border-bottom-color: var(--hub-amber); color: var(--hub-amber-strong); }
+
+/* width:100% is load-bearing on every one of these. They are flex items in
+   the column-flex .hub-root, and `margin: 0 auto` on a flex item's cross
+   axis makes it size to its content instead of stretching - which silently
+   centred the dashboard in a narrow column until density made it obvious. */
+.hub-toolbar {
+    max-width: var(--hub-maxw);
+    margin: 0 auto;
+    width: 100%;
+    padding: 16px var(--hub-gutter);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.hub-main { flex: 1; max-width: var(--hub-maxw); margin: 0 auto; width: 100%; padding: 0 var(--hub-gutter) 110px; }
+.hub-page-head { max-width: var(--hub-maxw); margin: 0 auto; width: 100%; padding: 28px var(--hub-gutter) 0; }
+.hub-page-title { font-size: 24px; font-weight: 800; letter-spacing: -0.015em; margin: 0 0 4px; }
+.hub-page-sub { color: var(--hub-muted-fg); font-size: 14px; margin: 0 0 20px; }
+.hub-empty { text-align: center; padding: 96px 0; color: var(--hub-muted-fg); font-size: 14px; }
+
+.hub-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    background: var(--hub-amber-soft);
+    color: var(--hub-amber-strong);
+    border: 1px solid color-mix(in srgb, var(--hub-amber) 35%, transparent);
+    border-radius: var(--hub-radius-lg);
+    padding: 10px 13px;
+    font-size: 13px;
+    margin-bottom: 20px;
+}
+
+/* ai-hub uses sonner toasts bottom-right for all feedback. */
+.hub-toast {
+    position: fixed;
+    right: 16px;
+    bottom: 76px;
+    z-index: 200;
+    max-width: 340px;
+    background: var(--hub-card);
+    color: var(--hub-card-fg);
+    border: 1px solid var(--hub-border);
+    border-radius: var(--hub-radius-lg);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+    padding: 12px 14px;
+    font-size: 13.5px;
+    display: flex;
+    gap: 9px;
+    align-items: flex-start;
+}
+
+.hub-toast-brand { border-left: 3px solid var(--hub-brand); }
+
+/* =========================================================================
+   LOGIN
+   ========================================================================= */
+.hub-login {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: var(--hub-gradient);
+}
+
+.hub-login-card {
+    width: 100%;
+    max-width: 24rem; /* max-w-sm */
+    background: var(--hub-card);
+    color: var(--hub-card-fg);
+    border: 1px solid var(--hub-border);
+    border-radius: var(--hub-radius-2xl);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+    padding: 32px;
+}
+
+.hub-login-head { text-align: center; margin-bottom: 24px; }
+.hub-login-title { font-size: 24px; font-weight: 800; letter-spacing: -0.015em; margin: 0; }
+.hub-login-sub { font-size: 14px; color: var(--hub-muted-fg); margin: 4px 0 0; }
+
+.hub-login-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    background: color-mix(in srgb, var(--hub-destructive) 12%, transparent);
+    color: var(--hub-destructive);
+    border-radius: var(--hub-radius-lg);
+    padding: 9px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 16px;
+}
+
+.hub-login-hint {
+    font-size: 12px;
+    color: var(--hub-muted-fg);
+    line-height: 1.5;
+    text-align: center;
+    margin: 20px 0 0;
+}
+
+/* --- Login B: gradient split screen, hub card on the right -------------- */
+.hub-login-split { padding: 0; align-items: stretch; background: var(--hub-bg); }
+
+.hub-login-aside {
+    flex: 1 1 46%;
+    background: var(--hub-gradient);
+    color: #fff;
+    padding: 56px 48px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 24px;
+}
+
+.hub-login-aside-brand { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
+.hub-login-aside-pitch { font-size: 17px; line-height: 1.45; opacity: 0.9; margin: 0; max-width: 22ch; }
+.hub-login-features { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.hub-login-features li { display: flex; align-items: center; gap: 10px; font-size: 14px; opacity: 0.92; }
+
+.hub-login-main {
+    flex: 1 1 54%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+}
+
+.hub-login-split .hub-login-card { box-shadow: none; border-radius: var(--hub-radius-xl); }
+
+@media (max-width: 860px) {
+    .hub-login-split { flex-direction: column; }
+    .hub-login-aside { padding: 28px 20px; gap: 14px; flex: 0 0 auto; }
+    .hub-login-aside-brand { font-size: 22px; }
+    .hub-login-aside-pitch { font-size: 15px; max-width: none; }
+    .hub-login-features { display: none; }
+    .hub-login-main { padding: 28px 16px 48px; }
+}
+
+/* --- Login C: compact, gradient reduced to a hairline ------------------- */
+.hub-login-quiet { background: var(--hub-bg); }
+.hub-login-quiet .hub-login-card { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); max-width: 21rem; padding: 28px; position: relative; overflow: hidden; }
+.hub-login-quiet .hub-login-card::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: var(--hub-gradient); }
+.hub-login-quiet .hub-login-head { text-align: left; }
+.hub-login-quiet .hub-login-hint { text-align: left; }
+
+.hub-login-mark { display: inline-flex; align-items: center; gap: 8px; color: var(--hub-brand); font-weight: 800; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 14px; }
+
+/* =========================================================================
+   VARIANT A - card grid (ai-hub's Resources grid, applied to sync data)
+   ========================================================================= */
+.hub-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; margin-bottom: 20px; }
+.hub-stat { padding: 14px 16px; }
+.hub-stat-value { font-size: 24px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.hub-stat-label { font-size: 12px; color: var(--hub-muted-fg); margin-top: 2px; }
+.hub-stat-flagged .hub-stat-value { color: var(--hub-amber-strong); }
+
+/* align-items: start stops a 4-document card stretching to match a
+   1-document neighbour, which is what leaves craters in a card grid once
+   the library is a realistic size. */
+.hub-grid { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: start; }
+@media (min-width: 640px) { .hub-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .hub-grid { grid-template-columns: repeat(3, 1fr); } }
+
+.hub-resource-card {
+    display: flex;
+    flex-direction: column;
+    padding: 18px 20px;
+    text-decoration: none;
+    color: inherit;
+    transition: box-shadow 0.15s, transform 0.15s, border-color 0.15s;
+}
+
+a.hub-resource-card:hover {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--hub-brand) 40%, var(--hub-border));
+}
+
+.hub-card-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.hub-card-kind { display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--hub-radius-lg); background: var(--hub-muted); color: var(--hub-muted-fg); }
+.hub-card-kind-device { background: color-mix(in srgb, var(--hub-indigo) 14%, transparent); color: var(--hub-indigo); }
+.hub-card-kind-book { background: color-mix(in srgb, var(--hub-brand) 14%, transparent); color: var(--hub-brand); }
+:root[data-theme="dark"] .hub-card-kind-device { color: #a5b4fc; }
+
+.hub-card-head-text { flex: 1; min-width: 0; }
+.hub-card-title { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-card-meta { font-size: 12px; color: var(--hub-muted-fg); margin-top: 1px; }
+.hub-card-flags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px; }
+
+.hub-rows { border-top: 1px solid var(--hub-border); }
+.hub-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--hub-border); }
+.hub-row:last-child { border-bottom: none; }
+.hub-row-name { flex: 1; min-width: 0; font-family: "Geist Mono", Consolas, monospace; font-size: 11.5px; color: var(--hub-muted-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-bar { width: 64px; height: 5px; border-radius: 999px; background: var(--hub-muted); overflow: hidden; flex: 0 0 auto; }
+.hub-bar span { display: block; height: 100%; border-radius: 999px; background: var(--hub-brand); }
+.hub-pct { width: 36px; text-align: right; font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.hub-row-empty { font-size: 12px; color: var(--hub-muted-fg); padding: 8px 0 0; }
+
+/* --- Modal dialog (ai-hub AccountsModal) ------------------------------- */
+.hub-dialog-backdrop { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(2px); display: grid; place-items: center; padding: 16px; }
+
+.hub-dialog {
+    width: 100%;
+    max-width: 36rem; /* sm:max-w-xl */
+    max-height: 90vh;
+    overflow-y: auto;
+    background: var(--hub-card);
+    color: var(--hub-card-fg);
+    border: 1px solid var(--hub-border);
+    border-radius: var(--hub-radius-xl);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+    padding: 24px;
+}
+
+.hub-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.hub-dialog-title { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+.hub-dialog-sub { font-size: 13px; color: var(--hub-muted-fg); margin: 4px 0 16px; }
+.hub-dialog-body { display: grid; gap: 16px; margin-top: 8px; }
+.hub-dialog-foot { display: flex; justify-content: flex-end; padding-top: 8px; border-top: 1px solid var(--hub-border); }
+
+/* Account row, ai-hub shape: rounded-lg border p-3 space-y-2 */
+.hub-account-row { border: 1px solid var(--hub-border); border-radius: var(--hub-radius-lg); padding: 12px; display: grid; gap: 8px; }
+.hub-account-row-inactive { opacity: 0.5; background: color-mix(in srgb, var(--hub-muted) 30%, transparent); }
+.hub-account-row-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.hub-account-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-account-self { margin-left: 6px; font-size: 12px; color: var(--hub-muted-fg); font-weight: 400; }
+.hub-account-reset { display: flex; align-items: center; gap: 8px; padding-top: 4px; }
+.hub-account-created { font-size: 12px; color: var(--hub-muted-fg); margin: 0; }
+.hub-guard { font-size: 12px; color: var(--hub-muted-fg); font-style: italic; margin: 0; line-height: 1.45; }
+.hub-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.hub-form-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+@media (max-width: 520px) {
+    .hub-grid-2 { grid-template-columns: 1fr; }
+    .hub-account-row-head { gap: 8px; }
+}
+
+/* =========================================================================
+   VARIANT B - sidebar app shell + dense accounts table
+   ========================================================================= */
+.hub-shell { display: flex; flex: 1; min-height: 0; }
+
+.hub-sidebar {
+    flex: 0 0 15rem;
+    background: var(--hub-sidebar);
+    border-right: 1px solid var(--hub-border);
+    padding: 16px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.hub-sidebar-group { padding: 14px 10px 6px; }
+.hub-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--hub-radius-lg);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--hub-fg);
+    text-decoration: none;
+}
+
+.hub-nav-item:hover { background: var(--hub-muted); }
+.hub-nav-item.current { background: color-mix(in srgb, var(--hub-brand) 12%, transparent); color: var(--hub-brand); }
+.hub-nav-count { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--hub-muted-fg); font-variant-numeric: tabular-nums; }
+
+.hub-shell-main { flex: 1; min-width: 0; padding: 24px var(--hub-gutter) 110px; }
+.hub-shell-main > .hub-page-head { padding-left: 0; padding-right: 0; padding-top: 0; max-width: none; }
+
+.hub-table-wrap { background: var(--hub-card); border: 1px solid var(--hub-border); border-radius: var(--hub-radius-xl); overflow-x: auto; }
+.hub-table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 760px; }
+
+.hub-table th {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--hub-border);
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--hub-muted-fg);
+    white-space: nowrap;
+}
+
+.hub-table td { padding: 12px 16px; border-bottom: 1px solid var(--hub-border); vertical-align: middle; }
+.hub-table tr:last-child td { border-bottom: none; }
+.hub-table tbody tr { cursor: pointer; }
+.hub-table tbody tr:hover { background: color-mix(in srgb, var(--hub-muted) 60%, transparent); }
+.hub-table tbody tr.selected { background: color-mix(in srgb, var(--hub-brand) 8%, transparent); }
+.hub-table tbody tr.inactive { opacity: 0.55; }
+.hub-table-name { font-weight: 500; }
+.hub-table-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hub-table-actions { text-align: right; white-space: nowrap; }
+.hub-table-actions > * + * { margin-left: 6px; }
+.hub-table-progress { display: flex; align-items: center; gap: 8px; }
+.hub-table-badges { display: flex; gap: 5px; flex-wrap: wrap; }
+
+/* Slide-over detail panel */
+.hub-panel-backdrop { position: fixed; inset: 0; z-index: 90; background: rgba(0, 0, 0, 0.4); }
+.hub-panel {
+    position: fixed;
+    inset: 0 0 0 auto;
+    z-index: 91;
+    width: min(27rem, 100vw);
+    background: var(--hub-card);
+    color: var(--hub-card-fg);
+    border-left: 1px solid var(--hub-border);
+    box-shadow: -16px 0 40px rgba(0, 0, 0, 0.22);
+    padding: 22px 24px;
+    overflow-y: auto;
+}
+
+.hub-panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.hub-panel-title { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
+.hub-panel-sub { font-size: 13px; color: var(--hub-muted-fg); margin: 4px 0 20px; }
+.hub-kv { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--hub-border); font-size: 14px; }
+.hub-kv:last-of-type { border-bottom: none; }
+.hub-kv-key { color: var(--hub-muted-fg); }
+.hub-panel-actions { display: grid; gap: 8px; }
+.hub-panel-actions .hub-btn { width: 100%; justify-content: flex-start; height: 36px; }
+
+/* Sidebar collapses to a bottom tab bar. */
+@media (max-width: 860px) {
+    .hub-shell { flex-direction: column; }
+    .hub-sidebar {
+        position: fixed;
+        inset: auto 0 0 0;
+        z-index: 40;
+        flex: 0 0 auto;
+        flex-direction: row;
+        justify-content: space-around;
+        border-right: none;
+        border-top: 1px solid var(--hub-border);
+        padding: 6px;
+        gap: 2px;
+    }
+    .hub-sidebar-group { display: none; }
+    .hub-nav-item { flex: 1; flex-direction: column; gap: 2px; font-size: 11px; padding: 6px 4px; justify-content: center; }
+    .hub-nav-count { display: none; }
+    /* Clears the tab bar plus the switcher pill above it. */
+    .hub-shell-main { padding-bottom: 160px; }
+}
+
+/* =========================================================================
+   VARIANT C - single stream, zero round-trips
+   Chip filters are :has()/:checked; the text filter is a few lines of JS.
+   Nothing here sends a SignalR message - that is the whole point.
+   ========================================================================= */
+.hub-streambar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: color-mix(in srgb, var(--hub-bg) 85%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--hub-border);
+    padding: 12px var(--hub-gutter);
+}
+
+.hub-streambar-inner { max-width: var(--hub-maxw); margin: 0 auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hub-streambar-search { position: relative; flex: 1; min-width: 180px; }
+.hub-streambar-search .hub-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--hub-muted-fg); }
+.hub-streambar-search .hub-input { padding-left: 34px; background: var(--hub-card); }
+
+.hub-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.hub-chips input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+.hub-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 13px;
+    border-radius: 999px;
+    border: 1px solid var(--hub-border);
+    background: var(--hub-card);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--hub-muted-fg);
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.14s, color 0.14s, border-color 0.14s;
+}
+
+.hub-chip:hover { border-color: color-mix(in srgb, var(--hub-brand) 50%, var(--hub-border)); color: var(--hub-fg); }
+.hub-chips input:checked + .hub-chip { background: var(--hub-brand); border-color: var(--hub-brand); color: #fff; }
+.hub-chips input:focus-visible + .hub-chip { box-shadow: 0 0 0 3px color-mix(in srgb, var(--hub-brand) 35%, transparent); }
+
+.hub-stream { max-width: var(--hub-maxw); margin: 0 auto; width: 100%; padding: 20px var(--hub-gutter) 110px; }
+.hub-stream-group { margin: 24px 0 10px; }
+.hub-stream-group:first-child { margin-top: 0; }
+
+.hub-item { background: var(--hub-card); border: 1px solid var(--hub-border); border-radius: var(--hub-radius-lg); margin-bottom: 8px; overflow: hidden; }
+.hub-item > summary { display: flex; align-items: center; gap: 12px; padding: 13px 16px; cursor: pointer; list-style: none; }
+.hub-item > summary::-webkit-details-marker { display: none; }
+.hub-item > summary::marker { content: ""; }
+.hub-item > summary:hover { background: color-mix(in srgb, var(--hub-muted) 50%, transparent); }
+.hub-item[open] > summary { border-bottom: 1px solid var(--hub-border); }
+.hub-item-caret { color: var(--hub-muted-fg); transition: transform 0.15s; }
+.hub-item[open] .hub-item-caret { transform: rotate(90deg); }
+.hub-item-main { flex: 1; min-width: 0; }
+.hub-item-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14.5px; font-weight: 600; }
+.hub-item-meta { font-size: 12px; color: var(--hub-muted-fg); margin-top: 2px; }
+.hub-item-right { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+.hub-item-body { padding: 14px 16px 16px 44px; }
+.hub-item-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+
+/* Chip-driven visibility, pure CSS. */
+.hub-filters:has(#hub-f-devices:checked) ~ .hub-stream [data-kind="book"],
+.hub-filters:has(#hub-f-devices:checked) ~ .hub-stream [data-group="book"],
+.hub-filters:has(#hub-f-books:checked) ~ .hub-stream [data-kind="device"],
+.hub-filters:has(#hub-f-books:checked) ~ .hub-stream [data-group="device"],
+.hub-filters:has(#hub-f-flagged:checked) ~ .hub-stream [data-flagged="false"] {
+    display: none;
+}
+
+[data-hidden="true"] { display: none !important; }
+.hub-stream-none, .hub-list-none { display: none; color: var(--hub-muted-fg); font-size: 14px; padding: 32px 0; text-align: center; }
+[data-none="true"] > .hub-stream-none, [data-none="true"] > .hub-list-none { display: block; }
+
+@media (max-width: 620px) {
+    .hub-item > summary { flex-wrap: wrap; }
+    .hub-item-right { width: 100%; padding-left: 28px; }
+    .hub-item-body { padding-left: 16px; }
+}
+
+/* --- Variant C accounts: command bar + inline-expand rows -------------- */
+.hub-command { position: relative; }
+.hub-command .hub-input { height: 46px; padding-left: 38px; font-family: "Geist Mono", Consolas, monospace; font-size: 14px; background: var(--hub-card); }
+.hub-command .hub-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--hub-muted-fg); }
+.hub-command-hint { font-size: 12px; color: var(--hub-muted-fg); margin: 8px 0 20px; }
+
+.hub-list { border-top: 1px solid var(--hub-border); }
+.hub-list-item { border-bottom: 1px solid var(--hub-border); }
+.hub-list-item > summary { display: flex; align-items: center; gap: 12px; padding: 14px 4px; cursor: pointer; list-style: none; }
+.hub-list-item > summary::-webkit-details-marker { display: none; }
+.hub-list-item > summary::marker { content: ""; }
+.hub-list-item > summary:hover { background: color-mix(in srgb, var(--hub-muted) 45%, transparent); }
+.hub-list-item-inactive > summary { opacity: 0.55; }
+.hub-list-body { padding: 4px 4px 20px 32px; display: grid; gap: 16px; }
+.hub-inline-form { display: grid; gap: 12px; max-width: 26rem; }
+.hub-inline-row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.hub-inline-row .hub-field { flex: 1; min-width: 150px; }
+
+@media (max-width: 620px) {
+    .hub-list-item > summary { flex-wrap: wrap; }
+    .hub-list-body { padding-left: 4px; }
+}
+
+/* =========================================================================
+   Floating prototype switcher - deliberately NOT part of any variant's
+   design. Hidden outside Development by the component itself.
+   ========================================================================= */
+.pt-switcher {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 8px;
+    border-radius: 999px;
+    background: rgba(10, 10, 12, 0.94);
+    color: #fff;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    font-family: "Geist", -apple-system, sans-serif;
+    font-size: 12.5px;
+    font-weight: 600;
+    max-width: calc(100vw - 16px);
+}
+
+.pt-switcher-nav {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    text-decoration: none;
+    font-size: 15px;
+    line-height: 1;
+    flex: 0 0 auto;
+}
+
+.pt-switcher-nav:hover { background: rgba(255, 255, 255, 0.26); }
+.pt-switcher-label { padding: 0 8px; white-space: nowrap; }
+.pt-switcher-key { color: #ffb74d; }
+.pt-switcher-note { font-weight: 400; opacity: 0.55; }
+
+.pt-switcher-screens { display: flex; gap: 4px; padding-left: 6px; margin-left: 4px; border-left: 1px solid rgba(255, 255, 255, 0.18); }
+.pt-switcher-screens a { padding: 3px 9px; border-radius: 999px; font-size: 11.5px; color: rgba(255, 255, 255, 0.7); text-decoration: none; }
+.pt-switcher-screens a:hover { background: rgba(255, 255, 255, 0.14); }
+.pt-switcher-screens a.current { background: rgba(255, 255, 255, 0.22); color: #fff; }
+
+/* Perceived-latency readout - turns "doesn't feel interactive enough" into
+   a number. See prototype.js. */
+.pt-latency { padding-left: 8px; margin-left: 4px; border-left: 1px solid rgba(255, 255, 255, 0.18); font-size: 11.5px; font-weight: 400; opacity: 0.85; white-space: nowrap; }
+.pt-latency-value { font-variant-numeric: tabular-nums; font-weight: 700; color: #86efac; }
+.pt-latency-value[data-slow="true"] { color: #fca5a5; }
+
+@media (max-width: 760px) {
+    .pt-switcher { flex-wrap: wrap; justify-content: center; border-radius: 14px; font-size: 11px; }
+    .pt-switcher-label { padding: 0 4px; }
+}

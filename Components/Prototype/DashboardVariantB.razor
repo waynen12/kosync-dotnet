@@ -1,0 +1,125 @@
+@* THROWAWAY PROTOTYPE - Dashboard variant B: "Admin console".
+   Same nav, tokens and accent as A, but the gradient hero is gone and the
+   gradient is confined to the nav strip, section is chosen from a sidebar,
+   and rows go in a dense table instead of cards.
+
+   The argument: a card grid is right for ai-hub's Resources, which are
+   browsed. Devices and Books are *scanned* - you open this to find the one
+   device that stopped syncing or the one book that split. A table sorts and
+   compares; nine cards do not. Section changes are real <a href>
+   navigation, so no SignalR message and the back button works. *@
+
+<div class="hub-root">
+    <HubNav />
+
+    <div class="hub-shell">
+        <HubSidebar Current="@AppRoutes.Dashboard" Tab="@Tab" Variant="@PrototypeConstants.VariantB"
+                    DeviceCount="Devices.Count" BookCount="Books.Count" />
+
+        <main class="hub-shell-main" data-pt-root>
+            <div class="hub-page-head">
+                <h1 class="hub-page-title">@(IsBooks ? PrototypeConstants.BooksGroupLabel : PrototypeConstants.DevicesGroupLabel)</h1>
+                <p class="hub-page-sub">@PrototypeConstants.BrandTagline</p>
+            </div>
+
+            <div class="hub-toolbar" style="max-width: none; padding: 0 0 16px">
+                <span class="hub-sm hub-muted">
+                    @($"{Items.Count} {(IsBooks ? PrototypeConstants.BooksGroupLabel : PrototypeConstants.DevicesGroupLabel).ToLowerInvariant()}")
+                    @if (FlaggedCount > 0)
+                    {
+                        <span> · </span>
+                        <span style="color: var(--hub-amber-strong); font-weight: 600">@DashboardFormatting.Pluralize(FlaggedCount, "split book")</span>
+                    }
+                </span>
+                <input class="hub-input hub-input-sm" style="width: 15rem"
+                       placeholder="@PrototypeConstants.DashboardSearchPlaceholder"
+                       data-pt-filter="#pt-dash-table" />
+            </div>
+
+            @if (Items.Count == 0)
+            {
+                <p class="hub-empty">@(IsBooks ? Constants.NoBooksSyncedText : Constants.NoDevicesSyncedText)</p>
+            }
+            else
+            {
+                <div class="hub-table-wrap" id="pt-dash-table">
+                    <table class="hub-table">
+                        <thead>
+                            <tr>
+                                <th>@PrototypeConstants.ColumnName</th>
+                                <th class="hub-table-num">@PrototypeConstants.ColumnDocuments</th>
+                                <th>@PrototypeConstants.ColumnProgress</th>
+                                <th>@PrototypeConstants.ColumnLastSynced</th>
+                                <th>@PrototypeConstants.ColumnFlags</th>
+                                <th class="hub-table-actions"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Items)
+                            {
+                                <tr data-pt-text="@item.SearchText" @onclick="() => Navigation.NavigateTo(item.Href)">
+                                    <td class="hub-table-name">
+                                        <span style="display: inline-flex; align-items: center; gap: 8px">
+                                            <HubIcon Name="@(item.Kind == PrototypeDashboardItem.DeviceKind ? "device" : "book-open")" Size="15" Class="hub-muted" />
+                                            @item.Title
+                                        </span>
+                                    </td>
+                                    <td class="hub-table-num">@item.Documents.Count</td>
+                                    <td>
+                                        <span class="hub-table-progress">
+                                            <span class="hub-bar"><span style="width: @DashboardFormatting.Percentage(item.Percentage)"></span></span>
+                                            <span class="hub-pct">@DashboardFormatting.Percentage(item.Percentage)</span>
+                                        </span>
+                                    </td>
+                                    <td class="hub-muted hub-xs">@item.RelativeTime</td>
+                                    <td>
+                                        @if (item.IsFlagged)
+                                        {
+                                            <span class="hub-badge hub-badge-warn">
+                                                <HubIcon Name="merge" Size="12" />
+                                                @Constants.SplitBookFlag
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="hub-muted hub-xs">—</span>
+                                        }
+                                    </td>
+                                    <td class="hub-table-actions">
+                                        <a class="hub-btn hub-btn-outline hub-btn-sm" href="@item.Href">
+                                            Open
+                                            <HubIcon Name="chevron-right" Size="14" />
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    <p class="hub-list-none">@PrototypeConstants.NoMatchesText</p>
+                </div>
+            }
+        </main>
+    </div>
+</div>
+
+@code {
+    [Inject]
+    private NavigationManager Navigation { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<PrototypeDashboardItem> Devices { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<PrototypeDashboardItem> Books { get; set; } = [];
+
+    // Section comes from the URL, not component state - that is the point of
+    // this variant's nav.
+    [Parameter]
+    public string Tab { get; set; } = Constants.DevicesTab;
+
+    private bool IsBooks => Tab == Constants.BooksTab;
+
+    private IReadOnlyList<PrototypeDashboardItem> Items => IsBooks ? Books : Devices;
+
+    private int FlaggedCount => Items.Count(i => i.IsFlagged);
+}

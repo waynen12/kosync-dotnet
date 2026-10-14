@@ -1,0 +1,80 @@
+@* THROWAWAY PROTOTYPE - ai-hub's top nav (page.tsx): a rgba(0,0,0,0.15)
+   blur(8px) strip over the brand gradient, bold white wordmark on the left,
+   round translucent icon buttons on the right. Shared by all three
+   authenticated variants because the nav is the part of the look and feel
+   that should NOT vary. *@
+
+<div class="hub-topband">
+    <nav class="hub-nav">
+        <a class="hub-nav-brand" href="@AppRoutes.Dashboard">@PrototypeConstants.BrandName</a>
+
+        <div class="hub-nav-actions">
+            <AuthorizeView>
+                <Authorized>
+                    <span class="hub-nav-user">@context.User.Identity!.Name</span>
+                </Authorized>
+            </AuthorizeView>
+
+            <a class="hub-icon-btn" href="@PrototypeRoutes.Users"
+               title="@PrototypeConstants.ManageAccountsLabel" aria-label="@PrototypeConstants.ManageAccountsLabel">
+                <HubIcon Name="users" Size="18" />
+            </a>
+
+            <button type="button" class="hub-icon-btn"
+                    title="@PrototypeConstants.ChangePasswordLabel" aria-label="@PrototypeConstants.ChangePasswordLabel">
+                <HubIcon Name="key-round" Size="18" />
+            </button>
+
+            <a class="hub-icon-btn" href="@AppRoutes.Login"
+               title="@PrototypeConstants.SignOutLabel" aria-label="@PrototypeConstants.SignOutLabel">
+                <HubIcon Name="log-out" Size="18" />
+            </a>
+
+            @* Not [data-theme-toggle] - theme.js rewrites that element's
+               textContent, which would delete the inline SVG. Both icons are
+               rendered and CSS picks one. *@
+            <button type="button" class="hub-icon-btn" onclick="window.kosyncTheme.toggle()"
+                    title="@PrototypeConstants.ThemeToggleLabel" aria-label="@PrototypeConstants.ThemeToggleLabel">
+                <span class="hub-theme-moon"><HubIcon Name="moon" Size="18" /></span>
+                <span class="hub-theme-sun"><HubIcon Name="sun" Size="18" /></span>
+            </button>
+        </div>
+    </nav>
+
+    @if (Hero)
+    {
+        <div class="hub-hero">
+            <h1 class="hub-hero-title">@Title</h1>
+            <p class="hub-hero-sub">@Subtitle</p>
+            @if (Search)
+            {
+                <div class="hub-hero-search">
+                    <HubIcon Name="search" Size="16" />
+                    <input class="hub-input" type="search" placeholder="@SearchPlaceholder"
+                           data-pt-filter="@FilterTarget" />
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public bool Hero { get; set; }
+
+    [Parameter]
+    public string Title { get; set; } = PrototypeConstants.BrandName;
+
+    [Parameter]
+    public string Subtitle { get; set; } = PrototypeConstants.BrandTagline;
+
+    [Parameter]
+    public bool Search { get; set; }
+
+    [Parameter]
+    public string SearchPlaceholder { get; set; } = PrototypeConstants.DashboardSearchPlaceholder;
+
+    // CSS selector the client-side text filter in prototype.js narrows.
+    [Parameter]
+    public string FilterTarget { get; set; } = "";
+}

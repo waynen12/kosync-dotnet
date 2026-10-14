@@ -1,0 +1,97 @@
+@* THROWAWAY PROTOTYPE - floating variant switcher. Deliberately styled as
+   scaffolding (high-contrast dark pill) so it never reads as part of the
+   design being judged. Hidden outside Development so a stray merge can't
+   ship it. Static-render safe: links plus the plain JS in prototype.js, no
+   @onclick, because /login is Static SSR and has no circuit to talk to. *@
+@inject IWebHostEnvironment Env
+@inject NavigationManager Navigation
+
+@if (Env.IsDevelopment())
+{
+    <HeadContent>
+        <link rel="stylesheet" href="/css/prototype.css" />
+        <script src="/js/prototype.js" defer></script>
+    </HeadContent>
+
+    <div class="pt-switcher"
+         data-pt-switcher
+         data-pt-param="@PrototypeConstants.VariantQueryParam"
+         data-pt-current="@Current"
+         data-pt-variants="@string.Join(",", PrototypeConstants.Variants)">
+
+        <a class="pt-switcher-nav" href="@UrlFor(Screen, Step(-1))" aria-label="Previous variant">‹</a>
+
+        <span class="pt-switcher-label">
+            <span class="pt-switcher-key">@Current</span>
+            @VariantName
+            <span class="pt-switcher-note">· @InteractionModel</span>
+        </span>
+
+        <a class="pt-switcher-nav" href="@UrlFor(Screen, Step(1))" aria-label="Next variant">›</a>
+
+        <span class="pt-switcher-screens">
+            @foreach (var (label, route) in Screens)
+            {
+                <a class="@(route == Screen ? "current" : "")" href="@UrlFor(route, Current)">@label</a>
+            }
+        </span>
+
+        @* Only the dashboard reads ?demo - the Users screen is already stub
+           data and /login has nothing to populate. *@
+        @if (Screen == AppRoutes.Dashboard)
+        {
+            <span class="pt-switcher-screens">
+                <a class="@(DemoOn ? "current" : "")" href="@UrlFor(Screen, Current, !DemoOn)"
+                   title="Append synthetic Devices/Books in memory so density is realistic">
+                    @PrototypeDemoData.DemoBadgeText
+                </a>
+            </span>
+        }
+
+        <span class="pt-latency">
+            click→paint <span class="pt-latency-value" data-pt-latency-value data-slow="false">—</span>
+        </span>
+    </div>
+}
+
+@code {
+    // Which prototype screen is on show, so its chip can be marked current.
+    [Parameter, EditorRequired]
+    public string Screen { get; set; } = AppRoutes.Dashboard;
+
+    [Parameter, EditorRequired]
+    public string Current { get; set; } = PrototypeConstants.VariantA;
+
+    private static readonly (string Label, string Route)[] Screens =
+    [
+        ("Login", AppRoutes.Login),
+        ("Dashboard", AppRoutes.Dashboard),
+        ("Users", PrototypeRoutes.Users),
+    ];
+
+    private string VariantName =>
+        PrototypeConstants.VariantNames.TryGetValue(Current, out var name) ? name : Current;
+
+    private string InteractionModel =>
+        PrototypeConstants.VariantInteractionModel.TryGetValue(Current, out var model) ? model : "";
+
+    private bool DemoOn =>
+        Navigation.ToAbsoluteUri(Navigation.Uri).Query.Contains(
+            $"{PrototypeDemoData.DemoQueryParam}={PrototypeDemoData.DemoOn}", StringComparison.Ordinal);
+
+    private string Step(int delta)
+    {
+        var variants = PrototypeConstants.Variants;
+        var index = Array.IndexOf(variants, Current);
+        if (index < 0) index = 0;
+        return variants[(index + delta + variants.Length) % variants.Length];
+    }
+
+    private string UrlFor(string route, string variant) => UrlFor(route, variant, DemoOn);
+
+    private static string UrlFor(string route, string variant, bool demo)
+    {
+        var url = $"{route}?{PrototypeConstants.VariantQueryParam}={variant}";
+        return demo ? $"{url}&{PrototypeDemoData.DemoQueryParam}={PrototypeDemoData.DemoOn}" : url;
+    }
+}

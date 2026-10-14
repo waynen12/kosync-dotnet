@@ -1,0 +1,254 @@
+@* THROWAWAY PROTOTYPE - Users variant B: "Admin console".
+   Same tokens, icons, badges and orange primary as variant A, but accounts
+   get a full page and a dense table rather than a dialog.
+
+   The argument for this shape: ai-hub's modal carries three columns
+   (username, role, active). A kosync account carries role, active state,
+   Provisional-Password state, device count, book count, last sync and
+   created date - seven, plus two guard rules. That is table-shaped, and a
+   max-w-xl dialog would have to scroll to show five accounts.
+
+   Row click opens a slide-over with the per-account detail and the
+   destructive actions, so the table itself stays scannable. Nav is a
+   sidebar of real <a href> links - no round-trip to change section. *@
+
+<div class="hub-root">
+    <HubNav />
+
+    <div class="hub-shell">
+        <HubSidebar Current="@PrototypeRoutes.Users" Variant="@Variant" />
+
+        <main class="hub-shell-main" data-pt-root>
+            <div class="hub-page-head">
+                <h1 class="hub-page-title">@PrototypeConstants.UsersTitle</h1>
+                <p class="hub-page-sub">@PrototypeConstants.UsersSubtitle</p>
+            </div>
+
+            <div class="hub-notice">
+                <HubIcon Name="alert" Size="15" />
+                <span>@PrototypeConstants.StubNoticeText</span>
+            </div>
+
+            <div class="hub-toolbar" style="max-width: none; padding-left: 0; padding-right: 0; padding-top: 0">
+                <span class="hub-sm hub-muted">
+                    @($"{PrototypeConstants.StubUsers.Length} accounts · {PrototypeConstants.AdministratorCount} administrators")
+                </span>
+                <div style="display: flex; gap: 8px; align-items: center">
+                    <input class="hub-input hub-input-sm" style="width: 13rem"
+                           placeholder="@PrototypeConstants.UsersSearchPlaceholder"
+                           data-pt-filter="#pt-users-table" />
+                    <button type="button" class="hub-btn hub-btn-brand" data-pt-probe="new account"
+                            @onclick="() => creating = !creating">
+                        <HubIcon Name="user-plus" Size="15" />
+                        @PrototypeConstants.NewUserButtonText
+                    </button>
+                </div>
+            </div>
+
+            @if (creating)
+            {
+                <div class="hub-card" style="padding: 18px 20px; margin-bottom: 16px">
+                    <div class="hub-stack-3">
+                        <p class="hub-sm" style="font-weight: 600; margin: 0">@PrototypeConstants.NewUserButtonText</p>
+                        <div class="hub-grid-2">
+                            <div class="hub-field">
+                                <label class="hub-label" for="pt-b-username">@PrototypeConstants.LoginUsernameLabel</label>
+                                <input id="pt-b-username" class="hub-input" placeholder="@PrototypeConstants.UsernamePlaceholder" />
+                            </div>
+                            <div class="hub-field">
+                                <label class="hub-label" for="pt-b-role">@PrototypeConstants.RoleLabel</label>
+                                <select id="pt-b-role" class="hub-select" style="width: 100%; height: 36px">
+                                    <option>@PrototypeConstants.RoleReader</option>
+                                    <option>@PrototypeConstants.RoleAdministrator</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="hub-field">
+                            <label class="hub-label" for="pt-b-password">@PrototypeConstants.LoginPasswordLabel</label>
+                            <input id="pt-b-password" type="password" class="hub-input" placeholder="@PrototypeConstants.NewPasswordHint" />
+                        </div>
+                        <p class="hub-xs hub-muted" style="margin: 0; line-height: 1.5">@PrototypeConstants.ProvisionalHint</p>
+                        <div class="hub-form-actions">
+                            <button type="button" class="hub-btn hub-btn-outline hub-btn-sm" @onclick="() => creating = false">
+                                @PrototypeConstants.CancelText
+                            </button>
+                            <button type="button" class="hub-btn hub-btn-brand hub-btn-sm" @onclick="() => Stub(PrototypeConstants.CreateUserSubmitText)">
+                                @PrototypeConstants.CreateUserSubmitText
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <div class="hub-table-wrap" id="pt-users-table">
+                <table class="hub-table">
+                    <thead>
+                        <tr>
+                            <th>@PrototypeConstants.LoginUsernameLabel</th>
+                            <th>@PrototypeConstants.RoleLabel</th>
+                            <th>Status</th>
+                            <th class="hub-table-num">Devices</th>
+                            <th class="hub-table-num">Books</th>
+                            <th>@PrototypeConstants.ColumnLastSynced</th>
+                            <th class="hub-table-actions">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in PrototypeConstants.StubUsers)
+                        {
+                            <tr class="@(selected?.Username == user.Username ? "selected" : "") @(user.IsActive ? "" : "inactive")"
+                                data-pt-text="@user.SearchText"
+                                data-pt-probe="open panel"
+                                @onclick="() => selected = user">
+                                <td class="hub-table-name">
+                                    @user.Username
+                                    @if (user.IsSelf)
+                                    {
+                                        <span class="hub-account-self">@PrototypeConstants.SelfSuffix</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (user.IsAdministrator)
+                                    {
+                                        <span class="hub-badge hub-badge-admin">
+                                            <HubIcon Name="shield" Size="12" />
+                                            @PrototypeConstants.RoleAdministrator
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="hub-badge hub-badge-outline">@PrototypeConstants.RoleReader</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="hub-table-badges">
+                                        <span class="hub-badge @(user.IsActive ? "hub-badge-ok" : "hub-badge-muted")">
+                                            @(user.IsActive ? PrototypeConstants.StatusActive : PrototypeConstants.StatusInactive)
+                                        </span>
+                                        @if (user.IsProvisional)
+                                        {
+                                            <span class="hub-badge hub-badge-warn">
+                                                <HubIcon Name="alert" Size="12" />
+                                                @PrototypeConstants.PasswordProvisional
+                                            </span>
+                                        }
+                                    </div>
+                                </td>
+                                <td class="hub-table-num">@user.Devices</td>
+                                <td class="hub-table-num">@user.Books</td>
+                                <td class="hub-muted hub-xs">@(user.LastSync ?? PrototypeConstants.NeverSyncedText)</td>
+                                <td class="hub-table-actions">
+                                    <button type="button" class="hub-btn hub-btn-outline hub-btn-sm"
+                                            @onclick:stopPropagation="true"
+                                            @onclick="() => Stub(PrototypeConstants.ResetPasswordAction)">
+                                        <HubIcon Name="key-round" Size="14" />
+                                        @PrototypeConstants.ResetPasswordAction
+                                    </button>
+                                    <button type="button" class="hub-btn hub-btn-danger hub-btn-sm"
+                                            disabled="@user.IsSelf"
+                                            @onclick:stopPropagation="true"
+                                            @onclick="() => Stub(user.IsActive ? PrototypeConstants.DeactivateAction : PrototypeConstants.ReactivateAction)">
+                                        <HubIcon Name="@(user.IsActive ? "user-x" : "user-check")" Size="14" />
+                                        @(user.IsActive ? PrototypeConstants.DeactivateAction : PrototypeConstants.ReactivateAction)
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <p class="hub-list-none">@PrototypeConstants.NoMatchesText</p>
+            </div>
+        </main>
+    </div>
+
+    @if (selected is not null)
+    {
+        <div class="hub-panel-backdrop" @onclick="() => selected = null"></div>
+        <aside class="hub-panel" role="dialog" aria-modal="true">
+            <div class="hub-panel-head">
+                <div>
+                    <h2 class="hub-panel-title">@selected.Username</h2>
+                </div>
+                <button type="button" class="hub-icon-btn" style="color: var(--hub-muted-fg)"
+                        aria-label="@PrototypeConstants.CloseText" @onclick="() => selected = null">
+                    <HubIcon Name="x" Size="17" />
+                </button>
+            </div>
+            <p class="hub-panel-sub">@selected.Role · @(selected.IsActive ? PrototypeConstants.StatusActive : PrototypeConstants.StatusInactive)</p>
+
+            @if (selected.IsProvisional)
+            {
+                <div class="hub-notice">
+                    <HubIcon Name="alert" Size="15" />
+                    <span>@PrototypeConstants.ProvisionalHint</span>
+                </div>
+            }
+
+            <p class="hub-section-label" style="margin-bottom: 6px">Account</p>
+            <div class="hub-kv"><span class="hub-kv-key">@PrototypeConstants.RoleLabel</span>
+                <select class="hub-select" disabled="@selected.IsGuarded">
+                    <option selected="@selected.IsAdministrator">@PrototypeConstants.RoleAdministrator</option>
+                    <option selected="@(!selected.IsAdministrator)">@PrototypeConstants.RoleReader</option>
+                </select>
+            </div>
+            <div class="hub-kv"><span class="hub-kv-key">Password</span>
+                <span class="hub-badge @(selected.IsProvisional ? "hub-badge-warn" : "hub-badge-ok")">
+                    @(selected.IsProvisional ? PrototypeConstants.PasswordProvisional : PrototypeConstants.PasswordSet)
+                </span>
+            </div>
+            <div class="hub-kv"><span class="hub-kv-key">Created</span><span>@selected.Created</span></div>
+
+            <p class="hub-section-label" style="margin: 22px 0 6px">Library</p>
+            <div class="hub-kv"><span class="hub-kv-key">Devices</span><span>@selected.Devices</span></div>
+            <div class="hub-kv"><span class="hub-kv-key">Books</span><span>@selected.Books</span></div>
+            <div class="hub-kv"><span class="hub-kv-key">@PrototypeConstants.ColumnLastSynced</span><span>@(selected.LastSync ?? PrototypeConstants.NeverSyncedText)</span></div>
+            <p class="hub-guard" style="margin-top: 8px">Counts only - ADR 0004 means an Administrator never opens another User's library.</p>
+
+            <p class="hub-section-label" style="margin: 22px 0 6px">Actions</p>
+            @if (selected.GuardReason is not null)
+            {
+                <p class="hub-guard" style="margin-bottom: 8px">@selected.GuardReason</p>
+            }
+            <div class="hub-panel-actions">
+                <button type="button" class="hub-btn hub-btn-outline" @onclick="() => Stub(PrototypeConstants.ResetPasswordAction)">
+                    <HubIcon Name="key-round" Size="15" />
+                    @PrototypeConstants.ResetPasswordAction
+                </button>
+                <button type="button" class="hub-btn hub-btn-outline" disabled="@selected.IsGuarded"
+                        @onclick="() => Stub(selected.IsAdministrator ? PrototypeConstants.RoleReader : PrototypeConstants.RoleAdministrator)">
+                    <HubIcon Name="shield" Size="15" />
+                    @(selected.IsAdministrator ? "Remove Administrator" : "Make Administrator")
+                </button>
+                <button type="button" class="hub-btn hub-btn-danger" disabled="@selected.IsSelf"
+                        @onclick="() => Stub(selected.IsActive ? PrototypeConstants.DeactivateAction : PrototypeConstants.ReactivateAction)">
+                    <HubIcon Name="@(selected.IsActive ? "user-x" : "user-check")" Size="15" />
+                    @(selected.IsActive ? PrototypeConstants.DeactivateAction : PrototypeConstants.ReactivateAction)
+                </button>
+                <button type="button" class="hub-btn hub-btn-danger" disabled="@selected.IsGuarded"
+                        @onclick="() => Stub(PrototypeConstants.DeleteAction)">
+                    <HubIcon Name="trash" Size="15" />
+                    @PrototypeConstants.DeleteAction
+                </button>
+            </div>
+        </aside>
+    }
+
+    @if (toast is not null)
+    {
+        <div class="hub-toast hub-toast-brand" role="status">
+            <HubIcon Name="alert" Size="15" />
+            <span>@toast</span>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string Variant { get; set; } = PrototypeConstants.VariantB;
+
+    private PrototypeUser? selected;
+    private bool creating;
+    private string? toast;
+
+    private void Stub(string action) => toast = string.Format("Prototype: \"{0}\" would run here. Nothing was changed.", action);
+}

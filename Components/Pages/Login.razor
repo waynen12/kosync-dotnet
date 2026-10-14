@@ -1,39 +1,43 @@
 @* @page requires a literal - keep this in sync with AppRoutes.Login *@
 @page "/login"
 @attribute [AllowAnonymous]
+@layout PrototypeEmptyLayout
 @inject KosyncDbContext Db
 @inject NavigationManager Navigation
 @inject IPService IPService
 @inject ILogger<Login> Logger
 
+@* PROTOTYPE (throwaway): ?variant=A|B|C swaps only the rendering. The form
+   post, credential check and sign-in below are the real ones, so each
+   variant can actually be logged in through. Remove the variant switch and
+   the PrototypeSwitcher once a variant wins - see Components/Prototype/. *@
+
 <PageTitle>Log in</PageTitle>
 
-<h1>Log in</h1>
-
-@if (showError)
+@if (Variant == PrototypeConstants.VariantB)
 {
-    <p class="ks-flag-regression ks-login-error">Invalid username or password.</p>
+    <LoginVariantB Input="Input" OnSubmit="HandleLogin" ShowError="showError" />
+}
+else if (Variant == PrototypeConstants.VariantC)
+{
+    <LoginVariantC Input="Input" OnSubmit="HandleLogin" ShowError="showError" />
+}
+else
+{
+    <LoginVariantA Input="Input" OnSubmit="HandleLogin" ShowError="showError" />
 }
 
-<EditForm Model="Input" FormName="login" OnSubmit="HandleLogin" method="post">
-    <div>
-        <label>
-            Username
-            <InputText @bind-Value="Input.Username" />
-        </label>
-    </div>
-    <div>
-        <label>
-            Password
-            <InputText type="password" @bind-Value="Input.Password" />
-        </label>
-    </div>
-    <button type="submit">Log in</button>
-</EditForm>
+<PrototypeSwitcher Screen="@AppRoutes.Login" Current="@Variant" />
 
 @code {
     [SupplyParameterFromForm]
     private LoginModel Input { get; set; } = new();
+
+    [SupplyParameterFromQuery(Name = PrototypeConstants.VariantQueryParam)]
+    [Parameter]
+    public string? VariantParam { get; set; }
+
+    private string Variant => PrototypeConstants.Normalize(VariantParam);
 
     private bool showError;
 
@@ -67,7 +71,9 @@
         Navigation.NavigateTo(AppRoutes.Dashboard, forceLoad: true);
     }
 
-    private class LoginModel
+    // Public so the prototype login variants can bind to it. Revert to
+    // private when the prototype is removed.
+    public class LoginModel
     {
         public string Username { get; set; } = "";
         public string Password { get; set; } = "";

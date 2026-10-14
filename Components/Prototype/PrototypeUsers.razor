@@ -1,0 +1,35 @@
+@* THROWAWAY PROTOTYPE route - user management has no real page yet (Phase
+   2.5 in docs/ROADMAP.md), so this is sub-shape B: a new throwaway route,
+   placed under the existing /dashboard prefix rather than inventing a new
+   top-level structure, with "prototype" in the path. Stub data only - there
+   is no tenancy-aware account service to call yet.
+   Keep the @page literal in sync with PrototypeRoutes.Users. *@
+@page "/dashboard/prototype-users"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@layout PrototypeEmptyLayout
+
+<PageTitle>@PrototypeConstants.UsersTitle</PageTitle>
+
+@if (Variant == PrototypeConstants.VariantB)
+{
+    <UsersVariantB Variant="@Variant" />
+}
+else if (Variant == PrototypeConstants.VariantC)
+{
+    <UsersVariantC />
+}
+else
+{
+    <UsersVariantA />
+}
+
+<PrototypeSwitcher Screen="@PrototypeRoutes.Users" Current="@Variant" />
+
+@code {
+    [SupplyParameterFromQuery(Name = PrototypeConstants.VariantQueryParam)]
+    [Parameter]
+    public string? VariantParam { get; set; }
+
+    private string Variant => PrototypeConstants.Normalize(VariantParam);
+}

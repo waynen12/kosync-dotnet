@@ -1,0 +1,77 @@
+@* THROWAWAY PROTOTYPE - variant B's persistent sidebar nav, collapsing to a
+   bottom tab bar under 860px (see prototype.css). Items are plain <a href>:
+   changing section is real navigation, not an @onclick, so it costs no
+   SignalR message and the browser back button works. Delete with
+   Components/Prototype/. *@
+
+<nav class="hub-sidebar">
+    <p class="hub-sidebar-group hub-section-label">@PrototypeConstants.NavLibraryGroupLabel</p>
+
+    <a class="hub-nav-item @(IsDevices ? "current" : "")" href="@Url(AppRoutes.Dashboard)">
+        <HubIcon Name="device" Size="17" />
+        <span>@PrototypeConstants.NavDevicesLabel</span>
+        @* No count on screens that don't load the library (the Accounts page
+           doesn't), rather than a misleading 0. *@
+        @if (DeviceCount > 0)
+        {
+            <span class="hub-nav-count">@DeviceCount</span>
+        }
+    </a>
+
+    <a class="hub-nav-item @(IsBooks ? "current" : "")" href="@($"{Url(AppRoutes.Dashboard)}&tab={Constants.BooksTab}")">
+        <HubIcon Name="book-open" Size="17" />
+        <span>@PrototypeConstants.NavBooksLabel</span>
+        @if (BookCount > 0)
+        {
+            <span class="hub-nav-count">@BookCount</span>
+        }
+    </a>
+
+    <p class="hub-sidebar-group hub-section-label">@PrototypeConstants.NavAdminGroupLabel</p>
+
+    <a class="hub-nav-item @(Current == PrototypeRoutes.Users ? "current" : "")" href="@Url(PrototypeRoutes.Users)">
+        <HubIcon Name="users" Size="17" />
+        <span>@PrototypeConstants.NavUsersLabel</span>
+        <span class="hub-nav-count">@PrototypeConstants.StubUsers.Length</span>
+    </a>
+
+    <a class="hub-nav-item" href="@Url(PrototypeRoutes.Users)">
+        <HubIcon Name="user" Size="17" />
+        <span>@PrototypeConstants.NavAccountLabel</span>
+    </a>
+</nav>
+
+@code {
+    [Inject]
+    private NavigationManager Navigation { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Current { get; set; } = AppRoutes.Dashboard;
+
+    [Parameter]
+    public string Variant { get; set; } = PrototypeConstants.VariantB;
+
+    // Which dashboard tab is showing, when Current is the dashboard.
+    [Parameter]
+    public string Tab { get; set; } = Constants.DevicesTab;
+
+    [Parameter]
+    public int DeviceCount { get; set; }
+
+    [Parameter]
+    public int BookCount { get; set; }
+
+    private bool IsDevices => Current == AppRoutes.Dashboard && Tab != Constants.BooksTab;
+    private bool IsBooks => Current == AppRoutes.Dashboard && Tab == Constants.BooksTab;
+
+    // Keep ?demo across sidebar navigation, or turning density on and then
+    // switching section would silently drop back to the two real rows.
+    private bool DemoOn => Navigation.ToAbsoluteUri(Navigation.Uri).Query.Contains(
+        $"{PrototypeDemoData.DemoQueryParam}={PrototypeDemoData.DemoOn}", StringComparison.Ordinal);
+
+    private string Url(string route)
+    {
+        var url = $"{route}?{PrototypeConstants.VariantQueryParam}={Variant}";
+        return DemoOn ? $"{url}&{PrototypeDemoData.DemoQueryParam}={PrototypeDemoData.DemoOn}" : url;
+    }
+}

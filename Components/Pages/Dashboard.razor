@@ -2,28 +2,32 @@
 @page "/dashboard"
 @attribute [Authorize]
 @rendermode InteractiveServer
+@layout PrototypeEmptyLayout
 @inject DeviceDashboardService DeviceDashboardService
 @inject BookDashboardService BookDashboardService
 
+@* PROTOTYPE (throwaway): ?variant=A|B|C swaps only the rendering. The data
+   fetching below is the real thing, so every variant is judged against real
+   devices, real books and real density. Drop the variant switch, the
+   PrototypeSwitcher and the PrototypeEmptyLayout once a variant wins - see
+   Components/Prototype/. *@
+
 <PageTitle>Dashboard</PageTitle>
 
-<div class="ks-header">
-    <h1 class="ks-title">Kosync Dashboard</h1>
-    <p class="ks-subtitle">Your reading, across every device.</p>
-    <div class="ks-tabs">
-        <button type="button" class="ks-tab @(activeTab == Constants.DevicesTab ? "active" : "")" @onclick="() => activeTab = Constants.DevicesTab">Devices</button>
-        <button type="button" class="ks-tab @(activeTab == Constants.BooksTab ? "active" : "")" @onclick="() => activeTab = Constants.BooksTab">Books</button>
-    </div>
-</div>
-
-@if (activeTab == Constants.DevicesTab)
+@if (Variant == PrototypeConstants.VariantB)
 {
-    <CardGrid Items="deviceCards" EmptyText="@Constants.NoDevicesSyncedText" />
+    <DashboardVariantB Devices="deviceItems" Books="bookItems" Tab="@activeTab" />
+}
+else if (Variant == PrototypeConstants.VariantC)
+{
+    <DashboardVariantC Devices="deviceItems" Books="bookItems" />
 }
 else
 {
-    <CardGrid Items="bookCards" EmptyText="@Constants.NoBooksSyncedText" />
+    <DashboardVariantA Devices="deviceItems" Books="bookItems" InitialTab="@activeTab" />
 }
+
+<PrototypeSwitcher Screen="@AppRoutes.Dashboard" Current="@Variant" />
 
 @code {
     // Deep-links the Books tab (e.g. AppRoutes.DashboardBooksTab) into its
@@ -33,38 +37,37 @@ else
     [Parameter]
     public string? Tab { get; set; }
 
+    [SupplyParameterFromQuery(Name = PrototypeConstants.VariantQueryParam)]
+    [Parameter]
+    public string? VariantParam { get; set; }
+
+    // PROTOTYPE: ?demo=1 appends synthetic rows in memory (no DB writes) so
+    // the layouts can be judged at a plausible library size instead of the
+    // two Devices and two Books actually stored. See PrototypeDemoData.
+    [SupplyParameterFromQuery(Name = PrototypeDemoData.DemoQueryParam)]
+    [Parameter]
+    public string? DemoParam { get; set; }
+
+    private string Variant => PrototypeConstants.Normalize(VariantParam);
+
     private string activeTab = Constants.DevicesTab;
-    private List<CardGridItem> deviceCards = new();
-    private List<CardGridItem> bookCards = new();
+    private List<PrototypeDashboardItem> deviceItems = new();
+    private List<PrototypeDashboardItem> bookItems = new();
 
     protected override async Task OnInitializedAsync()
     {
         activeTab = Tab == Constants.BooksTab ? Constants.BooksTab : Constants.DevicesTab;
 
         var devices = await DeviceDashboardService.GetDevicesAsync();
-        deviceCards = devices.Select(device => new CardGridItem(
-            Href: AppRoutes.DeviceDetail(device.Id),
-            Title: device.DeviceName,
-            ShowSplitFlagOnTitle: false,
-            LastSyncedAt: device.LastSyncedAt,
-            Sub: $"{DashboardFormatting.Pluralize(device.Documents.Count, "document")} synced",
-            DocEmptyText: Constants.NoDeviceDocumentsSyncedText,
-            DocRows: device.Documents
-                .Select(doc => new CardGridDocRow(doc.DocumentHash, doc.Percentage, doc.IsSplitBook))
-                .ToList()))
-            .ToList();
+        deviceItems = devices.Select(PrototypeDashboardItem.FromDevice).ToList();
 
         var books = await BookDashboardService.GetBooksAsync();
-        bookCards = books.Select(book => new CardGridItem(
-            Href: AppRoutes.BookDetail(book.Id),
-            Title: $"Book #{book.Id}",
-            ShowSplitFlagOnTitle: book.IsSplitBook,
-            LastSyncedAt: book.LastSyncedAt,
-            Sub: $"{DashboardFormatting.Pluralize(book.Documents.Count, "document")} · {DashboardFormatting.Percentage(book.Percentage)} progress",
-            DocEmptyText: Constants.NoBookProgressText,
-            DocRows: book.Documents
-                .Select(doc => new CardGridDocRow(doc.DocumentHash, doc.Percentage, ShowSplitFlag: false))
-                .ToList()))
-            .ToList();
+        bookItems = books.Select(PrototypeDashboardItem.FromBook).ToList();
+
+        if (DemoParam == PrototypeDemoData.DemoOn)
+        {
+            deviceItems.AddRange(PrototypeDemoData.Devices());
+            bookItems.AddRange(PrototypeDemoData.Books());
+        }
     }
 }

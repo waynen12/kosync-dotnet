@@ -1,0 +1,149 @@
+@* THROWAWAY PROTOTYPE - Dashboard variant A: "Hub parity".
+   ai-hub's page.tsx applied to sync data: translucent nav over the brand
+   gradient, gradient hero with the wordmark and a white elevated search
+   field, amber-underline tab bar, a count-plus-primary-action toolbar, and
+   the 1/2/3-column card grid at max-w-6xl.
+
+   Tabs stay @onclick, which is what the real Dashboard.razor does today -
+   one SignalR round-trip to flip a local string. That makes this the
+   control condition for the ADR 0003 question; the switcher reports the
+   measured click→paint for it. *@
+
+<div class="hub-root">
+    <HubNav Hero="true"
+            Title="@PrototypeConstants.BrandName"
+            Subtitle="@PrototypeConstants.BrandTagline"
+            Search="true"
+            FilterTarget="#pt-dash-grid" />
+
+    <div class="hub-tabbar">
+        <div class="hub-tabbar-inner">
+            <button type="button" class="hub-tab @(tab == Constants.DevicesTab ? "active" : "")"
+                    data-pt-probe="tab switch" @onclick="() => tab = Constants.DevicesTab">
+                @PrototypeConstants.NavDevicesLabel
+            </button>
+            <button type="button" class="hub-tab @(tab == Constants.BooksTab ? "active" : "")"
+                    data-pt-probe="tab switch" @onclick="() => tab = Constants.BooksTab">
+                @PrototypeConstants.NavBooksLabel
+            </button>
+        </div>
+    </div>
+
+    <div class="hub-toolbar">
+        <span class="hub-sm hub-muted">
+            @($"{Items.Count} {(tab == Constants.BooksTab ? PrototypeConstants.BooksGroupLabel : PrototypeConstants.DevicesGroupLabel).ToLowerInvariant()}")
+            @if (FlaggedCount > 0)
+            {
+                <span> · </span>
+                <span style="color: var(--hub-amber-strong); font-weight: 600">@DashboardFormatting.Pluralize(FlaggedCount, "split book")</span>
+            }
+        </span>
+    </div>
+
+    <main class="hub-main" data-pt-root>
+        <div class="hub-stats">
+            <div class="hub-card hub-stat">
+                <div class="hub-stat-value">@Devices.Count</div>
+                <div class="hub-stat-label">@PrototypeConstants.StatDevicesLabel</div>
+            </div>
+            <div class="hub-card hub-stat">
+                <div class="hub-stat-value">@Books.Count</div>
+                <div class="hub-stat-label">@PrototypeConstants.StatBooksLabel</div>
+            </div>
+            <div class="hub-card hub-stat hub-stat-flagged">
+                <div class="hub-stat-value">@(Devices.Count(i => i.IsFlagged) + Books.Count(i => i.IsFlagged))</div>
+                <div class="hub-stat-label">@PrototypeConstants.StatFlaggedLabel</div>
+            </div>
+        </div>
+
+        <div class="hub-grid" id="pt-dash-grid">
+            @foreach (var item in Items)
+            {
+                <a class="hub-card hub-resource-card" href="@item.Href" data-pt-text="@item.SearchText">
+                    <div class="hub-card-top">
+                        <span class="hub-card-kind @(item.Kind == PrototypeDashboardItem.DeviceKind ? "hub-card-kind-device" : "hub-card-kind-book")">
+                            <HubIcon Name="@(item.Kind == PrototypeDashboardItem.DeviceKind ? "device" : "book-open")" Size="17" />
+                        </span>
+                        <span class="hub-card-head-text">
+                            <span class="hub-card-title">@item.Title</span>
+                            <span class="hub-card-meta">@item.Meta</span>
+                        </span>
+                        <span class="hub-badge hub-badge-outline">@item.RelativeTime</span>
+                    </div>
+
+                    @if (item.IsFlagged)
+                    {
+                        <div class="hub-card-flags">
+                            <span class="hub-badge hub-badge-warn">
+                                <HubIcon Name="merge" Size="12" />
+                                @Constants.SplitBookFlag
+                            </span>
+                        </div>
+                    }
+
+                    <div class="hub-rows">
+                        @if (item.Documents.Count == 0)
+                        {
+                            <div class="hub-row-empty">
+                                @(item.Kind == PrototypeDashboardItem.DeviceKind
+                                    ? Constants.NoDeviceDocumentsSyncedText
+                                    : Constants.NoBookProgressText)
+                            </div>
+                        }
+                        else
+                        {
+                            @* Capped: a card grid makes every card in a row as
+                               tall as the tallest, so one 9-document device
+                               leaves craters beside it. Capping is what a real
+                               implementation would do anyway - the detail page
+                               is one click away. *@
+                            @foreach (var doc in item.Documents.Take(MaxDocRows))
+                            {
+                                <div class="hub-row">
+                                    <span class="hub-row-name">@doc.Hash</span>
+                                    <span class="hub-bar"><span style="width: @DashboardFormatting.Percentage(doc.Percentage)"></span></span>
+                                    <span class="hub-pct">@DashboardFormatting.Percentage(doc.Percentage)</span>
+                                </div>
+                            }
+                            @if (item.Documents.Count > MaxDocRows)
+                            {
+                                <div class="hub-row-empty">
+                                    @($"+{item.Documents.Count - MaxDocRows} more")
+                                </div>
+                            }
+                        }
+                    </div>
+                </a>
+            }
+        </div>
+
+        @if (Items.Count == 0)
+        {
+            <p class="hub-empty">
+                @(tab == Constants.BooksTab ? Constants.NoBooksSyncedText : Constants.NoDevicesSyncedText)
+            </p>
+        }
+    </main>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<PrototypeDashboardItem> Devices { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<PrototypeDashboardItem> Books { get; set; } = [];
+
+    [Parameter]
+    public string InitialTab { get; set; } = Constants.DevicesTab;
+
+    // Documents listed on a card before it collapses to "+N more".
+    private const int MaxDocRows = 4;
+
+    private string tab = Constants.DevicesTab;
+
+    protected override void OnInitialized() => tab = InitialTab;
+
+    private IReadOnlyList<PrototypeDashboardItem> Items => tab == Constants.BooksTab ? Books : Devices;
+
+    private int FlaggedCount => Items.Count(i => i.IsFlagged);
+}

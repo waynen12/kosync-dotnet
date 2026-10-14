@@ -1,0 +1,70 @@
+@* THROWAWAY PROTOTYPE - Login variant B: "Admin console".
+   Same tokens, card and orange submit as A, but the gradient becomes a
+   left-hand brand panel instead of the whole screen, and the panel carries
+   the one thing a sync portal has to say that a learning hub doesn't: that
+   these are the same credentials your KOReader devices use. Collapses to a
+   gradient header strip under 860px. *@
+
+<div class="hub-root hub-login hub-login-split">
+    <aside class="hub-login-aside">
+        <div class="hub-login-aside-brand">@PrototypeConstants.BrandName</div>
+        <p class="hub-login-aside-pitch">@PrototypeConstants.BrandTagline</p>
+        <ul class="hub-login-features">
+            @foreach (var bullet in PrototypeConstants.LoginFeatureBullets)
+            {
+                <li>
+                    <HubIcon Name="chevron-right" Size="15" />
+                    <span>@bullet</span>
+                </li>
+            }
+        </ul>
+    </aside>
+
+    <main class="hub-login-main">
+        <div class="hub-login-card">
+            <div class="hub-login-head">
+                <h1 class="hub-login-title">@PrototypeConstants.LoginSubmitText</h1>
+                <p class="hub-login-sub">@PrototypeConstants.LoginSyncHint</p>
+            </div>
+
+            @if (ShowError)
+            {
+                <div class="hub-login-error" role="alert">
+                    <HubIcon Name="alert" Size="15" />
+                    <span>@PrototypeConstants.LoginErrorText</span>
+                </div>
+            }
+
+            <EditForm Model="Input" FormName="login" OnSubmit="OnSubmit" method="post">
+                <div class="hub-stack-4">
+                    <div class="hub-field">
+                        <label class="hub-label" for="pt-username">@PrototypeConstants.LoginUsernameLabel</label>
+                        <InputText id="pt-username" class="hub-input" @bind-Value="Input.Username"
+                                   placeholder="@PrototypeConstants.LoginUsernamePlaceholder" autocomplete="username" />
+                    </div>
+
+                    <div class="hub-field">
+                        <label class="hub-label" for="pt-password">@PrototypeConstants.LoginPasswordLabel</label>
+                        <InputText id="pt-password" type="password" class="hub-input" @bind-Value="Input.Password"
+                                   placeholder="@PrototypeConstants.LoginPasswordPlaceholder" autocomplete="current-password" />
+                    </div>
+
+                    <button type="submit" class="hub-btn hub-btn-brand hub-btn-lg hub-btn-block">
+                        @PrototypeConstants.LoginSubmitText
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    </main>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public Login.LoginModel Input { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public EventCallback OnSubmit { get; set; }
+
+    [Parameter]
+    public bool ShowError { get; set; }
+}

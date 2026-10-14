@@ -1,0 +1,58 @@
+@* THROWAWAY PROTOTYPE - Login variant A: "Hub parity".
+   A direct port of ai-hub's login/page.tsx - full-bleed brand gradient,
+   centred rounded-2xl shadow-xl card at max-w-sm, centred extrabold title
+   over a muted subtitle, Label+Input pairs, full-width orange submit.
+   The one deliberate addition is the inline error: ai-hub raises invalid
+   credentials as a sonner toast, which needs a live client. /login is
+   Static SSR (ADR 0003) and a plain form POST, so the error is rendered
+   where the toast would have been. *@
+
+<div class="hub-root hub-login">
+    <div class="hub-login-card">
+        <div class="hub-login-head">
+            <h1 class="hub-login-title">@PrototypeConstants.BrandName</h1>
+            <p class="hub-login-sub">@PrototypeConstants.LoginHeading</p>
+        </div>
+
+        @if (ShowError)
+        {
+            <div class="hub-login-error" role="alert">
+                <HubIcon Name="alert" Size="15" />
+                <span>@PrototypeConstants.LoginErrorText</span>
+            </div>
+        }
+
+        <EditForm Model="Input" FormName="login" OnSubmit="OnSubmit" method="post">
+            <div class="hub-stack-4">
+                <div class="hub-field">
+                    <label class="hub-label" for="pt-username">@PrototypeConstants.LoginUsernameLabel</label>
+                    <InputText id="pt-username" class="hub-input" @bind-Value="Input.Username"
+                               placeholder="@PrototypeConstants.LoginUsernamePlaceholder" autocomplete="username" />
+                </div>
+
+                <div class="hub-field">
+                    <label class="hub-label" for="pt-password">@PrototypeConstants.LoginPasswordLabel</label>
+                    <InputText id="pt-password" type="password" class="hub-input" @bind-Value="Input.Password"
+                               placeholder="@PrototypeConstants.LoginPasswordPlaceholder" autocomplete="current-password" />
+                </div>
+
+                <button type="submit" class="hub-btn hub-btn-brand hub-btn-lg hub-btn-block">
+                    @PrototypeConstants.LoginSubmitText
+                </button>
+            </div>
+        </EditForm>
+
+        <p class="hub-login-hint">@PrototypeConstants.LoginSyncHint</p>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public Login.LoginModel Input { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public EventCallback OnSubmit { get; set; }
+
+    [Parameter]
+    public bool ShowError { get; set; }
+}

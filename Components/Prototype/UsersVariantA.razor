@@ -1,0 +1,232 @@
+@* THROWAWAY PROTOTYPE - Users variant A: "Hub parity".
+   A direct port of ai-hub's AccountsModal.tsx: a max-w-xl dialog titled
+   "Manage Accounts", accounts grouped into Active (n) / Inactive (n) under
+   uppercase muted labels, each one a rounded-lg bordered row with the
+   username, a role select, "Reset password" and "Deactivate" outline
+   buttons, an inline reset form that expands under the row, a created-date
+   footnote, and a "New Account" button at the bottom that expands into an
+   inline create form with the orange submit.
+
+   Two things kosync has that ai-hub doesn't, added here rather than
+   invented later: a Provisional-Password badge (ADR 0006) and the
+   self/last-Administrator guard reasons, shown as a disabled control plus
+   the reason instead of an error after the click.
+
+   Interaction model: every toggle below is an @onclick, so each one is a
+   SignalR round-trip. That is the control condition for the ADR 0003
+   question - the switcher's click→paint readout is measuring these. *@
+
+<div class="hub-root">
+    <HubNav />
+
+    <div class="hub-page-head">
+        <h1 class="hub-page-title">@PrototypeConstants.UsersTitle</h1>
+        <p class="hub-page-sub">@PrototypeConstants.UsersSubtitle</p>
+    </div>
+
+    <div class="hub-main" data-pt-root>
+        <div class="hub-notice">
+            <HubIcon Name="alert" Size="15" />
+            <span>@PrototypeConstants.StubNoticeText</span>
+        </div>
+
+        <button type="button" class="hub-btn hub-btn-outline" data-pt-probe="open modal" @onclick="() => open = true">
+            <HubIcon Name="users" Size="15" />
+            @PrototypeConstants.UsersTitle
+        </button>
+
+        @if (open)
+        {
+            <div class="hub-dialog-backdrop">
+                <div class="hub-dialog" role="dialog" aria-modal="true">
+                    <div class="hub-dialog-head">
+                        <h2 class="hub-dialog-title">@PrototypeConstants.UsersTitle</h2>
+                        <button type="button" class="hub-icon-btn" style="color: var(--hub-muted-fg)"
+                                aria-label="@PrototypeConstants.CloseText" @onclick="Close">
+                            <HubIcon Name="x" Size="17" />
+                        </button>
+                    </div>
+                    <p class="hub-dialog-sub">@PrototypeConstants.UsersSubtitle</p>
+
+                    <div class="hub-dialog-body">
+                        <div class="hub-stack-2">
+                            <p class="hub-section-label">@string.Format(PrototypeConstants.ActiveGroupFormat, Active.Length)</p>
+                            @if (Active.Length == 0)
+                            {
+                                <p class="hub-sm hub-muted">@PrototypeConstants.NoActiveAccountsText</p>
+                            }
+                            else
+                            {
+                                @foreach (var user in Active)
+                                {
+                                    @AccountRow(user)
+                                }
+                            }
+                        </div>
+
+                        @if (Inactive.Length > 0)
+                        {
+                            <div class="hub-stack-2" style="padding-top: 8px; border-top: 1px solid var(--hub-border)">
+                                <p class="hub-section-label">@string.Format(PrototypeConstants.InactiveGroupFormat, Inactive.Length)</p>
+                                @foreach (var user in Inactive)
+                                {
+                                    @AccountRow(user)
+                                }
+                            </div>
+                        }
+
+                        <div style="padding-top: 8px; border-top: 1px solid var(--hub-border)">
+                            @if (!creating)
+                            {
+                                <button type="button" class="hub-btn hub-btn-outline hub-btn-sm"
+                                        data-pt-probe="new account" @onclick="() => creating = true">
+                                    <HubIcon Name="user-plus" Size="14" />
+                                    @PrototypeConstants.NewUserButtonText
+                                </button>
+                            }
+                            else
+                            {
+                                <div class="hub-stack-3">
+                                    <p class="hub-sm" style="font-weight: 500">@PrototypeConstants.NewUserButtonText</p>
+                                    <div class="hub-grid-2">
+                                        <div class="hub-field">
+                                            <label class="hub-label" for="pt-new-username">@PrototypeConstants.LoginUsernameLabel</label>
+                                            <input id="pt-new-username" class="hub-input" placeholder="@PrototypeConstants.UsernamePlaceholder" />
+                                        </div>
+                                        <div class="hub-field">
+                                            <label class="hub-label" for="pt-new-role">@PrototypeConstants.RoleLabel</label>
+                                            <select id="pt-new-role" class="hub-select" style="width: 100%; height: 36px">
+                                                <option>@PrototypeConstants.RoleReader</option>
+                                                <option>@PrototypeConstants.RoleAdministrator</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="hub-field">
+                                        <label class="hub-label" for="pt-new-password">@PrototypeConstants.LoginPasswordLabel</label>
+                                        <input id="pt-new-password" type="password" class="hub-input" placeholder="@PrototypeConstants.NewPasswordHint" />
+                                    </div>
+                                    <p class="hub-xs hub-muted" style="margin: 0; line-height: 1.5">@PrototypeConstants.ProvisionalHint</p>
+                                    <div class="hub-form-actions">
+                                        <button type="button" class="hub-btn hub-btn-outline hub-btn-sm" @onclick="() => creating = false">
+                                            @PrototypeConstants.CancelText
+                                        </button>
+                                        <button type="button" class="hub-btn hub-btn-brand hub-btn-sm" @onclick="() => Stub(PrototypeConstants.CreateUserSubmitText)">
+                                            @PrototypeConstants.CreateUserSubmitText
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="hub-dialog-foot">
+                            <button type="button" class="hub-btn hub-btn-outline" @onclick="Close">@PrototypeConstants.CloseText</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (toast is not null)
+        {
+            @* ai-hub uses sonner, bottom-right. Same position and shape. *@
+            <div class="hub-toast hub-toast-brand" role="status">
+                <HubIcon Name="alert" Size="15" />
+                <span>@toast</span>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private bool open = true;
+    private bool creating;
+    private string? resetTarget;
+    private string? toast;
+
+    private static PrototypeUser[] Active => PrototypeConstants.StubUsers.Where(u => u.IsActive).ToArray();
+    private static PrototypeUser[] Inactive => PrototypeConstants.StubUsers.Where(u => !u.IsActive).ToArray();
+
+    private void Close()
+    {
+        open = false;
+        creating = false;
+        resetTarget = null;
+    }
+
+    private void Stub(string action) => toast = string.Format("Prototype: \"{0}\" would run here. Nothing was changed.", action);
+
+    private RenderFragment AccountRow(PrototypeUser user) =>
+        @<div class="hub-account-row @(user.IsActive ? "" : "hub-account-row-inactive")">
+            <div class="hub-account-row-head">
+                <span class="hub-account-name">
+                    @user.Username
+                    @if (user.IsSelf)
+                    {
+                        <span class="hub-account-self">@PrototypeConstants.SelfSuffix</span>
+                    }
+                </span>
+
+                @if (user.IsProvisional)
+                {
+                    <span class="hub-badge hub-badge-warn">
+                        <HubIcon Name="alert" Size="12" />
+                        @PrototypeConstants.PasswordProvisional
+                    </span>
+                }
+
+                <select class="hub-select" style="width: 8.5rem" disabled="@(!user.IsActive || user.IsGuarded)">
+                    <option selected="@user.IsAdministrator">@PrototypeConstants.RoleAdministrator</option>
+                    <option selected="@(!user.IsAdministrator)">@PrototypeConstants.RoleReader</option>
+                </select>
+
+                @if (user.IsActive)
+                {
+                    <button type="button" class="hub-btn hub-btn-outline hub-btn-sm"
+                            data-pt-probe="reset password"
+                            @onclick="() => resetTarget = resetTarget == user.Username ? null : user.Username">
+                        <HubIcon Name="key-round" Size="14" />
+                        @PrototypeConstants.ResetPasswordAction
+                    </button>
+                    <button type="button" class="hub-btn hub-btn-danger hub-btn-sm"
+                            disabled="@user.IsSelf" @onclick="() => Stub(PrototypeConstants.DeactivateAction)">
+                        <HubIcon Name="user-x" Size="14" />
+                        @PrototypeConstants.DeactivateAction
+                    </button>
+                }
+                else
+                {
+                    <button type="button" class="hub-btn hub-btn-outline hub-btn-sm"
+                            @onclick="() => Stub(PrototypeConstants.ReactivateAction)">
+                        <HubIcon Name="user-check" Size="14" />
+                        @PrototypeConstants.ReactivateAction
+                    </button>
+                }
+            </div>
+
+            @if (resetTarget == user.Username)
+            {
+                <div class="hub-account-reset">
+                    <input type="password" class="hub-input hub-input-sm" style="flex: 1"
+                           placeholder="@PrototypeConstants.NewPasswordPlaceholder" />
+                    <button type="button" class="hub-btn hub-btn-default hub-btn-sm"
+                            @onclick="() => Stub(PrototypeConstants.ResetPasswordAction)">@PrototypeConstants.SetText</button>
+                    <button type="button" class="hub-btn hub-btn-outline hub-btn-sm"
+                            @onclick="() => resetTarget = null">@PrototypeConstants.CancelText</button>
+                </div>
+            }
+
+            @if (user.IsProvisional)
+            {
+                <p class="hub-xs" style="color: var(--hub-amber-strong); margin: 0; line-height: 1.45">@PrototypeConstants.ProvisionalHint</p>
+            }
+
+            @if (user.GuardReason is not null)
+            {
+                <p class="hub-guard">@user.GuardReason</p>
+            }
+
+            <p class="hub-account-created">
+                @($"Created {user.Created} · {DashboardFormatting.Pluralize(user.Devices, "device")} · {DashboardFormatting.Pluralize(user.Books, "book")} · last sync {user.LastSync ?? PrototypeConstants.NeverSyncedText}")
+            </p>
+        </div>;
+}

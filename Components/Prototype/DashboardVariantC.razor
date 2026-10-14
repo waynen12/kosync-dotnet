@@ -1,0 +1,168 @@
+@* THROWAWAY PROTOTYPE - Dashboard variant C: "Zero round-trips".
+   Same nav, tokens, badges and accent as A and B. The structural bet: no
+   tabs and no sidebar. Devices and Books live in one stream behind a sticky
+   bar of filter chips, and a row expands in place rather than navigating,
+   so the common task (why did this not sync?) needs no page change at all.
+
+   Nothing here touches SignalR. The chips are radio inputs the stylesheet
+   reacts to with :has(); the text filter is a few lines in prototype.js;
+   expanding a row is native <details>. The switcher reports "client-only"
+   on this page against measured milliseconds on A - that pair of readings
+   is the evidence for the ADR 0003 question in docs/ROADMAP.md. *@
+
+<div class="hub-root">
+    <HubNav />
+
+    <div class="hub-streambar hub-filters">
+        <div class="hub-streambar-inner">
+            <span class="hub-chips">
+                <input type="radio" name="hub-filter" id="hub-f-all" checked />
+                <label class="hub-chip" for="hub-f-all" data-pt-probe="chip filter">@PrototypeConstants.FilterAllLabel</label>
+
+                <input type="radio" name="hub-filter" id="hub-f-devices" />
+                <label class="hub-chip" for="hub-f-devices" data-pt-probe="chip filter">
+                    <HubIcon Name="device" Size="14" />
+                    @PrototypeConstants.FilterDevicesLabel
+                    <span>@Devices.Count</span>
+                </label>
+
+                <input type="radio" name="hub-filter" id="hub-f-books" />
+                <label class="hub-chip" for="hub-f-books" data-pt-probe="chip filter">
+                    <HubIcon Name="book-open" Size="14" />
+                    @PrototypeConstants.FilterBooksLabel
+                    <span>@Books.Count</span>
+                </label>
+
+                <input type="radio" name="hub-filter" id="hub-f-flagged" />
+                <label class="hub-chip" for="hub-f-flagged" data-pt-probe="chip filter">
+                    <HubIcon Name="merge" Size="14" />
+                    @PrototypeConstants.FilterFlaggedLabel
+                    <span>@FlaggedCount</span>
+                </label>
+            </span>
+
+            <span class="hub-streambar-search">
+                <HubIcon Name="search" Size="15" />
+                <input class="hub-input" type="search" placeholder="@PrototypeConstants.DashboardSearchPlaceholder"
+                       data-pt-filter="#pt-stream" autocomplete="off" />
+            </span>
+        </div>
+    </div>
+
+    <main class="hub-stream" id="pt-stream" data-pt-root>
+        @if (Devices.Count == 0 && Books.Count == 0)
+        {
+            <p class="hub-empty">@Constants.NoDevicesSyncedText</p>
+        }
+
+        @if (Devices.Count > 0)
+        {
+            <p class="hub-stream-group hub-section-label" data-group="device">@PrototypeConstants.DevicesGroupLabel</p>
+            @foreach (var item in Devices)
+            {
+                @StreamItem(item)
+            }
+        }
+
+        @if (Books.Count > 0)
+        {
+            <p class="hub-stream-group hub-section-label" data-group="book">@PrototypeConstants.BooksGroupLabel</p>
+            @foreach (var item in Books)
+            {
+                @StreamItem(item)
+            }
+        }
+
+        <p class="hub-stream-none">@PrototypeConstants.NoMatchesText</p>
+    </main>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<PrototypeDashboardItem> Devices { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<PrototypeDashboardItem> Books { get; set; } = [];
+
+    private int FlaggedCount => Devices.Count(i => i.IsFlagged) + Books.Count(i => i.IsFlagged);
+
+    private RenderFragment StreamItem(PrototypeDashboardItem item) =>
+        @<details class="hub-item"
+                  data-kind="@item.Kind"
+                  data-flagged="@(item.IsFlagged ? "true" : "false")"
+                  data-pt-text="@item.SearchText">
+            <summary data-pt-probe="expand row">
+                <span class="hub-item-caret"><HubIcon Name="chevron-right" Size="14" /></span>
+
+                <span class="hub-card-kind @(item.Kind == PrototypeDashboardItem.DeviceKind ? "hub-card-kind-device" : "hub-card-kind-book")"
+                      style="width: 30px; height: 30px">
+                    <HubIcon Name="@(item.Kind == PrototypeDashboardItem.DeviceKind ? "device" : "book-open")" Size="15" />
+                </span>
+
+                <span class="hub-item-main">
+                    <span class="hub-item-name">
+                        @item.Title
+                        @if (item.IsFlagged)
+                        {
+                            <span class="hub-badge hub-badge-warn">
+                                <HubIcon Name="merge" Size="12" />
+                                @Constants.SplitBookFlag
+                            </span>
+                        }
+                    </span>
+                    <span class="hub-item-meta">@item.Meta · @item.RelativeTime</span>
+                </span>
+
+                <span class="hub-item-right">
+                    <span class="hub-bar"><span style="width: @DashboardFormatting.Percentage(item.Percentage)"></span></span>
+                    <span class="hub-pct">@DashboardFormatting.Percentage(item.Percentage)</span>
+                </span>
+            </summary>
+
+            <div class="hub-item-body">
+                @if (item.Documents.Count == 0)
+                {
+                    <p class="hub-row-empty" style="padding: 0">
+                        @(item.Kind == PrototypeDashboardItem.DeviceKind
+                            ? Constants.NoDeviceDocumentsSyncedText
+                            : Constants.NoBookProgressText)
+                    </p>
+                }
+                else
+                {
+                    <div class="hub-rows" style="border-top: none">
+                        @foreach (var doc in item.Documents)
+                        {
+                            <div class="hub-row">
+                                <span class="hub-row-name">@doc.Hash</span>
+                                @if (doc.IsSplit)
+                                {
+                                    <span class="hub-badge hub-badge-warn">@Constants.SplitBookFlag</span>
+                                }
+                                <span class="hub-bar"><span style="width: @DashboardFormatting.Percentage(doc.Percentage)"></span></span>
+                                <span class="hub-pct">@DashboardFormatting.Percentage(doc.Percentage)</span>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <div class="hub-item-actions">
+                    <a class="hub-btn hub-btn-outline hub-btn-sm" href="@item.Href">
+                        Full history
+                        <HubIcon Name="chevron-right" Size="14" />
+                    </a>
+                    @if (item.Kind == PrototypeDashboardItem.BookKind)
+                    {
+                        <button type="button" class="hub-btn hub-btn-outline hub-btn-sm">
+                            <HubIcon Name="merge" Size="14" />
+                            Merge
+                        </button>
+                        <button type="button" class="hub-btn hub-btn-outline hub-btn-sm">
+                            <HubIcon Name="rotate" Size="14" />
+                            @Constants.ResetProgressButton
+                        </button>
+                    }
+                </div>
+            </div>
+        </details>;
+}
