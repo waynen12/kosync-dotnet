@@ -10,9 +10,14 @@ portal every reader logs into with their own sync credentials (ADR 0004).
 That, plus a forced first-login password change (ADR 0006), real password
 storage (ADR 0005), and the discovery that KOReader can now push book
 metadata (ADR 0007), are designed and specified but **not yet
-implemented**. Phase 2.5 and Phase 3 below carry that work. The UI
-direction is deliberately reopened and parked behind a prototyping
-session.
+implemented**. Phase 2.5 and Phase 3 below carry that work.
+
+Two prototyping sessions then settled the UI: layouts and design language
+(ai-hub branding, dense tables over card grids), and the framework
+question — Blazor stays. The prototype itself lives on the
+`design/portal-redesign` branch. **Folding that UI in is the next piece of
+work**, ahead of Phase 2.5, since all of it except the Users page is
+backend-independent.
 
 This doc exists to get the plan out of chat and into the repo so it
 survives between sessions. Domain vocabulary lives in
@@ -38,7 +43,9 @@ response.
 
 | Area | Decision | Confidence |
 |---|---|---|
-| Dashboard frontend | Blazor, `InteractiveServer` render mode throughout the authenticated app; `/login` is Static SSR (ADR 0003) | **Reopened** — see "UI direction" below |
+| Dashboard frontend | Blazor, `InteractiveServer` render mode throughout the authenticated app; `/login` is Static SSR. Reopened after the second prototype and reaffirmed; local UI state must not round-trip (ADR 0003) | Firm, review at droplet cutover |
+| Design language | ai-hub parity as *branding* — token block copied, not components. Two separate apps, no interaction, no shared accounts | Firm |
+| Droplet routing | Own subdomain (`kosync.notrauto.org`), not a path prefix | Firm |
 | Design language | ai-hub parity — shadcn oklch ramp, Geist, orange→indigo gradient, `#F57C00` accent | Firm (2026-10-12 prototype) |
 | `/login` layout | ai-hub's login verbatim: full-bleed gradient, centred `max-w-sm` card | Firm (2026-10-12 prototype) |
 | Dashboard + Users layout | Sidebar shell + dense table, not a card grid — cards go ragged at realistic density | Firm (2026-10-12 prototype) |
@@ -219,12 +226,12 @@ Source is now decided (ADR 0007): KOReader's own opt-in metadata push.
 - Needs a text/summary source, an LLM integration point, and careful
   scoping of the "no further than current progress" boundary.
 
-## UI direction — layouts resolved, framework still open
+## UI direction — resolved
 
 A second prototyping session (2026-10-12) settled the layout question and
-the design language. The framework question (item 4) is **not** settled;
-see [ui-tech-review.md](ui-tech-review.md) for the evidence and the
-recommendation.
+the design language; a follow-up round (2026-10-13) settled the framework
+question. See [ui-tech-review.md](ui-tech-review.md) for the evidence and
+the reasoning on both.
 
 ### Design language — decided
 
@@ -278,12 +285,22 @@ item's cross axis make it size to content rather than stretch, so the
 dashboard renders in a narrow centred column at every width. Both need
 fixing whatever the framework ends up being.
 
-### When folding in
+### When folding in — goes first, ahead of Phase 2.5
 
-Deliberately **not** folded in yet — the decision is recorded, the code is
-not. The prototype is left in the working tree, uncommitted, so the
-variants stay flippable until someone picks this up (most likely alongside
-Phase 2.5, since the Users page cannot be built before it).
+The prototype is committed on the `design/portal-redesign` branch, so the
+variants remain recoverable from history rather than from the working
+tree.
+
+**This work now leads, ahead of Phase 2.5.** The original order was
+2 → 1 → 3 → 4, chosen when item 4 was an unknown quantity; it isn't any
+more. Login, the dashboard, the nav and the token block have no backend
+dependency and can land immediately — only the Users page is blocked on
+Phase 2.5. Folding in first also removes the prototype scaffolding from
+`Login.razor` and `Dashboard.razor` (which it is currently wired into, so
+the working tree is not a neutral parking spot), and means Phase 2.5's
+change-password screen gets built once in the final design rather than
+styled twice. The reason for doing passwords before user administration
+still holds *within* Phase 2.5 and is unaffected.
 
 Everything prototype-related is under `Components/Prototype/` plus
 `wwwroot/css/prototype.css` and `wwwroot/js/prototype.js`. What survives,
@@ -303,49 +320,69 @@ Delete the rest: `PrototypeConstants.cs`, `PrototypeRoutes.cs`,
 `PrototypeEmptyLayout.razor`, `PrototypeDashboardItem.cs`, the losing
 variants, and `prototype.js`.
 
-Three things in main were touched for the prototype and must be reverted or
-made permanent:
+**Four** files in main were touched for the prototype and must be reverted
+or made permanent:
 
 - `Components/Pages/Login.razor` — `LoginModel` was made `public` and the
   page took `@layout PrototypeEmptyLayout`.
+- `Components/Pages/Dashboard.razor` — also took
+  `@layout PrototypeEmptyLayout`, a three-way variant switch and a
+  `<PrototypeSwitcher>`, and lost its two `<CardGrid>` calls. Easy to miss:
+  this one was absent from the list until a later review caught it.
 - `Components/_Imports.razor` — two `@using` lines marked as throwaway.
 - `tests/Kosync.Tests/DashboardAuthTests.cs` — two assertions re-pointed
   at prototype copy (`">admin<"`, and `PrototypeConstants.LoginErrorText`).
   These must move to `Constants.cs` or go back to literals.
 
-### Framework — still open (item 4)
+**Ordering constraint on the deletions.** `DashboardAuthTests.cs`
+references `PrototypeConstants.LoginErrorText` at *compile* time, so the
+test project stops building the moment `PrototypeConstants.cs` is removed.
+Move that string into `Constants.cs` and re-point the assertion **before**
+deleting anything under `Components/Prototype/`.
 
-The interactivity complaint genuinely reopens ADR 0003: every `@onclick` is
-a SignalR round-trip, and the Dashboard's tab toggle sends a message to the
-server to change a local variable. But the prototype's variant C
-demonstrated a whole dashboard on `InteractiveServer` where **no**
-interaction reaches the server — `:has()` chips, native `<details>`, a few
-lines of JS. The round-trip is what `@onclick` opts into, not what the
-render mode imposes.
+### Framework — decided (item 4)
 
-Recommendation in [ui-tech-review.md](ui-tech-review.md): keep ADR 0003,
-amend it with "local UI state must not round-trip", and re-decide at the
-droplet cutover — *unless* one shared design system across ai-hub and
-kosync is worth more, in which case the move is Next.js and the time is
-before Phase 2.5 touches every query.
+**Blazor `InteractiveServer` stays.** ADR 0003 is amended with a rule it
+was missing — *local UI state must not round-trip; data may* — rather than
+superseded. The standalone Tailwind CLI middle path is rejected.
 
-Carry into whichever path is taken:
+The decision turned on what "one design system" would have required in
+practice. The two apps stay separate with no interaction between them —
+shared look and feel only — and shadcn distributes by copying source into
+a project, so moving to Next.js would have produced two independent shadcn
+copies drifting against each other rather than one shared library. Parity
+is wanted as branding, and branding needs the token block, which ports to
+CSS custom properties verbatim. Reasoning in full:
+[ui-tech-review.md](ui-tech-review.md#resolved-2026-10-13).
+
+Still carry forward:
 
 - Each pass over the tool is expected to refine the UI further, so avoid
   building layout primitives that the next pass invalidates.
 - ADR 0004 commits the data layer to in-process EF Core with query
-  filters, and ADR 0003 already notes that a client-side framework needs a
-  real API layer. A move to React therefore gets *more* expensive after
-  Phase 2.5 and Phase 3, not less. Keep those phases' logic in services
-  that would be cheap to re-expose over HTTP, and don't accrete
-  component-level logic that wouldn't survive the move.
+  filters. Keep Phase 2.5 and Phase 3 logic in services that would be
+  cheap to re-expose over HTTP, and don't accrete component-level logic
+  that wouldn't survive a move. This is now a hedge rather than a plan,
+  but the droplet cutover is the review point and the cost of a future
+  move only rises.
 
 ## Deployment target
 
-V1 runs on this machine only, plain HTTP, no reverse proxy. Long-term plan
-is a DigitalOcean droplet for access away from home. The README's Nginx
-Proxy Manager mention is inherited from the original repo this project was
-cloned from, not a setup decision made for this fork.
+V1 runs on this machine only, plain HTTP, no reverse proxy. The README's
+Nginx Proxy Manager mention is inherited from the original repo this
+project was cloned from, not a setup decision made for this fork.
+
+**Target: the existing DigitalOcean droplet**, alongside ai-hub
+(`hub.notrauto.org`) and n8n (`n8n.notrauto.org`), as
+**`kosync.notrauto.org`** — its own subdomain, deliberately not a path
+prefix. Path-prefixing a Blazor Server app breaks `<base href="/">`, every
+constant in `AppRoutes.cs`, the static asset paths and the SignalR
+endpoint; all fixable, all fiddly, and it fails only in production. A
+subdomain costs one DNS record.
+
+kosync runs **containerised** (the repo already carries a `Dockerfile`),
+unlike ai-hub which is deployed directly — chosen for isolation on a
+shared box.
 
 ### Before going internet-facing (droplet deployment)
 
@@ -367,9 +404,6 @@ other people's reading history, not just the operator's own.
 
 ## Open questions
 
-- **UI framework** — whether `InteractiveServer` (ADR 0003) survives, or
-  the dashboard moves to a client-side framework. Deferred to a
-  prototyping session; see "UI direction" above.
 - Filling book metadata from an entered title or ISBN — wanted, shape not
   designed (ADR 0007 covers only the push and manual curation).
 - Password expiry — anticipated but not designed. ADR 0006 notes that
@@ -382,3 +416,8 @@ other people's reading history, not just the operator's own.
 *Resolved by the post-Phase-2 design pass:* book metadata source (ADR
 0007), dashboard tenancy model (ADR 0004), password storage (ADR 0005),
 first-login flow (ADR 0006).
+
+*Resolved by the two prototyping sessions:* screen layouts and design
+language (above), and the UI framework question — Blazor stays, ADR 0003
+amended rather than superseded, Tailwind CLI rejected
+([ui-tech-review.md](ui-tech-review.md#resolved-2026-10-13)).

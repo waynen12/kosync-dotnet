@@ -162,7 +162,7 @@ Layouts are chosen — `/login` takes variant A (hub parity), the dashboard
 and user management take variant B (admin console). The reasoning, the
 measured page heights behind it, and the "cards go ragged at realistic
 density" finding are recorded in
-[ROADMAP.md](ROADMAP.md#ui-direction--layouts-resolved-framework-still-open).
+[ROADMAP.md](ROADMAP.md#ui-direction--resolved).
 
 Note what that does **not** settle. Variant B is the same design language
 as A — same gradient, Geist, `#F57C00`, badges; it changes the dashboard's
@@ -170,14 +170,45 @@ as A — same gradient, Geist, `#F57C00`, badges; it changes the dashboard's
 parity, and finding 3 above stands undiminished: parity is still a fork of
 the design system that has to be re-paid per component.
 
-## Not decided here
+## Resolved (2026-10-13)
 
-- **The framework question itself.** The recommendation above stands
-  unanswered: keep ADR 0003 with a no-round-trip rule, or move to Next.js
-  before Phase 2.5 to stop reimplementing shadcn.
-- Whether to adopt the standalone Tailwind CLI against `.razor` files as a
-  middle path, if the answer to the design-system question is "keep them
-  close but separate".
-- ADR 0003 needs amending — with the no-round-trip rule if it survives, or
-  superseding if it doesn't. Left alone deliberately; the decision is not
-  made yet.
+**Blazor `InteractiveServer` stays.** [ADR 0003](adr/0003-blazor-interactive-server-render-mode.md)
+is amended with the no-round-trip rule and a record of the reasoning; it
+is not superseded. The standalone Tailwind CLI middle path is rejected.
+
+This review framed the decision correctly — it was never about latency,
+it was about whether one design system across ai-hub and kosync is worth
+more. What resolved it was pinning down what "one design system" would
+actually have required:
+
+- **The two apps stay separate, with no interaction between them** —
+  shared look and feel only, "think of it like branding". ai-hub is
+  durable (deployed, in use), but there is no shared-accounts or
+  shared-data future to plan for.
+- **Finding 3 does not survive that.** shadcn distributes by copying
+  source into a project, and the two apps are not going into a monorepo.
+  Moving to Next.js would therefore yield *two* independent shadcn copies
+  drifting against each other with no source of truth — not one shared
+  library. The parity tax would have been relocated, not paid off.
+- **Branding needs tokens, not components.** The oklch ramp, the gradient,
+  Geist, `#F57C00`, `--radius` — roughly twenty CSS custom properties that
+  port to `app.css` verbatim. The expensive half of finding 3's table,
+  the shadcn components, is the half branding does not require.
+- Supporting, not deciding: much deeper C# experience than React, and
+  several more phases planned, so velocity compounds. And the two apps are
+  already deployed differently — ai-hub directly, kosync containerised —
+  so there was no deployment unification to gain either.
+
+What this review got right and should be kept: findings 1 and 2 were the
+substance. The responsiveness complaint was a stylesheet bug (and the
+flex auto-margin diagnosis was the real find), and variant C proved the
+round-trip is what `@onclick` opts into rather than what the render mode
+imposes. Both complaints were real; neither was a framework complaint.
+
+Finding 5's warning still stands for any future reconsideration: a move
+gets more expensive after Phase 2.5 and Phase 3, so the hedge in the
+roadmap — keep logic in services that would be cheap to re-expose over
+HTTP — is worth honouring regardless.
+
+Review point: the droplet cutover, where the latency in finding 4 becomes
+measurable rather than hypothetical.
