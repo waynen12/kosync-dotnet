@@ -28,6 +28,12 @@ SyncEvent, Split Book, Observed/Curated Metadata, Progress Reset).
 Decisions with real reasoning behind them are recorded as ADRs in
 [docs/adr/](adr/) rather than repeated here.
 
+**Implementation tickets** for everything below that isn't done live under
+[#14](https://github.com/waynen12/kosync-dotnet/issues/14) — the spec
+issue, with each phase's tickets as sub-issues and blocking recorded as
+native GitHub issue dependencies. The ready-to-start frontier is whichever
+of them has no open blocker.
+
 ## Guiding constraint
 
 The KOReader sync protocol surface (`/users/auth`, `/users/create`,
@@ -154,9 +160,16 @@ response.
 
 **Hardening after the initial build:** issues
 [#10](https://github.com/waynen12/kosync-dotnet/issues/10)-[#13](https://github.com/waynen12/kosync-dotnet/issues/13)
-were opened from code review and are now all closed — a merge
-transaction gap, duplicated tab markup, hardcoded strings bypassing
-`Constants.cs`, and a couple of minor text/naming nits.
+were opened from code review — a merge transaction gap, duplicated tab
+markup, hardcoded strings bypassing `Constants.cs`, and a couple of minor
+text/naming nits. #10, #11 and #12 are closed;
+[**#13 is still open**](https://github.com/waynen12/kosync-dotnet/issues/13)
+(`NoDeviceDocumentsSyncedText` still reads "No books synced yet", and the
+login error string is still not in `Constants.cs`). It is now also a
+blocker for deleting the prototype — see the fold-in ordering constraint.
+
+Note [#1](https://github.com/waynen12/kosync-dotnet/issues/1), the
+Phases 0-2 spec, is also still open despite that work having shipped.
 
 ### Phase 2.5 — Accounts, passwords and tenancy — designed, not started
 
