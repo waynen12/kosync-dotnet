@@ -31,11 +31,13 @@ no sense exists in which a title from a further-read file is more correct.
   by default, a Book with no metadata carries an inline hint telling the
   reader to enable it — without that, the feature looks broken rather than
   switched off.
-- Observed filename becomes a Document's human-readable label in the
-  dashboard, falling back to a truncated hash. A Document *is* a file, so
-  its filename is the most honest name for it; the full hash stays visible
-  on detail views, where it is what you actually need to diagnose a Split
-  Book.
+- Observed filename becomes a Document's human-readable label, falling
+  back to a truncated hash. A Document *is* a file, so its filename is the
+  most honest name for it. This applies to the **detail pages** only: the
+  dashboard's table shows a Document *count* and does not label individual
+  Documents at all, so there is nothing there for a filename to replace.
+  The full hash stays visible on the detail pages regardless — it is what
+  you actually need to diagnose a Split Book.
 - Merge *suggestions* require an exact match — case-insensitive and
   trimmed — on both title and author, among Books belonging to one User
   that have metadata at all. Title-only matching pairs up books in a

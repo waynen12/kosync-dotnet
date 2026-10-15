@@ -44,9 +44,8 @@ response.
 | Area | Decision | Confidence |
 |---|---|---|
 | Dashboard frontend | Blazor, `InteractiveServer` render mode throughout the authenticated app; `/login` is Static SSR. Reopened after the second prototype and reaffirmed; local UI state must not round-trip (ADR 0003) | Firm, review at droplet cutover |
-| Design language | ai-hub parity as *branding* — token block copied, not components. Two separate apps, no interaction, no shared accounts | Firm |
+| Design language | ai-hub parity as *branding* only — shadcn oklch ramp, Geist, orange→indigo gradient, `#F57C00` accent, `--radius: 0.625rem`. Token block copied, **not** components. Two separate apps, no interaction, no shared accounts | Firm |
 | Droplet routing | Own subdomain (`kosync.notrauto.org`), not a path prefix | Firm |
-| Design language | ai-hub parity — shadcn oklch ramp, Geist, orange→indigo gradient, `#F57C00` accent | Firm (2026-10-12 prototype) |
 | `/login` layout | ai-hub's login verbatim: full-bleed gradient, centred `max-w-sm` card | Firm (2026-10-12 prototype) |
 | Dashboard + Users layout | Sidebar shell + dense table, not a card grid — cards go ragged at realistic density | Firm (2026-10-12 prototype) |
 | Dashboard data access | Components call domain/EF Core services directly, in-process — no HTTP hop through `/manage/*` (ADR 0003) | Firm |
@@ -108,10 +107,22 @@ response.
 - Shared card-grid component (`Components/Shared/CardGrid.razor`) backs
   both tabs, extracted after the first review round found the two tabs'
   markup duplicated ([#11](https://github.com/waynen12/kosync-dotnet/issues/11)).
-- **UI direction — resolved for the layout, since reopened for the tech.**
-  The variant-D layout below is what was wanted and still is; the
-  framework underneath it is now an open question (see "UI direction"
-  near the end of this doc). Four layouts were prototyped as a throwaway
+- **UI direction — ⚠️ superseded by the second prototyping session. See
+  "UI direction — resolved" below; the card grid described here is gone.**
+  Recorded for the history, because the two sessions reached opposite
+  conclusions and the reason matters: this first session prototyped as a
+  static HTML mockup with a handful of sample rows and rejected a sidebar
+  table in favour of a card grid. The second session rendered the same
+  layouts against *real* data — 13 Devices, 36 Books — and rejected the
+  card grid in favour of a sidebar table, because a grid row is as tall as
+  its tallest card and the voids compound at density. Judging at realistic
+  density is what flipped the answer. Don't flip it back without data.
+
+  What the first session got right and still holds: drilling in is real
+  navigation, and the theme is a sticky per-user preference. What it got
+  wrong was the landing-screen shape, having never seen 36 books.
+
+  Original text follows. Four layouts were prototyped as a throwaway
   HTML mockup (`docs/prototype/dashboard-mockup.html`, untracked/uncommitted,
   switchable via `?variant=A|B|C|D`). A sidebar table, a device-first card
   grid, and a split-pane diagnostic view were all rejected in favor of a
@@ -172,10 +183,10 @@ can't be designed until the credential story is settled.
   page from every authenticated route but that page and logout.
 - One-shot `ADMIN_PASSWORD_RESET` recovery, returning admin to Provisional.
 - `POST /users/create` disabled by default; invert the env var.
-- Style `/login` and the new change-password page — currently `Login.razor`
-  has no CSS classes at all, which is why its fields sit in the top-left
-  corner. Scope is a centred card in the existing `ks-card` style, nothing
-  more; the prototype may redo it.
+- The change-password page is built in the folded-in design language (hub
+  primitives), matching `/login`. No styling decisions remain here — the
+  UI fold-in lands before this phase and `/login` arrives already done,
+  which is the reason for that ordering.
 
 **Tenancy (ADR 0004):**
 - `Book` gains a `UserId`.
@@ -212,8 +223,9 @@ Source is now decided (ADR 0007): KOReader's own opt-in metadata push.
 - Observed metadata on Document; curated title/author on Book; display
   resolves curated → most recent observation → `Book #N`.
 - Manual title/author editing on the Book detail page.
-- Observed filename replaces raw hashes as the Document label, hash
-  still shown on detail views.
+- Observed filename replaces raw hashes as the Document label **on the
+  detail pages**, hash still shown alongside. The dashboard table shows a
+  Document count and labels no Documents, so nothing changes there.
 - Inline hint on metadata-less Books telling the reader to enable the
   KOReader setting.
 - Exact title+author merge *suggestions*, scoped within one User.
@@ -312,8 +324,44 @@ and where it goes:
 | `DashboardVariantB.razor` + `HubSidebar.razor` | `Components/Pages/Dashboard.razor` | Replaces `Components/Shared/CardGrid.razor`, which then has no caller |
 | `UsersVariantB.razor` | a new Users page | **Blocked on Phase 2.5** — no account service, no tenancy |
 | `HubNav.razor` | `Components/Layout/MainLayout.razor` | Replaces `.ks-shell-header` |
-| `prototype.css` token block + primitives | `wwwroot/css/app.css` | Supersedes the `--ks-*` tokens |
+| `prototype.css` token block + primitives | `wwwroot/css/app.css` | **Does not delete the `--ks-*` tokens** — see "the detail pages" below |
 | `HubIcon.razor` | keep as-is | Or take a real icon dependency — decide then |
+| *(nothing)* | `Components/Pages/BookDetail.razor`, `DeviceDetail.razor` | **No prototype exists for these** — see below |
+
+#### The detail pages were never prototyped
+
+Neither session produced a variant for `/dashboard/books/{id}` or
+`/dashboard/devices/{id}`, and they depend on 21 `.ks-*` classes
+(`ks-detail`, `ks-doc-card`, `ks-history`, `ks-merge-form`,
+`ks-reset-button`, `ks-flag-*`, …) whose rules are built on `var(--ks-*)`
+tokens. `prototype.css` defines an entirely separate `.hub-*` family and
+none of them. So deleting the `--ks-*` token block would strip the
+variables out from under both pages and leave them unstyled — and these
+are the screens carrying Split Book diagnosis, the merge form, the reset
+action and the SyncEvent history timeline.
+
+**Decision: keep the `--ks-*` tokens, redefined as aliases onto the hub
+tokens.** Every `.ks-*` rule keeps working, the detail pages stay
+functional and inherit the new palette, and the aliases delete themselves
+when those pages are eventually prototyped. Redesigning them during the
+fold-in was rejected: the fold-in's whole value is being the zero-risk
+half of this work — no migrations, no auth, no tenancy — and designing
+the diagnostic screens in the implementation is exactly what the
+prototyping sessions existed to avoid.
+
+The detail pages are therefore **the next UI pass** (a third prototyping
+session), not part of the fold-in. They will look slightly off-brand
+until then: new colours, old radii and spacing.
+
+#### The dashboard stops listing documents
+
+`CardGrid` rendered a hash row per Document inside every card; the
+variant-B table shows a Document *count* instead, with the documents
+themselves on the drill-in. This is deliberate — the second session found
+that for the ~20 single-document Books the card was mostly one md5 hash,
+"the least useful thing on it". Consequence for ADR 0007: observed
+filename becomes a Document's label on the **detail pages**, not on the
+dashboard, which no longer labels Documents at all.
 
 Delete the rest: `PrototypeConstants.cs`, `PrototypeRoutes.cs`,
 `PrototypeDemoData.cs`, `PrototypeSwitcher.razor`, `PrototypeUsers.razor`,
@@ -404,6 +452,11 @@ other people's reading history, not just the operator's own.
 
 ## Open questions
 
+- **Detail-page design.** `BookDetail`/`DeviceDetail` were never
+  prototyped and keep the old `.ks-*` styling via token aliases after the
+  fold-in. A third prototyping session is the next UI pass — and it is the
+  one that should settle how the merge form, reset action and SyncEvent
+  history timeline look in the hub language.
 - Filling book metadata from an entered title or ISBN — wanted, shape not
   designed (ADR 0007 covers only the push and manual curation).
 - Password expiry — anticipated but not designed. ADR 0006 notes that
