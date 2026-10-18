@@ -102,3 +102,31 @@ Device, and a reset isn't one, even though it still needs to be visible
 in the Document's history as the distinct event it is.
 _Avoid_: SyncEvent (for this specific action), restart (fine as a verb,
 but the record itself is a Progress Reset)
+
+### Design system
+
+**Hub design language**:
+The ai-hub look and feel this portal adopts — shadcn's achromatic oklch
+surface ramp, Geist / Geist Mono, the orange→indigo gradient, `#F57C00` as
+the single accent, `--radius: 0.625rem`. Parity is *branding* only: ai-hub
+and kosync are separate apps that share no components, no accounts and no
+interaction, so the hub arrives here as a hand-written stylesheet rather
+than a dependency. Everything belonging to it is namespaced `hub-`.
+_Avoid_: ai-hub (that is the other application, not this look), theme (a
+Theme here is light/dark)
+
+**Design token**:
+A CSS custom property in `wwwroot/css/app.css` that names a design
+decision — a colour, radius, gutter or font stack — so rules reference the
+decision instead of the value. `--hub-*` are the live tokens; `--ks-*` are
+the pre-hub names, kept as aliases onto them so the never-prototyped
+detail pages keep working (ADR-adjacent; see docs/ROADMAP.md).
+_Avoid_: variable, constant (`Constants.cs` is the C# helper, a different
+thing)
+
+**Theme**:
+The reader's light/dark preference, a sticky per-user setting applied by
+`wwwroot/js/theme.js` as `[data-theme="dark"]` on the root element. Purely
+client-side and deliberately so — it must never round-trip to the server
+(ADR 0003).
+_Avoid_: dark mode class, `.dark` (ai-hub's switch, not ours)

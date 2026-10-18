@@ -1,35 +1,142 @@
+/* =========================================================================
+   kosync design system.
+
+   Ports the ai-hub design language (/home/wayne/repos/AIResources/ai-hub)
+   into plain CSS - parity as branding only, not shared components:
+     - Geist / Geist Mono
+     - shadcn's achromatic oklch surface ramp (globals.css)
+     - the orange -> amber -> violet -> indigo 135deg gradient
+     - #F57C00 as the one brand accent, amber-500/600 for active tabs
+     - --radius 0.625rem, rounded-lg/xl/2xl, shadow-xl cards
+   Dark mode keys off kosync's own [data-theme="dark"] (wwwroot/js/theme.js),
+   not ai-hub's `.dark` class - same tokens, different switch.
+
+   Sections:
+     1. Hub tokens            the palette, radii and layout scale
+     2. --ks-* aliases        the pre-hub token names, re-pointed at the above
+     3. Base                  reset and document defaults
+     4. Primitives            buttons, inputs, cards, badges, type
+     5. Layout containers     the page-level wrappers
+     6. Pre-hub rules         .ks-* chrome and the detail pages
+     7. Breakpoints           every @media query in the system
+   ========================================================================= */
+
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@300..900&family=Geist+Mono:wght@300..700&display=swap");
+
+/* =========================================================================
+   1. HUB TOKENS
+   ========================================================================= */
 :root {
     color-scheme: light dark;
 
-    --ks-bg: #f4f5f7;
-    --ks-fg: #1b1e24;
-    --ks-muted: #6b7280;
-    --ks-border: #e6e8ec;
-    --ks-card-bg: #ffffff;
-    --ks-accent: #2f6feb;
-    --ks-track: #e6e8ec;
-    --ks-shell-bg: #ffffff;
-    --ks-danger: #b3261e;
-    --ks-danger-bg: #fbeaea;
-    --ks-warning: #8a5a00;
-    --ks-warning-bg: #fdf0d5;
+    /* shadcn neutral ramp, light - ai-hub globals.css :root */
+    --hub-bg: oklch(1 0 0);
+    --hub-fg: oklch(0.145 0 0);
+    --hub-card: oklch(1 0 0);
+    --hub-card-fg: oklch(0.145 0 0);
+    --hub-primary: oklch(0.205 0 0);
+    --hub-primary-fg: oklch(0.985 0 0);
+    --hub-secondary: oklch(0.97 0 0);
+    --hub-muted: oklch(0.97 0 0);
+    --hub-muted-fg: oklch(0.556 0 0);
+    --hub-border: oklch(0.922 0 0);
+    --hub-input: oklch(0.922 0 0);
+    --hub-ring: oklch(0.708 0 0);
+    --hub-destructive: oklch(0.577 0.245 27.325);
+    --hub-sidebar: oklch(0.985 0 0);
+
+    /* Brand - the only chromatic colour in the system */
+    --hub-brand: #f57c00;
+    --hub-brand-2: #ff8f00;
+    --hub-violet: #7b6fbd;
+    --hub-indigo: #4a5baa;
+    --hub-gradient: linear-gradient(135deg, #f57c00 0%, #ff8f00 40%, #7b6fbd 80%, #4a5baa 100%);
+    --hub-amber: #f59e0b;
+    --hub-amber-strong: #d97706;
+    --hub-amber-soft: #fffbeb;
+    --hub-ok: #15803d;
+    --hub-ok-soft: #f0fdf4;
+
+    /* Text and chrome sitting on the brand orange or the gradient. Not part
+       of the ramp and deliberately not theme-flipped - the gradient is the
+       same in both themes, so what reads on it is too. */
+    --hub-on-brand: #fff;
+    --hub-on-brand-muted: rgba(255, 255, 255, 0.8);
+    --hub-on-brand-wash: rgba(255, 255, 255, 0.18);
+
+    --hub-font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --hub-font-mono: "Geist Mono", "SFMono-Regular", Consolas, monospace;
+
+    --hub-radius: 0.625rem;
+    --hub-radius-sm: calc(var(--hub-radius) * 0.6);
+    --hub-radius-md: calc(var(--hub-radius) * 0.8);
+    --hub-radius-lg: var(--hub-radius);
+    --hub-radius-xl: calc(var(--hub-radius) * 1.4);
+    --hub-radius-2xl: calc(var(--hub-radius) * 1.8);
+
+    /* Narrowed at the phone and tablet breakpoints in section 7 - every
+       page-level horizontal padding in the system reads this, so one
+       override there re-gutters the whole app. */
+    --hub-gutter: 24px;
+    --hub-maxw: 72rem; /* max-w-6xl - scan-heavy pages: dashboard, users */
+    --hub-maxw-narrow: 48rem; /* read-heavy pages: a single Book or Device */
 }
 
 :root[data-theme="dark"] {
-    --ks-bg: #14161a;
-    --ks-fg: #e6e8eb;
-    --ks-muted: #8a909b;
-    --ks-border: #2a2e37;
-    --ks-card-bg: #1c1f26;
-    --ks-accent: #6fa8ff;
-    --ks-track: #2a2e37;
-    --ks-shell-bg: #1c1f26;
-    --ks-danger: #f2938c;
-    --ks-danger-bg: #3a2224;
-    --ks-warning: #e8b84b;
-    --ks-warning-bg: #3a2e14;
+    /* ai-hub globals.css .dark */
+    --hub-bg: oklch(0.145 0 0);
+    --hub-fg: oklch(0.985 0 0);
+    --hub-card: oklch(0.205 0 0);
+    --hub-card-fg: oklch(0.985 0 0);
+    --hub-primary: oklch(0.922 0 0);
+    --hub-primary-fg: oklch(0.205 0 0);
+    --hub-secondary: oklch(0.269 0 0);
+    --hub-muted: oklch(0.269 0 0);
+    --hub-muted-fg: oklch(0.708 0 0);
+    --hub-border: oklch(1 0 0 / 10%);
+    --hub-input: oklch(1 0 0 / 15%);
+    --hub-ring: oklch(0.556 0 0);
+    --hub-destructive: oklch(0.704 0.191 22.216);
+    --hub-sidebar: oklch(0.205 0 0);
+
+    --hub-amber: #fbbf24;
+    --hub-amber-strong: #fbbf24;
+    --hub-amber-soft: oklch(0.269 0 0);
+    --hub-ok: #4ade80;
+    --hub-ok-soft: oklch(0.269 0 0);
 }
 
+/* =========================================================================
+   2. --ks-* ALIASES
+
+   BookDetail and DeviceDetail were never prototyped (docs/ROADMAP.md, "The
+   detail pages were never prototyped"). They render 21 `.ks-*` classes whose
+   rules are built on these names, so the names stay - re-pointed at the hub
+   ramp rather than carrying a second palette. Both pages keep working and
+   inherit the new colours; the aliases delete themselves when issue #33
+   prototypes those screens in the hub language.
+
+   Deliberately defined once, not per theme: every hub token on the right
+   already flips under [data-theme="dark"].
+   ========================================================================= */
+:root {
+    --ks-bg: var(--hub-bg);
+    --ks-fg: var(--hub-fg);
+    --ks-muted: var(--hub-muted-fg);
+    --ks-border: var(--hub-border);
+    --ks-card-bg: var(--hub-card);
+    --ks-accent: var(--hub-brand);
+    --ks-track: var(--hub-muted);
+    --ks-shell-bg: var(--hub-sidebar);
+    --ks-danger: var(--hub-destructive);
+    --ks-danger-bg: color-mix(in srgb, var(--hub-destructive) 12%, transparent);
+    --ks-warning: var(--hub-amber-strong);
+    --ks-warning-bg: var(--hub-amber-soft);
+}
+
+/* =========================================================================
+   3. BASE
+   ========================================================================= */
 * {
     box-sizing: border-box;
 }
@@ -37,9 +144,10 @@
 html, body {
     margin: 0;
     padding: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: var(--ks-bg);
-    color: var(--ks-fg);
+    font-family: var(--hub-font-sans);
+    background: var(--hub-bg);
+    color: var(--hub-fg);
+    -webkit-font-smoothing: antialiased;
 }
 
 a {
@@ -47,13 +155,244 @@ a {
     text-decoration: none;
 }
 
+/* =========================================================================
+   4. PRIMITIVES (shadcn shapes, hand-written)
+   ========================================================================= */
+.hub-root {
+    min-height: 100vh;
+    background: var(--hub-bg);
+    color: var(--hub-fg);
+    font-family: var(--hub-font-sans);
+    display: flex;
+    flex-direction: column;
+}
+
+.hub-mono { font-family: var(--hub-font-mono); }
+.hub-icon { display: inline-block; vertical-align: -0.125em; flex: 0 0 auto; }
+
+.hub-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    white-space: nowrap;
+    border: 1px solid transparent;
+    border-radius: var(--hub-radius-lg);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 0 10px;
+    height: 32px;
+    cursor: pointer;
+    transition: background-color 0.14s, color 0.14s, border-color 0.14s, filter 0.14s;
+    user-select: none;
+}
+
+.hub-btn:active:not(:disabled) { transform: translateY(1px); }
+.hub-btn:disabled { opacity: 0.5; pointer-events: none; }
+.hub-btn:focus-visible { outline: none; border-color: var(--hub-ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--hub-ring) 50%, transparent); }
+
+.hub-btn-default { background: var(--hub-primary); color: var(--hub-primary-fg); }
+.hub-btn-default:hover { filter: brightness(1.18); }
+
+/* ai-hub overrides the primary button to the brand orange on the two actions
+   that matter most (Sign in, Create Account, Add Resource). */
+.hub-btn-brand { background: var(--hub-brand); color: var(--hub-on-brand); }
+.hub-btn-brand:hover { filter: brightness(1.1); }
+
+.hub-btn-outline { border-color: var(--hub-border); background: var(--hub-bg); color: var(--hub-fg); }
+.hub-btn-outline:hover { background: var(--hub-muted); }
+:root[data-theme="dark"] .hub-btn-outline { border-color: var(--hub-input); background: color-mix(in srgb, var(--hub-input) 30%, transparent); }
+:root[data-theme="dark"] .hub-btn-outline:hover { background: color-mix(in srgb, var(--hub-input) 50%, transparent); }
+
+.hub-btn-ghost { background: transparent; color: var(--hub-fg); }
+.hub-btn-ghost:hover { background: var(--hub-muted); }
+
+.hub-btn-danger {
+    border-color: color-mix(in srgb, var(--hub-destructive) 30%, transparent);
+    background: transparent;
+    color: var(--hub-destructive);
+}
+.hub-btn-danger:hover { background: color-mix(in srgb, var(--hub-destructive) 10%, transparent); }
+
+.hub-btn-sm { height: 28px; font-size: 0.8rem; padding: 0 10px; border-radius: var(--hub-radius-md); gap: 4px; }
+.hub-btn-lg { height: 40px; font-size: 15px; padding: 0 16px; }
+.hub-btn-block { width: 100%; font-weight: 600; }
+
+/* Round translucent icon button used in ai-hub's nav, over the gradient. */
+.hub-icon-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--hub-on-brand-muted);
+    cursor: pointer;
+    transition: background-color 0.14s, color 0.14s;
+}
+
+.hub-icon-btn:hover { background: var(--hub-on-brand-wash); color: var(--hub-on-brand); }
+
+/* theme.js rewrites the textContent of [data-theme-toggle], which would wipe
+   an inline SVG - so a hub toggle carries both icons and swaps them in CSS
+   instead of taking that attribute. */
+.hub-theme-sun { display: none; }
+:root[data-theme="dark"] .hub-theme-sun { display: inline-block; }
+:root[data-theme="dark"] .hub-theme-moon { display: none; }
+
+.hub-input {
+    width: 100%;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--hub-input);
+    border-radius: var(--hub-radius-lg);
+    background: var(--hub-bg);
+    color: var(--hub-fg);
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.hub-input::placeholder { color: var(--hub-muted-fg); }
+.hub-input:focus { outline: none; border-color: var(--hub-ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--hub-ring) 40%, transparent); }
+.hub-input-sm { height: 32px; font-size: 13px; }
+
+.hub-label { display: block; font-size: 14px; font-weight: 500; color: var(--hub-fg); }
+
+.hub-field { display: grid; gap: 6px; }
+.hub-stack-4 { display: grid; gap: 16px; }
+.hub-stack-3 { display: grid; gap: 12px; }
+.hub-stack-2 { display: grid; gap: 8px; }
+
+.hub-select {
+    height: 32px;
+    padding: 0 8px;
+    border: 1px solid var(--hub-input);
+    border-radius: var(--hub-radius-md);
+    background: var(--hub-bg);
+    color: var(--hub-fg);
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.hub-card {
+    background: var(--hub-card);
+    color: var(--hub-card-fg);
+    border: 1px solid var(--hub-border);
+    border-radius: var(--hub-radius-xl);
+}
+
+.hub-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    padding: 2px 9px;
+    font-size: 11.5px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.hub-badge-outline { border-color: var(--hub-border); color: var(--hub-muted-fg); }
+.hub-badge-admin { background: color-mix(in srgb, var(--hub-brand) 14%, transparent); color: var(--hub-brand); }
+.hub-badge-ok { background: var(--hub-ok-soft); color: var(--hub-ok); }
+.hub-badge-warn { background: var(--hub-amber-soft); color: var(--hub-amber-strong); }
+.hub-badge-muted { background: var(--hub-muted); color: var(--hub-muted-fg); }
+.hub-badge-danger { background: color-mix(in srgb, var(--hub-destructive) 12%, transparent); color: var(--hub-destructive); }
+
+.hub-muted { color: var(--hub-muted-fg); }
+.hub-xs { font-size: 12px; }
+.hub-sm { font-size: 14px; }
+.hub-section-label {
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--hub-muted-fg);
+}
+
+.hub-divider { border: none; border-top: 1px solid var(--hub-border); margin: 0; }
+.hub-gradient { background: var(--hub-gradient); }
+
+/* Progress bar - the one mark every list and detail page shares. */
+.hub-bar { width: 64px; height: 5px; border-radius: 999px; background: var(--hub-muted); overflow: hidden; flex: 0 0 auto; }
+.hub-bar span { display: block; height: 100%; border-radius: 999px; background: var(--hub-brand); }
+.hub-pct { width: 36px; text-align: right; font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* =========================================================================
+   5. LAYOUT CONTAINERS
+
+   `width: 100%` is load-bearing on every centred container here, not
+   belt-and-braces. They are flex items in the column-flex .hub-root, and
+   `margin: 0 auto` on a flex item's cross axis makes it size to its content
+   instead of stretching - which silently centred the dashboard in a narrow
+   column at every width until density made it obvious (docs/ROADMAP.md,
+   "Also fixed in the session"). DesignSystemTests guards the rule.
+   ========================================================================= */
+.hub-main {
+    flex: 1;
+    max-width: var(--hub-maxw);
+    margin: 0 auto;
+    width: 100%;
+    padding: 0 var(--hub-gutter) 110px;
+}
+
+.hub-page-head {
+    max-width: var(--hub-maxw);
+    margin: 0 auto;
+    width: 100%;
+    padding: 28px var(--hub-gutter) 0;
+}
+
+.hub-toolbar {
+    max-width: var(--hub-maxw);
+    margin: 0 auto;
+    width: 100%;
+    padding: 16px var(--hub-gutter);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.hub-page-title { font-size: 24px; font-weight: 800; letter-spacing: -0.015em; margin: 0 0 4px; }
+.hub-page-sub { color: var(--hub-muted-fg); font-size: 14px; margin: 0 0 20px; }
+.hub-empty { text-align: center; padding: 96px 0; color: var(--hub-muted-fg); font-size: 14px; }
+
+.hub-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    background: var(--hub-amber-soft);
+    color: var(--hub-amber-strong);
+    border: 1px solid color-mix(in srgb, var(--hub-amber) 35%, transparent);
+    border-radius: var(--hub-radius-lg);
+    padding: 10px 13px;
+    font-size: 13px;
+    margin-bottom: 20px;
+}
+
+/* =========================================================================
+   6. PRE-HUB RULES
+
+   Everything below predates the fold-in and runs on the section-2 aliases.
+   The shell chrome goes with issue #17 (HubNav -> MainLayout) and the card
+   grid with issue #18; the detail-page rules stay until issue #33. Radii and
+   spacing here are intentionally untouched - new palette, old geometry, as
+   docs/ROADMAP.md calls for.
+   ========================================================================= */
+
 /* Shell chrome - shared across every authenticated page and reused by the
    Books view (issue #5's "reusable shell"). */
 .ks-shell-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 14px 28px;
+    padding: 14px var(--hub-gutter);
     background: var(--ks-shell-bg);
     border-bottom: 1px solid var(--ks-border);
 }
@@ -73,6 +412,10 @@ a {
 .ks-shell-user {
     font-size: 13px;
     color: var(--ks-muted);
+    /* A Username is user-supplied and need not contain a break opportunity,
+       so flex-wrap alone would not stop a long one overflowing the header. */
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .ks-theme-toggle {
@@ -92,9 +435,10 @@ a {
 
 /* Card grid landing screen */
 .ks-header {
-    padding: 28px 36px 0;
-    max-width: 1100px;
+    padding: 28px var(--hub-gutter) 0;
+    max-width: var(--hub-maxw);
     margin: 0 auto;
+    width: 100%;
 }
 
 .ks-title {
@@ -114,6 +458,7 @@ a {
     gap: 6px;
     border-bottom: 1px solid var(--ks-border);
     margin-bottom: 24px;
+    overflow-x: auto;
 }
 
 .ks-tab {
@@ -126,6 +471,7 @@ a {
     cursor: pointer;
     border-bottom: 2px solid transparent;
     margin-bottom: -1px;
+    white-space: nowrap;
 }
 
 .ks-tab.active {
@@ -134,11 +480,14 @@ a {
 }
 
 .ks-grid {
-    max-width: 1100px;
+    max-width: var(--hub-maxw);
     margin: 0 auto;
-    padding: 0 36px;
+    width: 100%;
+    padding: 0 var(--hub-gutter);
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    /* min() keeps the 300px track from overflowing a 390px viewport, which
+       a bare minmax(300px, 1fr) would. */
+    grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
     gap: 18px;
 }
 
@@ -165,11 +514,14 @@ a {
     justify-content: space-between;
     align-items: baseline;
     margin-bottom: 2px;
+    gap: 10px;
 }
 
 .ks-card-title {
     font-size: 15.5px;
     font-weight: 700;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .ks-card-meta {
@@ -197,7 +549,8 @@ a {
 
 .ks-doc-hash {
     flex: 1;
-    font-family: "SFMono-Regular", Consolas, monospace;
+    min-width: 0;
+    font-family: var(--hub-font-mono);
     font-size: 12px;
     color: var(--ks-muted);
     overflow: hidden;
@@ -216,9 +569,10 @@ a {
     color: var(--ks-muted);
     font-size: 12.5px;
     font-style: italic;
-    padding: 0 36px;
-    max-width: 1100px;
+    padding: 0 var(--hub-gutter);
+    max-width: var(--hub-maxw);
     margin: 0 auto;
+    width: 100%;
 }
 
 .ks-empty-inline {
@@ -234,6 +588,7 @@ a {
     width: 70px;
     display: inline-block;
     overflow: hidden;
+    flex: 0 0 auto;
 }
 
 .ks-pbar-fill {
@@ -245,9 +600,10 @@ a {
 
 /* Drill-in detail page */
 .ks-detail {
-    max-width: 760px;
+    max-width: var(--hub-maxw-narrow);
     margin: 0 auto;
-    padding: 28px 36px;
+    width: 100%;
+    padding: 28px var(--hub-gutter);
 }
 
 .ks-back {
@@ -287,6 +643,7 @@ a {
     display: flex;
     gap: 8px;
     margin-bottom: 8px;
+    flex-wrap: wrap;
 }
 
 .ks-merge-input {
@@ -304,7 +661,7 @@ a {
     border-radius: 8px;
     border: none;
     background: var(--ks-accent);
-    color: #fff;
+    color: var(--hub-on-brand);
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
@@ -330,6 +687,7 @@ a {
     justify-content: space-between;
     align-items: center;
     gap: 16px;
+    flex-wrap: wrap;
 }
 
 /* SyncEvent history under each Document, with regressed pushes flagged
@@ -346,6 +704,7 @@ a {
     gap: 12px;
     padding: 6px 0;
     font-size: 12.5px;
+    flex-wrap: wrap;
 }
 
 .ks-flag-regression {
@@ -381,7 +740,7 @@ a {
 }
 
 /* A Book (or one of its Documents, on a Device) whose Documents disagree on
-   current progress (CONTEXT.md "Split Book", issue #8) - the signal that a
+   current progress (GLOSSARY.md "Split Book", issue #8) - the signal that a
    manual merge may be needed. Shown inline, not in a separate inbox. */
 .ks-flag-split {
     color: var(--ks-warning);
@@ -390,4 +749,54 @@ a {
     padding: 2px 9px;
     font-size: 11px;
     font-weight: 700;
+}
+
+/* =========================================================================
+   7. BREAKPOINTS
+
+   The stylesheet had none at all before this, which is the other half of the
+   responsiveness bug the second prototyping session found. Desktop-first,
+   because every rule above was already written that way: these narrow the
+   defaults rather than build up from mobile.
+
+   1024px covers the 768px tablet target, 640px the 390px phone target.
+   Breakpoints are literals because @media conditions cannot read custom
+   properties - the gutter they re-declare is a token, so one override here
+   re-gutters every container.
+   ========================================================================= */
+@media (max-width: 1024px) {
+    :root {
+        --hub-gutter: 20px;
+    }
+
+    .hub-main { padding-bottom: 88px; }
+}
+
+@media (max-width: 640px) {
+    :root {
+        --hub-gutter: 16px;
+    }
+
+    .hub-main { padding-bottom: 72px; }
+    .hub-page-head { padding-top: 20px; }
+    .hub-page-title { font-size: 20px; }
+    .hub-empty { padding: 64px 0; }
+
+    /* The shell header's brand and actions stop fitting on one line well
+       before 390px. */
+    .ks-shell-header {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .ks-shell-actions { gap: 10px; }
+    .ks-header { padding-top: 20px; }
+    .ks-title { font-size: 20px; }
+    .ks-detail { padding-top: 20px; }
+    .ks-detail-title { font-size: 19px; }
+
+    /* A Document's hash, device, percentage and reset button cannot share a
+       row this narrow; the row has flex-wrap, this gives the wrap room. */
+    .ks-doc-card { gap: 10px; }
+    .ks-history-row { gap: 8px; }
 }

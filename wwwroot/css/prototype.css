@@ -1,262 +1,20 @@
 /* =========================================================================
    THROWAWAY PROTOTYPE STYLESHEET - delete with Components/Prototype/.
 
-   Ports the ai-hub design language (/home/wayne/repos/AIResources/ai-hub)
-   into plain CSS so the Blazor prototype can be judged against it directly:
-     - Geist / Geist Mono
-     - shadcn's achromatic oklch surface ramp (globals.css)
-     - the orange -> amber -> violet -> indigo 135deg gradient
-     - #F57C00 as the one brand accent, amber-500/600 for active tabs
-     - --radius 0.625rem, rounded-lg/xl/2xl, shadow-xl cards
-   Dark mode keys off kosync's existing [data-theme="dark"] (theme.js), not
-   ai-hub's `.dark` class - same tokens, different switch.
+   The ai-hub design language itself now lives in app.css (issue #15): the
+   token block, the primitives and the centred layout containers are all
+   permanent and loaded on every page. What is left here is only the parts
+   still awaiting a fold-in ticket - the shell (#17), the login screens
+   (#16), the three dashboard/users variants (#18, #28) - plus the pt-*
+   switcher, which ships with nothing.
 
    Everything is namespaced hub-/pt-, so nothing leaks into the real
    dashboard's .ks-* styles.
    ========================================================================= */
 
-@import url("https://fonts.googleapis.com/css2?family=Geist:wght@300..900&family=Geist+Mono:wght@300..700&display=swap");
-
-:root {
-    /* shadcn neutral ramp, light - ai-hub globals.css :root */
-    --hub-bg: oklch(1 0 0);
-    --hub-fg: oklch(0.145 0 0);
-    --hub-card: oklch(1 0 0);
-    --hub-card-fg: oklch(0.145 0 0);
-    --hub-primary: oklch(0.205 0 0);
-    --hub-primary-fg: oklch(0.985 0 0);
-    --hub-secondary: oklch(0.97 0 0);
-    --hub-muted: oklch(0.97 0 0);
-    --hub-muted-fg: oklch(0.556 0 0);
-    --hub-border: oklch(0.922 0 0);
-    --hub-input: oklch(0.922 0 0);
-    --hub-ring: oklch(0.708 0 0);
-    --hub-destructive: oklch(0.577 0.245 27.325);
-    --hub-sidebar: oklch(0.985 0 0);
-
-    /* Brand - the only chromatic colour in the system */
-    --hub-brand: #f57c00;
-    --hub-brand-2: #ff8f00;
-    --hub-violet: #7b6fbd;
-    --hub-indigo: #4a5baa;
-    --hub-gradient: linear-gradient(135deg, #f57c00 0%, #ff8f00 40%, #7b6fbd 80%, #4a5baa 100%);
-    --hub-amber: #f59e0b;
-    --hub-amber-strong: #d97706;
-    --hub-amber-soft: #fffbeb;
-    --hub-ok: #15803d;
-    --hub-ok-soft: #f0fdf4;
-
-    --hub-radius: 0.625rem;
-    --hub-radius-sm: calc(var(--hub-radius) * 0.6);
-    --hub-radius-md: calc(var(--hub-radius) * 0.8);
-    --hub-radius-lg: var(--hub-radius);
-    --hub-radius-xl: calc(var(--hub-radius) * 1.4);
-    --hub-radius-2xl: calc(var(--hub-radius) * 1.8);
-
-    --hub-gutter: 24px;
-    --hub-maxw: 72rem; /* max-w-6xl */
-}
-
-:root[data-theme="dark"] {
-    /* ai-hub globals.css .dark */
-    --hub-bg: oklch(0.145 0 0);
-    --hub-fg: oklch(0.985 0 0);
-    --hub-card: oklch(0.205 0 0);
-    --hub-card-fg: oklch(0.985 0 0);
-    --hub-primary: oklch(0.922 0 0);
-    --hub-primary-fg: oklch(0.205 0 0);
-    --hub-secondary: oklch(0.269 0 0);
-    --hub-muted: oklch(0.269 0 0);
-    --hub-muted-fg: oklch(0.708 0 0);
-    --hub-border: oklch(1 0 0 / 10%);
-    --hub-input: oklch(1 0 0 / 15%);
-    --hub-ring: oklch(0.556 0 0);
-    --hub-destructive: oklch(0.704 0.191 22.216);
-    --hub-sidebar: oklch(0.205 0 0);
-
-    --hub-amber: #fbbf24;
-    --hub-amber-strong: #fbbf24;
-    --hub-amber-soft: oklch(0.269 0 0);
-    --hub-ok: #4ade80;
-    --hub-ok-soft: oklch(0.269 0 0);
-}
-
-/* app.css paints body with the --ks-* tokens, which would show through
-   around the prototype shells. Override only on prototype pages. */
-html:has(.hub-root),
-body:has(.hub-root) {
-    background: var(--hub-bg);
-    color: var(--hub-fg);
-    font-family: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
-}
-
-.hub-root {
-    min-height: 100vh;
-    background: var(--hub-bg);
-    color: var(--hub-fg);
-    font-family: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    display: flex;
-    flex-direction: column;
-}
-
-.hub-mono { font-family: "Geist Mono", "SFMono-Regular", Consolas, monospace; }
-.hub-icon { display: inline-block; vertical-align: -0.125em; flex: 0 0 auto; }
-
-/* -------------------------------------------------------------------------
-   Primitives (shadcn shapes, hand-written)
-   ------------------------------------------------------------------------- */
-.hub-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    white-space: nowrap;
-    border: 1px solid transparent;
-    border-radius: var(--hub-radius-lg);
-    font-family: inherit;
-    font-size: 14px;
-    font-weight: 500;
-    padding: 0 10px;
-    height: 32px;
-    cursor: pointer;
-    transition: background-color 0.14s, color 0.14s, border-color 0.14s, filter 0.14s;
-    user-select: none;
-}
-
-.hub-btn:active:not(:disabled) { transform: translateY(1px); }
-.hub-btn:disabled { opacity: 0.5; pointer-events: none; }
-.hub-btn:focus-visible { outline: none; border-color: var(--hub-ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--hub-ring) 50%, transparent); }
-
-.hub-btn-default { background: var(--hub-primary); color: var(--hub-primary-fg); }
-.hub-btn-default:hover { filter: brightness(1.18); }
-
-/* ai-hub overrides the primary button to the brand orange on the two actions
-   that matter most (Sign in, Create Account, Add Resource). */
-.hub-btn-brand { background: var(--hub-brand); color: #fff; }
-.hub-btn-brand:hover { filter: brightness(1.1); }
-
-.hub-btn-outline { border-color: var(--hub-border); background: var(--hub-bg); color: var(--hub-fg); }
-.hub-btn-outline:hover { background: var(--hub-muted); }
-:root[data-theme="dark"] .hub-btn-outline { border-color: var(--hub-input); background: color-mix(in srgb, var(--hub-input) 30%, transparent); }
-:root[data-theme="dark"] .hub-btn-outline:hover { background: color-mix(in srgb, var(--hub-input) 50%, transparent); }
-
-.hub-btn-ghost { background: transparent; color: var(--hub-fg); }
-.hub-btn-ghost:hover { background: var(--hub-muted); }
-
-.hub-btn-danger {
-    border-color: color-mix(in srgb, var(--hub-destructive) 30%, transparent);
-    background: transparent;
-    color: var(--hub-destructive);
-}
-.hub-btn-danger:hover { background: color-mix(in srgb, var(--hub-destructive) 10%, transparent); }
-
-.hub-btn-sm { height: 28px; font-size: 0.8rem; padding: 0 10px; border-radius: var(--hub-radius-md); gap: 4px; }
-.hub-btn-lg { height: 40px; font-size: 15px; padding: 0 16px; }
-.hub-btn-block { width: 100%; font-weight: 600; }
-
-/* Round translucent icon button used in ai-hub's nav, over the gradient. */
-.hub-icon-btn {
-    display: inline-grid;
-    place-items: center;
-    width: 32px;
-    height: 32px;
-    border: none;
-    border-radius: 999px;
-    background: transparent;
-    color: rgba(255, 255, 255, 0.8);
-    cursor: pointer;
-    transition: background-color 0.14s, color 0.14s;
-}
-
-.hub-icon-btn:hover { background: rgba(255, 255, 255, 0.18); color: #fff; }
-
-/* theme.js rewrites the textContent of [data-theme-toggle], which would wipe
-   an inline SVG - so the hub toggle carries both icons and swaps them in CSS
-   instead of taking that attribute. */
-.hub-theme-sun { display: none; }
-:root[data-theme="dark"] .hub-theme-sun { display: inline-block; }
-:root[data-theme="dark"] .hub-theme-moon { display: none; }
-
-.hub-input {
-    width: 100%;
-    height: 36px;
-    padding: 0 12px;
-    border: 1px solid var(--hub-input);
-    border-radius: var(--hub-radius-lg);
-    background: var(--hub-bg);
-    color: var(--hub-fg);
-    font-family: inherit;
-    font-size: 14px;
-}
-
-.hub-input::placeholder { color: var(--hub-muted-fg); }
-.hub-input:focus { outline: none; border-color: var(--hub-ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--hub-ring) 40%, transparent); }
-.hub-input-sm { height: 32px; font-size: 13px; }
-
-.hub-label { display: block; font-size: 14px; font-weight: 500; color: var(--hub-fg); }
-
-.hub-field { display: grid; gap: 6px; }
-.hub-stack-4 { display: grid; gap: 16px; }
-.hub-stack-3 { display: grid; gap: 12px; }
-.hub-stack-2 { display: grid; gap: 8px; }
-
-.hub-select {
-    height: 32px;
-    padding: 0 8px;
-    border: 1px solid var(--hub-input);
-    border-radius: var(--hub-radius-md);
-    background: var(--hub-bg);
-    color: var(--hub-fg);
-    font-family: inherit;
-    font-size: 13px;
-    cursor: pointer;
-}
-
-.hub-card {
-    background: var(--hub-card);
-    color: var(--hub-card-fg);
-    border: 1px solid var(--hub-border);
-    border-radius: var(--hub-radius-xl);
-}
-
-.hub-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    border-radius: 999px;
-    border: 1px solid transparent;
-    padding: 2px 9px;
-    font-size: 11.5px;
-    font-weight: 600;
-    white-space: nowrap;
-}
-
-.hub-badge-outline { border-color: var(--hub-border); color: var(--hub-muted-fg); }
-.hub-badge-admin { background: color-mix(in srgb, var(--hub-brand) 14%, transparent); color: var(--hub-brand); }
-.hub-badge-ok { background: var(--hub-ok-soft); color: var(--hub-ok); }
-.hub-badge-warn { background: var(--hub-amber-soft); color: var(--hub-amber-strong); }
-.hub-badge-muted { background: var(--hub-muted); color: var(--hub-muted-fg); }
-.hub-badge-danger { background: color-mix(in srgb, var(--hub-destructive) 12%, transparent); color: var(--hub-destructive); }
-
-.hub-muted { color: var(--hub-muted-fg); }
-.hub-xs { font-size: 12px; }
-.hub-sm { font-size: 14px; }
-.hub-section-label {
-    font-size: 12px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--hub-muted-fg);
-}
-
-.hub-divider { border: none; border-top: 1px solid var(--hub-border); margin: 0; }
-
 /* -------------------------------------------------------------------------
    Shell - translucent nav over the brand gradient, then a gradient hero
    ------------------------------------------------------------------------- */
-.hub-gradient { background: var(--hub-gradient); }
-
 .hub-nav {
     position: relative;
     z-index: 10;
@@ -314,41 +72,6 @@ body:has(.hub-root) {
 
 .hub-tab:hover { color: var(--hub-fg); }
 .hub-tab.active { border-bottom-color: var(--hub-amber); color: var(--hub-amber-strong); }
-
-/* width:100% is load-bearing on every one of these. They are flex items in
-   the column-flex .hub-root, and `margin: 0 auto` on a flex item's cross
-   axis makes it size to its content instead of stretching - which silently
-   centred the dashboard in a narrow column until density made it obvious. */
-.hub-toolbar {
-    max-width: var(--hub-maxw);
-    margin: 0 auto;
-    width: 100%;
-    padding: 16px var(--hub-gutter);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-.hub-main { flex: 1; max-width: var(--hub-maxw); margin: 0 auto; width: 100%; padding: 0 var(--hub-gutter) 110px; }
-.hub-page-head { max-width: var(--hub-maxw); margin: 0 auto; width: 100%; padding: 28px var(--hub-gutter) 0; }
-.hub-page-title { font-size: 24px; font-weight: 800; letter-spacing: -0.015em; margin: 0 0 4px; }
-.hub-page-sub { color: var(--hub-muted-fg); font-size: 14px; margin: 0 0 20px; }
-.hub-empty { text-align: center; padding: 96px 0; color: var(--hub-muted-fg); font-size: 14px; }
-
-.hub-notice {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    background: var(--hub-amber-soft);
-    color: var(--hub-amber-strong);
-    border: 1px solid color-mix(in srgb, var(--hub-amber) 35%, transparent);
-    border-radius: var(--hub-radius-lg);
-    padding: 10px 13px;
-    font-size: 13px;
-    margin-bottom: 20px;
-}
 
 /* ai-hub uses sonner toasts bottom-right for all feedback. */
 .hub-toast {
@@ -477,10 +200,14 @@ body:has(.hub-root) {
 
 /* align-items: start stops a 4-document card stretching to match a
    1-document neighbour, which is what leaves craters in a card grid once
-   the library is a realistic size. */
-.hub-grid { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: start; }
-@media (min-width: 640px) { .hub-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 1024px) { .hub-grid { grid-template-columns: repeat(3, 1fr); } }
+   the library is a realistic size.
+
+   minmax(0, 1fr) rather than 1fr: a grid item's default min-width is auto,
+   so a card whose md5 hash row has a wide min-content size pushes its track
+   past the viewport. Measured at 383px per card on a 390px viewport. */
+.hub-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (min-width: 640px) { .hub-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .hub-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
 .hub-resource-card {
     display: flex;
@@ -511,10 +238,7 @@ a.hub-resource-card:hover {
 .hub-rows { border-top: 1px solid var(--hub-border); }
 .hub-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--hub-border); }
 .hub-row:last-child { border-bottom: none; }
-.hub-row-name { flex: 1; min-width: 0; font-family: "Geist Mono", Consolas, monospace; font-size: 11.5px; color: var(--hub-muted-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hub-bar { width: 64px; height: 5px; border-radius: 999px; background: var(--hub-muted); overflow: hidden; flex: 0 0 auto; }
-.hub-bar span { display: block; height: 100%; border-radius: 999px; background: var(--hub-brand); }
-.hub-pct { width: 36px; text-align: right; font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.hub-row-name { flex: 1; min-width: 0; font-family: var(--hub-font-mono); font-size: 11.5px; color: var(--hub-muted-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hub-row-empty { font-size: 12px; color: var(--hub-muted-fg); padding: 8px 0 0; }
 
 /* --- Modal dialog (ai-hub AccountsModal) ------------------------------- */
@@ -749,7 +473,7 @@ a.hub-resource-card:hover {
 
 /* --- Variant C accounts: command bar + inline-expand rows -------------- */
 .hub-command { position: relative; }
-.hub-command .hub-input { height: 46px; padding-left: 38px; font-family: "Geist Mono", Consolas, monospace; font-size: 14px; background: var(--hub-card); }
+.hub-command .hub-input { height: 46px; padding-left: 38px; font-family: var(--hub-font-mono); font-size: 14px; background: var(--hub-card); }
 .hub-command .hub-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--hub-muted-fg); }
 .hub-command-hint { font-size: 12px; color: var(--hub-muted-fg); margin: 8px 0 20px; }
 
@@ -788,7 +512,7 @@ a.hub-resource-card:hover {
     background: rgba(10, 10, 12, 0.94);
     color: #fff;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-    font-family: "Geist", -apple-system, sans-serif;
+    font-family: var(--hub-font-sans);
     font-size: 12.5px;
     font-weight: 600;
     max-width: calc(100vw - 16px);

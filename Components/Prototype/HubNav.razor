@@ -17,17 +17,17 @@
 
             <a class="hub-icon-btn" href="@PrototypeRoutes.Users"
                title="@PrototypeConstants.ManageAccountsLabel" aria-label="@PrototypeConstants.ManageAccountsLabel">
-                <HubIcon Name="users" Size="18" />
+                <HubIcon Name="@Constants.Icons.Users" Size="18" />
             </a>
 
             <button type="button" class="hub-icon-btn"
                     title="@PrototypeConstants.ChangePasswordLabel" aria-label="@PrototypeConstants.ChangePasswordLabel">
-                <HubIcon Name="key-round" Size="18" />
+                <HubIcon Name="@Constants.Icons.KeyRound" Size="18" />
             </button>
 
             <a class="hub-icon-btn" href="@AppRoutes.Login"
                title="@PrototypeConstants.SignOutLabel" aria-label="@PrototypeConstants.SignOutLabel">
-                <HubIcon Name="log-out" Size="18" />
+                <HubIcon Name="@Constants.Icons.LogOut" Size="18" />
             </a>
 
             @* Not [data-theme-toggle] - theme.js rewrites that element's
@@ -35,8 +35,8 @@
                rendered and CSS picks one. *@
             <button type="button" class="hub-icon-btn" onclick="window.kosyncTheme.toggle()"
                     title="@PrototypeConstants.ThemeToggleLabel" aria-label="@PrototypeConstants.ThemeToggleLabel">
-                <span class="hub-theme-moon"><HubIcon Name="moon" Size="18" /></span>
-                <span class="hub-theme-sun"><HubIcon Name="sun" Size="18" /></span>
+                <span class="hub-theme-moon"><HubIcon Name="@Constants.Icons.Moon" Size="18" /></span>
+                <span class="hub-theme-sun"><HubIcon Name="@Constants.Icons.Sun" Size="18" /></span>
             </button>
         </div>
     </nav>
@@ -49,7 +49,7 @@
             @if (Search)
             {
                 <div class="hub-hero-search">
-                    <HubIcon Name="search" Size="16" />
+                    <HubIcon Name="@Constants.Icons.Search" Size="16" />
                     <input class="hub-input" type="search" placeholder="@SearchPlaceholder"
                            data-pt-filter="@FilterTarget" />
                 </div>

@@ -39,4 +39,53 @@ public static class Constants
     // Deliberately says neither which of the two was wrong nor whether the
     // User exists, is inactive or isn't an Administrator.
     public const string LoginErrorText = "Invalid username or password";
+
+    // Icon vocabulary for Components/Shared/HubIcon; HubIconPaths holds the
+    // geometry. HubIcon.Name is a plain string, so these do not make a typo a
+    // build error - what they do is give call sites one spelling to share and
+    // keep the set of available icons discoverable from one place.
+    public static class Icons
+    {
+        public const string Alert = "alert";
+
+        public const string BookOpen = "book-open";
+
+        public const string ChevronRight = "chevron-right";
+
+        public const string Close = "x";
+
+        public const string Device = "device";
+
+        public const string KeyRound = "key-round";
+
+        public const string Library = "library";
+
+        public const string LogOut = "log-out";
+
+        public const string Merge = "merge";
+
+        public const string Moon = "moon";
+
+        public const string Plus = "plus";
+
+        public const string Rotate = "rotate";
+
+        public const string Search = "search";
+
+        public const string Shield = "shield";
+
+        public const string Sun = "sun";
+
+        public const string Trash = "trash";
+
+        public const string User = "user";
+
+        public const string UserCheck = "user-check";
+
+        public const string UserPlus = "user-plus";
+
+        public const string Users = "users";
+
+        public const string UserX = "user-x";
+    }
 }

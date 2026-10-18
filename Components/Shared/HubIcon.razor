@@ -1,0 +1,33 @@
+@* Stands in for lucide-react, which ai-hub uses and Blazor cannot consume.
+   Inline Lucide (ISC) path data, same 24x24 / stroke-2 / round-cap geometry,
+   so the icons read identically to ai-hub's - see docs/ROADMAP.md, "Design
+   language", on why parity is hand-written rather than a shared dependency.
+   Taking a real icon package instead stays an option; nothing outside
+   HubIconPaths would have to change. *@
+
+<svg class="hub-icon @Class"
+     width="@Size" height="@Size"
+     viewBox="0 0 24 24"
+     fill="none"
+     stroke="currentColor"
+     stroke-width="2"
+     stroke-linecap="round"
+     stroke-linejoin="round"
+     aria-hidden="true"
+     focusable="false">@Paths</svg>
+
+@code {
+    // Pass a Constants.Icons name rather than a literal. Unrecognised names
+    // render an empty <svg> rather than throwing, so this is a convention the
+    // compiler does not enforce.
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = "";
+
+    [Parameter]
+    public int Size { get; set; } = HubIconPaths.DefaultSize;
+
+    [Parameter]
+    public string Class { get; set; } = "";
+
+    private MarkupString Paths => new(HubIconPaths.For(Name));
+}
