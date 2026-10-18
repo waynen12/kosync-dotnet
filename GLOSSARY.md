@@ -1,10 +1,40 @@
 # kosync-dotnet
 
-A self-hosted sync server for KOReader reading progress, expanding into a
-dashboard for monitoring devices, diagnosing sync issues, and eventually
-book metadata and AI reading features.
+A self-hosted sync server for KOReader reading progress, and a portal where
+each reader logs in with those same sync credentials to see their own books,
+devices, and sync issues.
 
 ## Language
+
+### People and access
+
+**User**:
+A person with sync credentials. The same username and password serve two
+purposes: their KOReader Devices authenticate with it to sync, and the
+person themselves logs into the portal with it to see their own reading.
+Every Book, Document, and Device belongs to exactly one User, and a User
+only ever sees their own.
+_Avoid_: account, reader, operator, sync user (all one thing — a User)
+
+**Administrator**:
+A User who can additionally manage other Users — creating them, resetting
+their passwords, deactivating or deleting them, and granting or revoking
+this capability itself. A handful exist at most. Being an Administrator is
+a capability a User holds, not a separate kind of account, and it confers
+no ability to read another User's reading.
+_Avoid_: admin as a distinct entity, operator, owner
+
+**Provisional Password**:
+A password chosen for a User by somebody else — by an Administrator
+creating the account, or by the installer for the very first `admin`. It
+is a correct password and identifies the User, but grants nothing: both
+the portal and the sync API refuse it until the User replaces it with one
+of their own. A User holding one has an account that exists and does
+nothing.
+_Avoid_: temporary password, temp credentials, default password (only the
+first admin's is a default; the rest are handed over deliberately)
+
+### Reading and sync
 
 **Book**:
 The work a human means by "the book I'm reading" — a specific novel,
@@ -14,8 +44,9 @@ before any automatic matching exists — a brand-new Document gets its own
 Book until deliberately merged into another. When a Book has multiple
 Documents, its overall progress is the furthest-along current progress of
 any of them — whichever device has read deepest into the book wins, not
-whichever synced most recently.
-_Avoid_: Document, title
+whichever synced most recently. A Book *has* a title; a title is not a
+Book.
+_Avoid_: Document, title (as a synonym for the Book itself)
 
 **Document**:
 A specific file as KOReader identifies it — keyed by a hash KOReader
@@ -47,6 +78,21 @@ A Book whose Documents disagree on progress across devices because
 KOReader gave them different hashes for what is, to the reader, the same
 book. The signal that two Documents need a manual merge.
 _Avoid_: sync issue (too generic — this is one specific kind)
+
+**Observed Metadata**:
+The filename, title, and authors a Device reported for one Document on a
+progress push. An observation about a single file, not a statement about
+the Book — two Documents on the same Book can report different titles.
+Always optional: the reader must have opted into sending it, and only
+recent KOReader versions can.
+_Avoid_: metadata (unqualified), book metadata, pushed title
+
+**Curated Metadata**:
+The title and author a User set on a Book deliberately — typed by hand,
+or filled from a lookup. Outranks Observed Metadata always, because a
+person who typed a title is asserting they know the correct answer, while
+a push only reports what one device happened to extract from one file.
+_Avoid_: metadata (unqualified), override, manual title
 
 **Progress Reset**:
 A deliberate action that clears a Document's current-progress pointer so
