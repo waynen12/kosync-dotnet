@@ -69,7 +69,7 @@ public class DashboardAuthTests : IntegrationTestBase
         var html = await response.Content.ReadAsStringAsync();
         // Read from the same constant the login screen renders, so the
         // assertion can't drift from the copy while the UI prototype runs.
-        Assert.Contains(Kosync.Components.Prototype.PrototypeConstants.LoginErrorText, html);
+        Assert.Contains(Constants.LoginErrorText, html);
     }
 
     [Fact]

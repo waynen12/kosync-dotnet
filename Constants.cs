@@ -10,7 +10,9 @@ public static class Constants
 
     public const string NoBooksSyncedText = "No books have synced yet.";
 
-    public const string NoDeviceDocumentsSyncedText = "No books synced yet";
+    // A Device's card and detail view list that Device's Documents, so the
+    // empty state has to talk about Documents - not Books.
+    public const string NoDeviceDocumentsSyncedText = "No documents synced yet";
 
     public const string NoBookProgressText = "No progress yet";
 
@@ -33,4 +35,8 @@ public static class Constants
     public const string MergeBookNotFoundErrorFormat = "Book #{0} was not found.";
 
     public const string MergeFailedError = "Merge failed.";
+
+    // Deliberately says neither which of the two was wrong nor whether the
+    // User exists, is inactive or isn't an Administrator.
+    public const string LoginErrorText = "Invalid username or password";
 }

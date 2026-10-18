@@ -162,11 +162,16 @@ response.
 [#10](https://github.com/waynen12/kosync-dotnet/issues/10)-[#13](https://github.com/waynen12/kosync-dotnet/issues/13)
 were opened from code review — a merge transaction gap, duplicated tab
 markup, hardcoded strings bypassing `Constants.cs`, and a couple of minor
-text/naming nits. #10, #11 and #12 are closed;
-[**#13 is still open**](https://github.com/waynen12/kosync-dotnet/issues/13)
-(`NoDeviceDocumentsSyncedText` still reads "No books synced yet", and the
-login error string is still not in `Constants.cs`). It is now also a
-blocker for deleting the prototype — see the fold-in ordering constraint.
+text/naming nits. #10, #11 and #12 are closed, and
+[#13](https://github.com/waynen12/kosync-dotnet/issues/13) is implemented
+on `design/portal-redesign`.
+
+#13 landed after the prototype did, so its two strings resolved slightly
+differently than the issue describes: `NoDeviceDocumentsSyncedText` now
+reads "No documents synced yet", and the login error — which by then had
+moved from `Login.razor` into `PrototypeConstants.cs` — is
+`Constants.LoginErrorText`, rendered by all three login variants. That
+discharges the fold-in ordering constraint below.
 
 Note [#1](https://github.com/waynen12/kosync-dotnet/issues/1), the
 Phases 0-2 spec, is also still open despite that work having shipped.
@@ -391,15 +396,17 @@ or made permanent:
   `<PrototypeSwitcher>`, and lost its two `<CardGrid>` calls. Easy to miss:
   this one was absent from the list until a later review caught it.
 - `Components/_Imports.razor` — two `@using` lines marked as throwaway.
-- `tests/Kosync.Tests/DashboardAuthTests.cs` — two assertions re-pointed
-  at prototype copy (`">admin<"`, and `PrototypeConstants.LoginErrorText`).
-  These must move to `Constants.cs` or go back to literals.
+- `tests/Kosync.Tests/DashboardAuthTests.cs` — one assertion left
+  re-pointed at prototype copy (`">admin<"`); it should assert against
+  whatever the folded-in nav actually renders. The login-error assertion is
+  already on `Constants.LoginErrorText` — see the ordering constraint.
 
-**Ordering constraint on the deletions.** `DashboardAuthTests.cs`
-references `PrototypeConstants.LoginErrorText` at *compile* time, so the
-test project stops building the moment `PrototypeConstants.cs` is removed.
-Move that string into `Constants.cs` and re-point the assertion **before**
-deleting anything under `Components/Prototype/`.
+**Ordering constraint on the deletions — discharged by #13.**
+`DashboardAuthTests.cs` used to reference `PrototypeConstants.LoginErrorText`
+at *compile* time, so the test project would have stopped building the
+moment `PrototypeConstants.cs` was removed. #13 moved that string to
+`Constants.LoginErrorText` and re-pointed both the assertion and all three
+login variants, so nothing now blocks deleting `Components/Prototype/`.
 
 ### Framework — decided (item 4)
 

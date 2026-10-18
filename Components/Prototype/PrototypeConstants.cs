@@ -76,7 +76,10 @@ public static class PrototypeConstants
     public const string LoginUsernamePlaceholder = "your username";
     public const string LoginPasswordPlaceholder = "••••••••";
     public const string LoginSubmitText = "Sign in";
-    public const string LoginErrorText = "Invalid username or password";
+    // The error text is NOT here. It survives whichever variant wins (all
+    // three render it), and the fold-in (#19) can't delete this file while
+    // the test suite references the string from it - so #13 moved it ahead
+    // of the rest to Constants.LoginErrorText.
     public const string LoginSyncHint = "Use the same username and password your KOReader devices sync with.";
 
     public static readonly string[] LoginFeatureBullets =

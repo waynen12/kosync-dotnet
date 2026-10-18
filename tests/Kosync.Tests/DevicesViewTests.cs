@@ -1,5 +1,6 @@
 using System.Net;
 using Kosync.Database;
+using Kosync.Database.Entities;
 using Kosync.Models;
 using Kosync.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
@@ -150,6 +151,47 @@ public class DevicesViewTests : IntegrationTestBase
 
         Assert.Equal(HttpStatusCode.Found, response.StatusCode);
         Assert.StartsWith(AppRoutes.Login, response.Headers.Location!.PathAndQuery);
+    }
+
+    // Covers issue #13: a Device with nothing synced yet must say so in terms
+    // of Documents. A Device's card lists that Device's Documents, so "no
+    // books" would describe the wrong thing entirely.
+    [Fact]
+    public async Task DeviceCard_WithoutDocuments_SaysNoDocumentsRatherThanNoBooks()
+    {
+        await SeedDeviceWithoutSyncEventsAsync("device-1", "Kobo Nova");
+
+        using var client = Factory.NoRedirectClient();
+        await DashboardLogin.LogInAsync(client, "admin", "admin");
+
+        var html = await (await client.GetAsync(AppRoutes.Dashboard)).Content.ReadAsStringAsync();
+
+        Assert.Contains("Kobo Nova", html);
+        // Rendered-or-not goes through the constant so the assertion can't
+        // drift from the copy; the old wording stays a literal, because
+        // that is the regression this guards and no constant holds it.
+        Assert.Contains(Constants.NoDeviceDocumentsSyncedText, html);
+        Assert.DoesNotContain("No books synced yet", html);
+    }
+
+    // A Device row only ever appears through a progress push, which also
+    // writes the first SyncEvent - so the never-synced Device the empty state
+    // exists for (a migrated row, a Device whose progress was deleted) has to
+    // be seeded directly.
+    private async Task SeedDeviceWithoutSyncEventsAsync(string deviceId, string deviceName)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+
+        var admin = await db.Users.SingleAsync(u => u.Username == "admin");
+        db.Devices.Add(new Device
+        {
+            DeviceId = deviceId,
+            DeviceName = deviceName,
+            UserId = admin.Id
+        });
+
+        await db.SaveChangesAsync();
     }
 
     private async Task<int> GetDeviceIdAsync(string deviceId)
