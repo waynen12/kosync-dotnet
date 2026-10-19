@@ -34,6 +34,24 @@ nothing.
 _Avoid_: temporary password, temp credentials, default password (only the
 first admin's is a default; the rest are handed over deliberately)
 
+**Auth Key**:
+What a KOReader Device actually puts on the wire in place of a password:
+`MD5(password)`, sent as the `x-auth-key` header. The protocol fixes this,
+so the server never sees the plaintext and the MD5 cannot be removed. It
+is a password-equivalent, not password storage — the Stored Credential
+wraps it (ADR 0005). The portal, which does see plaintext, MD5s it first
+so both paths verify the same value.
+_Avoid_: password hash, password (it is neither — it is the credential the
+protocol carries)
+
+**Stored Credential**:
+What the `User.PasswordHash` column holds: `bcrypt(md5(password))` — bcrypt
+over the Auth Key (ADR 0005). One column serves both the sync API and the
+portal. Verifying one is a deliberately slow KDF rather than a comparison,
+so a Stored Credential that has just been verified against a given Auth Key
+is remembered briefly in memory and the KDF skipped on repeat sync pushes.
+_Avoid_: password hash when the distinction from the Auth Key matters
+
 ### Reading and sync
 
 **Book**:

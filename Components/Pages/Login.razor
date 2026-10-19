@@ -5,6 +5,7 @@
 @inject KosyncDbContext Db
 @inject NavigationManager Navigation
 @inject IPService IPService
+@inject PasswordHasher PasswordHasher
 @inject ILogger<Login> Logger
 
 @* PROTOTYPE (throwaway): ?variant=A|B|C swaps only the rendering. The form
@@ -48,8 +49,11 @@ else
     {
         var user = Db.Users.FirstOrDefault(u => u.Username == Input.Username);
 
+        // The portal has plaintext, so it does the MD5 the sync client would
+        // have done before verifying against the one stored credential
+        // (ADR 0005).
         var passwordMatches = user is not null
-            && user.PasswordHash == Utility.HashPassword(Input.Password ?? string.Empty);
+            && PasswordHasher.VerifyPlainText(Input.Password ?? string.Empty, user.PasswordHash);
 
         if (user is null || !user.IsAdministrator || !user.IsActive || !passwordMatches)
         {

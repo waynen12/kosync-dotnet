@@ -11,15 +11,17 @@ public class SyncController : ControllerBase
     private IPService _ipService;
     private KosyncDbContext _db;
     private UserService _userService;
+    private PasswordHasher _passwordHasher;
 
 
-    public SyncController(ILogger<SyncController> logger, ProxyService proxyService, IPService ipService, KosyncDbContext db, UserService userService)
+    public SyncController(ILogger<SyncController> logger, ProxyService proxyService, IPService ipService, KosyncDbContext db, UserService userService, PasswordHasher passwordHasher)
     {
         _logger = logger;
         _proxyService = proxyService;
         _ipService = ipService;
         _db = db;
         _userService = userService;
+        _passwordHasher = passwordHasher;
     }
 
     [HttpGet("/")]
@@ -40,10 +42,10 @@ public class SyncController : ControllerBase
     [HttpGet("/users/auth")]
     public ObjectResult AuthoriseUser()
     {
-        string? username = Request.Headers["x-auth-user"];
-        string? passwordHash = Request.Headers["x-auth-key"];
+        string? username = Request.Headers[Constants.AuthHeaders.Username];
+        string? authKey = Request.Headers[Constants.AuthHeaders.AuthKey];
 
-        if (username is null || passwordHash is null)
+        if (username is null || authKey is null)
         {
             LogWarning("Request to /users/auth without credentials");
 
@@ -102,10 +104,13 @@ public class SyncController : ControllerBase
             });
         }
 
+        // KOReader has already MD5'd the password before sending it, so the
+        // payload is the auth key this User will present on every later
+        // request - it only needs wrapping, not hashing from plaintext.
         var user = new User()
         {
             Username = payload.username,
-            PasswordHash = payload.password,
+            PasswordHash = _passwordHasher.HashAuthKey(payload.password),
         };
 
         _db.Users.Add(user);

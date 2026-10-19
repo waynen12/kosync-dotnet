@@ -64,6 +64,38 @@ public class LiteDbMigrationTests
         }
     }
 
+    // A legacy LiteDB row holds a bare md5(password) - the inner step of the
+    // current scheme - so the import has to wrap it rather than copy it
+    // across, or a credential-equivalent would be carried into the new
+    // database verbatim (ADR 0005).
+    [Fact]
+    public void MigrateIfNeeded_WrapsTheLegacyPasswordHash_WithoutInvalidatingIt()
+    {
+        var fixturePath = Path.Combine(Path.GetTempPath(), $"kosync-legacy-{Guid.NewGuid()}.db");
+        try
+        {
+            SeedLegacyFixture(fixturePath);
+
+            using var connection = new SqliteConnection("DataSource=:memory:");
+            connection.Open();
+            var options = new DbContextOptionsBuilder<KosyncDbContext>().UseSqlite(connection).Options;
+            using var db = new KosyncDbContext(options);
+            db.Database.Migrate();
+
+            var hasher = TestPasswords.CreateHasher();
+            LiteDbMigrator.MigrateIfNeeded(db, fixturePath, hasher, NullLogger.Instance);
+
+            var stored = db.Users.Single(u => u.Username == "legacyuser").PasswordHash;
+
+            Assert.NotEqual("raw-hashed-key", stored);
+            Assert.True(hasher.VerifyAuthKey("raw-hashed-key", stored));
+        }
+        finally
+        {
+            File.Delete(fixturePath);
+        }
+    }
+
     [Fact]
     public void MigrateIfNeeded_DoesNotDuplicateData_WhenRunTwice()
     {
@@ -78,12 +110,12 @@ public class LiteDbMigrationTests
             using var db = new KosyncDbContext(options);
             db.Database.Migrate();
 
-            LiteDbMigrator.MigrateIfNeeded(db, fixturePath, NullLogger.Instance);
+            LiteDbMigrator.MigrateIfNeeded(db, fixturePath, TestPasswords.CreateHasher(), NullLogger.Instance);
             Assert.Equal(2, db.Users.Count());
             Assert.Equal(3, db.Documents.Count());
             Assert.Equal(3, db.SyncEvents.Count());
 
-            LiteDbMigrator.MigrateIfNeeded(db, fixturePath, NullLogger.Instance);
+            LiteDbMigrator.MigrateIfNeeded(db, fixturePath, TestPasswords.CreateHasher(), NullLogger.Instance);
             Assert.Equal(2, db.Users.Count());
             Assert.Equal(3, db.Documents.Count());
             Assert.Equal(3, db.SyncEvents.Count());

@@ -96,7 +96,18 @@ All requests to these API endpoints require the following headers.
 }
 ```
 
-Since we reuse the existing user structure used for KOReader, unfortunately we are stuck using MD5 hashes for passwords instead of something more secure.
+The MD5 on the wire is fixed by the KOReader protocol, but it is no longer what gets stored: passwords are kept as bcrypt over that MD5, so a copy of the database does not hand over a password-equivalent. Existing deployments need no action — stored credentials are upgraded in place on the next startup, with no password resets. See [ADR 0005](docs/adr/0005-bcrypt-over-md5-password-storage.md).
+
+The bcrypt work factor and how long a verified credential is cached are configurable, in `appsettings.json` or as environment variables:
+
+```yaml
+    environment:
+      # bcrypt cost. Higher is slower and stronger; 12 is the default.
+      - Passwords__WorkFactor=12
+      # How long an already-verified credential skips the hash on repeat
+      # sync pushes. Set to 0 to verify every request.
+      - Passwords__VerifiedCredentialCacheSeconds=300
+```
 
 ### GET /manage/users
 

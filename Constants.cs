@@ -2,6 +2,39 @@ namespace Kosync;
 
 public static class Constants
 {
+    // The two credential headers every KOReader sync request carries. Their
+    // names are fixed by the client, not by us.
+    public static class AuthHeaders
+    {
+        public const string Username = "x-auth-user";
+
+        public const string AuthKey = "x-auth-key";
+    }
+
+    // Password storage settings (ADR 0005). Defaults only - the live values
+    // come from the "Passwords" configuration section via
+    // PasswordHashingOptions.
+    public static class Passwords
+    {
+        public const string ConfigurationSection = "Passwords";
+
+        // The standard bcrypt work factor. Verification happens on every
+        // authenticated sync request, which is what the verified-credential
+        // cache is for; lowering this instead was rejected (ADR 0005).
+        public const int DefaultWorkFactor = 12;
+
+        // bcrypt's own bounds. A configured value outside them would make the
+        // KDF throw on the first login, so it is clamped instead.
+        public const int MinimumWorkFactor = 4;
+
+        public const int MaximumWorkFactor = 31;
+
+        // How long a verified credential stays trusted without re-running the
+        // KDF. Long enough to cover a reading session's page-turn batches,
+        // short enough that it is not a second credential store.
+        public const int DefaultVerifiedCredentialCacheSeconds = 300;
+    }
+
     public const string DevicesTab = "devices";
 
     public const string BooksTab = "books";

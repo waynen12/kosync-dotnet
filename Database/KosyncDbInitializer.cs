@@ -4,7 +4,7 @@ namespace Kosync.Database;
 
 public static class KosyncDbInitializer
 {
-    public static void Initialize(KosyncDbContext db, string dataDirectory, ILogger logger)
+    public static void Initialize(KosyncDbContext db, string dataDirectory, PasswordHasher passwordHasher, ILogger logger)
     {
         if (!Directory.Exists(dataDirectory))
         {
@@ -13,12 +13,40 @@ public static class KosyncDbInitializer
 
         db.Database.Migrate();
 
-        LiteDbMigrator.MigrateIfNeeded(db, Path.Combine(dataDirectory, "Kosync.db"), logger);
+        LiteDbMigrator.MigrateIfNeeded(db, Path.Combine(dataDirectory, "Kosync.db"), passwordHasher, logger);
 
-        CreateDefaults(db);
+        UpgradePasswordHashes(db, passwordHasher, logger);
+
+        CreateDefaults(db, passwordHasher);
     }
 
-    private static void CreateDefaults(KosyncDbContext db)
+    // Credentials written before ADR 0005 are bare MD5s. The stored value is
+    // already md5(password), which is exactly the inner step of the new
+    // scheme, so upgrading is bcrypt(stored) - no plaintext and no password
+    // reset. Runs on every startup and is a no-op once every row is wrapped.
+    private static void UpgradePasswordHashes(KosyncDbContext db, PasswordHasher passwordHasher, ILogger logger)
+    {
+        var legacyUsers = db.Users
+            .ToList()
+            .Where(u => passwordHasher.NeedsUpgrade(u.PasswordHash))
+            .ToList();
+
+        if (legacyUsers.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var user in legacyUsers)
+        {
+            user.PasswordHash = passwordHasher.HashAuthKey(user.PasswordHash);
+        }
+
+        db.SaveChanges();
+
+        logger.LogInformation("Upgraded {UserCount} stored password(s) to the hashed scheme.", legacyUsers.Count);
+    }
+
+    private static void CreateDefaults(KosyncDbContext db, PasswordHasher passwordHasher)
     {
         var adminPassword = Environment.GetEnvironmentVariable("ADMIN_PASSWORD");
         if (adminPassword is null)
@@ -37,7 +65,7 @@ public static class KosyncDbInitializer
             db.Users.Add(adminUser);
         }
 
-        adminUser.PasswordHash = Utility.HashPassword(adminPassword);
+        adminUser.PasswordHash = passwordHasher.HashPlainText(adminPassword);
         adminUser.IsActive = true;
         adminUser.IsAdministrator = true;
 

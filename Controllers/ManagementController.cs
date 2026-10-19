@@ -11,15 +11,17 @@ public class ManagementController : ControllerBase
     private IPService _ipService;
     private KosyncDbContext _db;
     private UserService _userService;
+    private PasswordHasher _passwordHasher;
 
 
-    public ManagementController(ILogger<ManagementController> logger, ProxyService proxyService, IPService ipService, KosyncDbContext db, UserService userService)
+    public ManagementController(ILogger<ManagementController> logger, ProxyService proxyService, IPService ipService, KosyncDbContext db, UserService userService, PasswordHasher passwordHasher)
     {
         _logger = logger;
         _proxyService = proxyService;
         _ipService = ipService;
         _db = db;
         _userService = userService;
+        _passwordHasher = passwordHasher;
     }
 
     [HttpGet("/manage/users")]
@@ -125,7 +127,7 @@ public class ManagementController : ControllerBase
             });
         }
 
-        var passwordHash = Utility.HashPassword(payload.password);
+        var passwordHash = _passwordHasher.HashPlainText(payload.password);
 
         var user = new User()
         {
@@ -509,7 +511,7 @@ public class ManagementController : ControllerBase
             });
         }
 
-        user.PasswordHash = Utility.HashPassword(payload.password);
+        user.PasswordHash = _passwordHasher.HashPlainText(payload.password);
         _db.SaveChanges();
 
         LogInfo($"User [{username}]'s password updated by [{_userService.Username}].");

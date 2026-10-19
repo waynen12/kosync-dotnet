@@ -4,6 +4,7 @@ public class UserService
 {
     private IHttpContextAccessor _contextAccessor;
     private KosyncDbContext _db;
+    private PasswordHasher _passwordHasher;
 
     private bool userLoadAttempted = false;
 
@@ -49,10 +50,11 @@ public class UserService
     }
 
 
-    public UserService(IHttpContextAccessor contextAccessor, KosyncDbContext db)
+    public UserService(IHttpContextAccessor contextAccessor, KosyncDbContext db, PasswordHasher passwordHasher)
     {
         _contextAccessor = contextAccessor;
         _db = db;
+        _passwordHasher = passwordHasher;
     }
 
     private void LoadUser()
@@ -61,13 +63,21 @@ public class UserService
 
         userLoadAttempted = true;
 
-        _username = _contextAccessor?.HttpContext?.Request.Headers["x-auth-user"];
+        _username = _contextAccessor?.HttpContext?.Request.Headers[Constants.AuthHeaders.Username];
 
-        string? passwordHash = _contextAccessor?.HttpContext?.Request.Headers["x-auth-key"];
+        // KOReader sends MD5(password) as the auth key; the stored credential
+        // is bcrypt over exactly that value (ADR 0005). So the User is looked
+        // up by username and the credential verified, rather than matched in
+        // the query the way a bare hash could be.
+        string? authKey = _contextAccessor?.HttpContext?.Request.Headers[Constants.AuthHeaders.AuthKey];
 
-        var user = _db.Users.FirstOrDefault(i => i.Username == _username && i.PasswordHash == passwordHash);
+        if (string.IsNullOrEmpty(_username) || string.IsNullOrEmpty(authKey)) { return; }
+
+        var user = _db.Users.FirstOrDefault(i => i.Username == _username);
 
         if (user is null) { return; }
+
+        if (!_passwordHasher.VerifyAuthKey(authKey, user.PasswordHash)) { return; }
 
 
         _isAuthenticated = true;

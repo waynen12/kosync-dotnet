@@ -2,7 +2,7 @@ namespace Kosync.Database.Legacy;
 
 public static class LiteDbMigrator
 {
-    public static void MigrateIfNeeded(KosyncDbContext db, string liteDbPath, ILogger logger)
+    public static void MigrateIfNeeded(KosyncDbContext db, string liteDbPath, PasswordHasher passwordHasher, ILogger logger)
     {
         if (!File.Exists(liteDbPath))
         {
@@ -19,10 +19,13 @@ public static class LiteDbMigrator
 
         foreach (var legacyUser in legacyUsers)
         {
+            // The legacy store holds a bare md5(password) - the inner step of
+            // the current scheme - so the import wraps it rather than
+            // carrying it across as-is (ADR 0005).
             var user = new User
             {
                 Username = legacyUser.Username,
-                PasswordHash = legacyUser.PasswordHash,
+                PasswordHash = passwordHasher.HashAuthKey(legacyUser.PasswordHash),
                 IsActive = legacyUser.IsActive,
                 IsAdministrator = legacyUser.IsAdministrator,
             };

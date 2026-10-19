@@ -5,7 +5,14 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHttpContextAccessor();
 
 
+builder.Services.Configure<PasswordHashingOptions>(
+    builder.Configuration.GetSection(Constants.Passwords.ConfigurationSection));
+
+builder.Services.AddMemoryCache();
+
 builder.Services.AddSingleton<ProxyService, ProxyService>();
+builder.Services.AddSingleton<IPasswordKdf, BCryptPasswordKdf>();
+builder.Services.AddSingleton<PasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<IPService, IPService>();
 builder.Services.AddScoped<UserService, UserService>();
 builder.Services.AddScoped<DeviceDashboardService, DeviceDashboardService>();
@@ -51,7 +58,8 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    KosyncDbInitializer.Initialize(db, dataDirectory, logger);
+    var passwordHasher = scope.ServiceProvider.GetRequiredService<PasswordHasher>();
+    KosyncDbInitializer.Initialize(db, dataDirectory, passwordHasher, logger);
 }
 
 app.UseForwardedHeaders();
