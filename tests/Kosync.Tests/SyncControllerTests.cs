@@ -331,7 +331,7 @@ public class SyncControllerTests : IntegrationTestBase
             device_id = "device-1"
         }, "admin", "admin");
 
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var events = await db.SyncEvents
             .Where(e => e.Document.DocumentHash == "hash1")

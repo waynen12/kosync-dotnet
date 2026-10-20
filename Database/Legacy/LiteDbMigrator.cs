@@ -34,7 +34,7 @@ public static class LiteDbMigrator
 
             foreach (var legacyDocument in legacyUser.Documents)
             {
-                var book = new Book();
+                var book = new Book { User = user };
                 var document = new Document
                 {
                     DocumentHash = legacyDocument.DocumentHash,

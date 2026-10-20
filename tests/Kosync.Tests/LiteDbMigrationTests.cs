@@ -79,7 +79,7 @@ public class LiteDbMigrationTests
             using var connection = new SqliteConnection("DataSource=:memory:");
             connection.Open();
             var options = new DbContextOptionsBuilder<KosyncDbContext>().UseSqlite(connection).Options;
-            using var db = new KosyncDbContext(options);
+            using var db = TestDb.CreateSystemContext(options);
             db.Database.Migrate();
 
             var hasher = TestPasswords.CreateHasher();
@@ -107,7 +107,7 @@ public class LiteDbMigrationTests
             using var connection = new SqliteConnection("DataSource=:memory:");
             connection.Open();
             var options = new DbContextOptionsBuilder<KosyncDbContext>().UseSqlite(connection).Options;
-            using var db = new KosyncDbContext(options);
+            using var db = TestDb.CreateSystemContext(options);
             db.Database.Migrate();
 
             LiteDbMigrator.MigrateIfNeeded(db, fixturePath, TestPasswords.CreateHasher(), NullLogger.Instance);

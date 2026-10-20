@@ -12,6 +12,8 @@ public class User
 
     public bool IsAdministrator { get; set; } = false;
 
+    public List<Book> Books { get; set; } = new();
+
     public List<Document> Documents { get; set; } = new();
 
     public List<Device> Devices { get; set; } = new();

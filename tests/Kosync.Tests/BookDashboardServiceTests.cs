@@ -113,7 +113,7 @@ public class BookDashboardServiceTests : IntegrationTestBase
     [Fact]
     public async Task GetBookAsync_UnknownId_ReturnsNull()
     {
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var service = new BookDashboardService(db);
 
@@ -261,13 +261,13 @@ public class BookDashboardServiceTests : IntegrationTestBase
             .Options;
 
         int keepBookId, mergeBookId;
-        using (var setup = new KosyncDbContext(options))
+        using (var setup = TestDb.CreateSystemContext(options))
         {
             setup.Database.Migrate();
 
             var user = new User { Username = "u", PasswordHash = "x" };
-            var keepBook = new Book();
-            var mergeBook = new Book();
+            var keepBook = new Book { User = user };
+            var mergeBook = new Book { User = user };
             setup.Users.Add(user);
             setup.Books.AddRange(keepBook, mergeBook);
             await setup.SaveChangesAsync();
@@ -284,7 +284,7 @@ public class BookDashboardServiceTests : IntegrationTestBase
             .AddInterceptors(new ThrowOnSecondSaveInterceptor())
             .Options;
 
-        using (var faultyContext = new KosyncDbContext(faultyOptions))
+        using (var faultyContext = TestDb.CreateSystemContext(faultyOptions))
         {
             var service = new BookDashboardService(faultyContext);
 
@@ -292,7 +292,7 @@ public class BookDashboardServiceTests : IntegrationTestBase
                 () => service.MergeBooksAsync(keepBookId, mergeBookId));
         }
 
-        using var verify = new KosyncDbContext(options);
+        using var verify = TestDb.CreateSystemContext(options);
         var document = await verify.Documents.SingleAsync(d => d.DocumentHash == "hash1");
         Assert.Equal(mergeBookId, document.BookId);
         Assert.NotNull(await verify.Books.FindAsync(mergeBookId));
@@ -449,7 +449,7 @@ public class BookDashboardServiceTests : IntegrationTestBase
 
     private async Task<List<BookSummary>> GetBooksAsync()
     {
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var service = new BookDashboardService(db);
         return await service.GetBooksAsync();
@@ -457,7 +457,7 @@ public class BookDashboardServiceTests : IntegrationTestBase
 
     private async Task<BookSummary?> GetBookAsync(int id)
     {
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var service = new BookDashboardService(db);
         return await service.GetBookAsync(id);
@@ -465,7 +465,7 @@ public class BookDashboardServiceTests : IntegrationTestBase
 
     private async Task<int> GetBookIdAsync(string documentHash)
     {
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var document = await db.Documents.SingleAsync(d => d.DocumentHash == documentHash);
         return document.BookId;
@@ -473,7 +473,7 @@ public class BookDashboardServiceTests : IntegrationTestBase
 
     private async Task<MergeBooksResult> MergeBooksAsync(int keepBookId, int mergeBookId)
     {
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var service = new BookDashboardService(db);
         return await service.MergeBooksAsync(keepBookId, mergeBookId);
@@ -481,7 +481,7 @@ public class BookDashboardServiceTests : IntegrationTestBase
 
     private async Task<int> GetDocumentIdAsync(string documentHash)
     {
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var document = await db.Documents.SingleAsync(d => d.DocumentHash == documentHash);
         return document.Id;
@@ -489,7 +489,7 @@ public class BookDashboardServiceTests : IntegrationTestBase
 
     private async Task<ResetProgressResult> ResetProgressAsync(int documentId)
     {
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var service = new BookDashboardService(db);
         return await service.ResetProgressAsync(documentId);

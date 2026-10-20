@@ -4,8 +4,20 @@ namespace Kosync.Database;
 
 public static class KosyncDbInitializer
 {
-    public static void Initialize(KosyncDbContext db, string dataDirectory, PasswordHasher passwordHasher, ILogger logger)
+    // `tenant` is taken rather than assumed so that the bypass below is a
+    // visible part of this method's contract: startup is one of the three
+    // places ADR 0004 allows outside the tenant filters, and a caller handing
+    // over a tenant that is already acting for a User gets an exception
+    // instead of a silently half-scoped migration.
+    public static void Initialize(KosyncDbContext db, TenantContext tenant, string dataDirectory, PasswordHasher passwordHasher, ILogger logger)
     {
+        // Startup migrates the schema, imports the legacy LiteDB file and
+        // seeds the first admin. All of that happens before any User could
+        // have logged in, so there is no tenant to scope to - and under the
+        // fail-closed default, an unscoped read here would see nothing at all
+        // and the seeding would silently do the wrong thing.
+        tenant.BypassFilters(Constants.Tenancy.StartupBypassReason);
+
         if (!Directory.Exists(dataDirectory))
         {
             Directory.CreateDirectory(dataDirectory);

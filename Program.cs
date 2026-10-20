@@ -13,8 +13,10 @@ builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<ProxyService, ProxyService>();
 builder.Services.AddSingleton<IPasswordKdf, BCryptPasswordKdf>();
 builder.Services.AddSingleton<PasswordHasher, PasswordHasher>();
+builder.Services.AddScoped<TenantContext, TenantContext>();
 builder.Services.AddScoped<IPService, IPService>();
 builder.Services.AddScoped<UserService, UserService>();
+builder.Services.AddScoped<PortalTenantResolver, PortalTenantResolver>();
 builder.Services.AddScoped<DeviceDashboardService, DeviceDashboardService>();
 builder.Services.AddScoped<BookDashboardService, BookDashboardService>();
 
@@ -56,10 +58,11 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
+    var tenant = scope.ServiceProvider.GetRequiredService<TenantContext>();
     var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     var passwordHasher = scope.ServiceProvider.GetRequiredService<PasswordHasher>();
-    KosyncDbInitializer.Initialize(db, dataDirectory, passwordHasher, logger);
+    KosyncDbInitializer.Initialize(db, tenant, dataDirectory, passwordHasher, logger);
 }
 
 app.UseForwardedHeaders();

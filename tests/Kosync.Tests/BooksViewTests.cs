@@ -264,7 +264,7 @@ public class BooksViewTests : IntegrationTestBase
 
         var bookId = await GetBookIdAsync("hash1");
 
-        using (var scope = Factory.Services.CreateScope())
+        using (var scope = Factory.CreateScopeForUser("admin"))
         {
             var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
             var document = await db.Documents.SingleAsync(d => d.DocumentHash == "hash1");
@@ -324,7 +324,7 @@ public class BooksViewTests : IntegrationTestBase
 
     private async Task<int> GetBookIdAsync(string documentHash)
     {
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var document = await db.Documents.SingleAsync(d => d.DocumentHash == documentHash);
         return document.BookId;

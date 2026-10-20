@@ -35,6 +35,35 @@ public static class Constants
         public const int DefaultVerifiedCredentialCacheSeconds = 300;
     }
 
+    // Multi-tenant scoping (ADR 0004). See Database/TenantContext.cs for the
+    // mechanism these belong to.
+    public static class Tenancy
+    {
+        // What the global query filters compare a row's UserId against when no
+        // User has been set. Identity columns start at 1, so no Book, Device,
+        // Document or SyncEvent can ever carry this - which is exactly the
+        // point: an unscoped read matches nothing instead of everything.
+        public const int NoTenantUserId = -1;
+
+        public const string StartupBypassReason =
+            "Startup migrates the schema and seeds the first admin before any User has logged in.";
+
+        public const string DesignTimeBypassReason =
+            "`dotnet ef` builds the model at design time with no request, no session and no User.";
+
+        public const string TestFixtureBypassReason =
+            "A test is asserting on what is stored rather than on what a User can see.";
+
+        public const string SetUserAfterBypassError =
+            "The tenant filters have already been bypassed for a system operation; this scope cannot also act on behalf of a User.";
+
+        public const string BypassAfterSetUserError =
+            "This scope is already acting on behalf of a User; the tenant filters cannot be bypassed inside it.";
+
+        public const string TenantReassignedErrorFormat =
+            "This scope is already acting on behalf of User {0} and cannot be reassigned to User {1}.";
+    }
+
     public const string DevicesTab = "devices";
 
     public const string BooksTab = "books";

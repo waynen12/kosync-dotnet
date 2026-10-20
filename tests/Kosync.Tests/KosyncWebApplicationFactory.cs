@@ -1,6 +1,7 @@
 using Kosync.Database;
 using Kosync.Database.Entities;
 using Kosync.Services;
+using Kosync.Tests.TestSupport;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
@@ -61,7 +62,7 @@ public class KosyncWebApplicationFactory : WebApplicationFactory<Program>
     {
         var options = new DbContextOptionsBuilder<KosyncDbContext>().UseSqlite(_connection).Options;
 
-        using var db = new KosyncDbContext(options);
+        using var db = TestDb.CreateSystemContext(options);
         db.Database.Migrate();
 
         db.Users.Add(new User

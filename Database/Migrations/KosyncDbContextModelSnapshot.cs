@@ -23,7 +23,12 @@ namespace Kosync.Database.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("Books");
                 });
@@ -143,6 +148,17 @@ namespace Kosync.Database.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("Kosync.Database.Entities.Book", b =>
+                {
+                    b.HasOne("Kosync.Database.Entities.User", "User")
+                        .WithMany("Books")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Kosync.Database.Entities.Device", b =>
                 {
                     b.HasOne("Kosync.Database.Entities.User", "User")
@@ -209,6 +225,8 @@ namespace Kosync.Database.Migrations
 
             modelBuilder.Entity("Kosync.Database.Entities.User", b =>
                 {
+                    b.Navigation("Books");
+
                     b.Navigation("Devices");
 
                     b.Navigation("Documents");

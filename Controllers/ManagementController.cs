@@ -65,7 +65,13 @@ public class ManagementController : ControllerBase
         }
 
 
-        var users = _db.Users.Select(i => new
+        // Account operations reach across Users by design - that is what an
+        // Administrator is (ADR 0004) - so the handful of queries in this
+        // controller that touch another User's rows say so with
+        // IgnoreQueryFilters and state the User they mean in their own
+        // predicate, rather than quietly inheriting the request's tenant.
+        // Here that is a per-User count, not any part of a library.
+        var users = _db.Users.IgnoreQueryFilters().Select(i => new
         {
             id = i.Id,
             username = i.Username,
@@ -189,7 +195,7 @@ public class ManagementController : ControllerBase
             });
         }
 
-        var user = _db.Users.Include(u => u.Documents).FirstOrDefault(u => u.Username == username);
+        var user = _db.Users.IgnoreQueryFilters().Include(u => u.Documents).FirstOrDefault(u => u.Username == username);
 
         if (user is null)
         {
@@ -281,6 +287,7 @@ public class ManagementController : ControllerBase
         }
 
         var documents = _db.Documents
+            .IgnoreQueryFilters()
             .Where(d => d.UserId == user.Id)
             .Include(d => d.SyncEvents)
             .ThenInclude(s => s.Device)
@@ -344,7 +351,7 @@ public class ManagementController : ControllerBase
             });
         }
 
-        var user = _db.Users.Include(i => i.Documents).FirstOrDefault(i => i.Username == username)!;
+        var user = _db.Users.IgnoreQueryFilters().Include(i => i.Documents).FirstOrDefault(i => i.Username == username)!;
 
         var document = user.Documents.SingleOrDefault(i => i.DocumentHash == documentHash);
 
@@ -523,7 +530,9 @@ public class ManagementController : ControllerBase
 
     private void RemoveOrphanedBooks(IEnumerable<int> bookIds)
     {
-        var orphanedBooks = _db.Books.Where(b => bookIds.Contains(b.Id) && !b.Documents.Any());
+        var orphanedBooks = _db.Books
+            .IgnoreQueryFilters()
+            .Where(b => bookIds.Contains(b.Id) && !b.Documents.Any());
         _db.Books.RemoveRange(orphanedBooks);
         _db.SaveChanges();
     }

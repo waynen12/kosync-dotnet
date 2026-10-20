@@ -2,6 +2,7 @@
 @page "/dashboard/books/{Id:int}"
 @attribute [Authorize]
 @rendermode InteractiveServer
+@inject PortalTenantResolver PortalTenant
 @inject BookDashboardService BookDashboardService
 
 <PageTitle>@(book is null ? "Book" : $"Book #{book.Id}")</PageTitle>
@@ -98,6 +99,12 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Scopes every query below to the signed-in User (ADR 0004). It is
+        // also this page's entire authorisation check: another User's Book id
+        // filters out, GetBookAsync returns null, and the "Book not found"
+        // path above already handles it.
+        await PortalTenant.ScopeToSignedInUserAsync();
+
         book = await BookDashboardService.GetBookAsync(Id);
     }
 

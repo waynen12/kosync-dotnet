@@ -12,9 +12,10 @@ public class SyncController : ControllerBase
     private KosyncDbContext _db;
     private UserService _userService;
     private PasswordHasher _passwordHasher;
+    private TenantContext _tenant;
 
 
-    public SyncController(ILogger<SyncController> logger, ProxyService proxyService, IPService ipService, KosyncDbContext db, UserService userService, PasswordHasher passwordHasher)
+    public SyncController(ILogger<SyncController> logger, ProxyService proxyService, IPService ipService, KosyncDbContext db, UserService userService, PasswordHasher passwordHasher, TenantContext tenant)
     {
         _logger = logger;
         _proxyService = proxyService;
@@ -22,6 +23,18 @@ public class SyncController : ControllerBase
         _db = db;
         _userService = userService;
         _passwordHasher = passwordHasher;
+        _tenant = tenant;
+    }
+
+    // A KOReader client says who it is with the x-auth-user header, and
+    // nothing else on the server knows "who" that way (ADR 0004) - so the
+    // sync endpoints scope themselves here, explicitly, before the first read
+    // of anybody's Books, Devices or Documents. Omitting the call does not
+    // leak another User's rows; it returns an empty library, which is the
+    // whole reason the filters fail closed.
+    private void ScopeToAuthenticatedUser()
+    {
+        _tenant.SetUser(_userService.UserId!.Value);
     }
 
     [HttpGet("/")]
@@ -153,6 +166,8 @@ public class SyncController : ControllerBase
             });
         }
 
+        ScopeToAuthenticatedUser();
+
         var user = _db.Users
             .Include(i => i.Documents)
                 .ThenInclude(d => d.SyncEvents)
@@ -166,7 +181,10 @@ public class SyncController : ControllerBase
             {
                 DocumentHash = payload.document,
                 User = user,
-                Book = new Book(),
+                // A brand-new Document gets its own Book until deliberately
+                // merged into another (GLOSSARY "Book"), and that Book belongs
+                // to the same User.
+                Book = new Book() { User = user },
             };
             user.Documents.Add(document);
         }
@@ -256,12 +274,14 @@ public class SyncController : ControllerBase
             });
         }
 
-        var user = _db.Users.FirstOrDefault(i => i.Username == _userService.Username)!;
+        ScopeToAuthenticatedUser();
 
+        // No `d.UserId == user.Id` here any more: the tenant filter is what
+        // scopes this, which is the point of enforcing it in one place.
         var document = _db.Documents
             .Include(d => d.SyncEvents)
             .ThenInclude(s => s.Device)
-            .SingleOrDefault(d => d.UserId == user.Id && d.DocumentHash == documentHash);
+            .SingleOrDefault(d => d.DocumentHash == documentHash);
 
         var syncEvent = document?.SyncEvents.Current();
 

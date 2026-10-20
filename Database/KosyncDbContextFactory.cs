@@ -12,6 +12,11 @@ public class KosyncDbContextFactory : IDesignTimeDbContextFactory<KosyncDbContex
         var optionsBuilder = new DbContextOptionsBuilder<KosyncDbContext>();
         optionsBuilder.UseSqlite("Data Source=data/kosync.sqlite3");
 
-        return new KosyncDbContext(optionsBuilder.Options);
+        // One of the three places ADR 0004 lets out of the tenant filters.
+        // At design time there is no request, no session and no User to scope
+        // to, and `dotnet ef` only ever reads the model.
+        return new KosyncDbContext(
+            optionsBuilder.Options,
+            TenantContext.ForSystemOperation(Constants.Tenancy.DesignTimeBypassReason));
     }
 }

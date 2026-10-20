@@ -3,6 +3,7 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @layout PrototypeEmptyLayout
+@inject PortalTenantResolver PortalTenant
 @inject DeviceDashboardService DeviceDashboardService
 @inject BookDashboardService BookDashboardService
 
@@ -57,6 +58,11 @@ else
     protected override async Task OnInitializedAsync()
     {
         activeTab = Tab == Constants.BooksTab ? Constants.BooksTab : Constants.DevicesTab;
+
+        // Scopes every query below to the signed-in User (ADR 0004). Must come
+        // first: without it the filters match nothing and the page renders its
+        // empty state.
+        await PortalTenant.ScopeToSignedInUserAsync();
 
         var devices = await DeviceDashboardService.GetDevicesAsync();
         deviceItems = devices.Select(PrototypeDashboardItem.FromDevice).ToList();

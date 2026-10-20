@@ -19,6 +19,21 @@ public class UserService
         }
     }
 
+    // The id of the authenticated User, or null if the credentials did not
+    // check out. Callers that go on to read Books, Devices or Documents have
+    // to hand this to TenantContext themselves - this is the result of
+    // authenticating a request, not an ambient answer to "who is the current
+    // User" (ADR 0004).
+    private int? _userId;
+    public int? UserId
+    {
+        get
+        {
+            LoadUser();
+            return _userId;
+        }
+    }
+
     private bool _isAuthenticated = false;
     public bool IsAuthenticated
     {
@@ -81,6 +96,8 @@ public class UserService
 
 
         _isAuthenticated = true;
+
+        _userId = user.Id;
 
         _isActive = user.IsActive;
 

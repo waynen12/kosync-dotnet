@@ -2,6 +2,7 @@
 @page "/dashboard/devices/{Id:int}"
 @attribute [Authorize]
 @rendermode InteractiveServer
+@inject PortalTenantResolver PortalTenant
 @inject DeviceDashboardService DeviceDashboardService
 
 <PageTitle>@(device?.DeviceName ?? "Device")</PageTitle>
@@ -49,6 +50,11 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Scopes the query below to the signed-in User (ADR 0004). Another
+        // User's Device id filters out and falls into the "Device not found"
+        // path above.
+        await PortalTenant.ScopeToSignedInUserAsync();
+
         device = await DeviceDashboardService.GetDeviceAsync(Id);
     }
 }

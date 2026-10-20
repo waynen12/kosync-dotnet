@@ -84,7 +84,7 @@ public abstract class IntegrationTestBase : IDisposable
     // surviving Book's id.
     protected async Task<int> MergeIntoOneBookAsync(string keepDocumentHash, string mergeDocumentHash)
     {
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
 
         var keep = await db.Documents.SingleAsync(d => d.DocumentHash == keepDocumentHash);

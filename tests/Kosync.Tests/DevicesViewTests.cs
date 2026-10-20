@@ -180,7 +180,7 @@ public class DevicesViewTests : IntegrationTestBase
     // be seeded directly.
     private async Task SeedDeviceWithoutSyncEventsAsync(string deviceId, string deviceName)
     {
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
 
         var admin = await db.Users.SingleAsync(u => u.Username == "admin");
@@ -196,7 +196,7 @@ public class DevicesViewTests : IntegrationTestBase
 
     private async Task<int> GetDeviceIdAsync(string deviceId)
     {
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var device = await db.Devices.SingleAsync(d => d.DeviceId == deviceId);
         return device.Id;
