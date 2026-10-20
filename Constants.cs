@@ -54,14 +54,25 @@ public static class Constants
         public const string TestFixtureBypassReason =
             "A test is asserting on what is stored rather than on what a User can see.";
 
-        public const string SetUserAfterBypassError =
-            "The tenant filters have already been bypassed for a system operation; this scope cannot also act on behalf of a User.";
+        public const string SetUserAfterBypassErrorFormat =
+            "The tenant filters have already been bypassed for a system operation ({0}); this scope cannot also act on behalf of a User.";
 
         public const string BypassAfterSetUserError =
             "This scope is already acting on behalf of a User; the tenant filters cannot be bypassed inside it.";
 
         public const string TenantReassignedErrorFormat =
             "This scope is already acting on behalf of User {0} and cannot be reassigned to User {1}.";
+
+        public const string LiteDbImportRequiresBypassError =
+            "Importing the legacy LiteDB store writes rows for every User at once and must run with the tenant filters bypassed.";
+
+        // Named onto the migration's staging CHECK constraint, because SQLite
+        // reports a failed named CHECK by name and that is the only way raw
+        // migration SQL gets to explain itself. Safe to reword: the staging
+        // table lives and dies inside the migration, so the name never
+        // survives into an applied database.
+        public const string BookOwnershipConflictMessage =
+            "a Book whose Documents span multiple Users cannot be given an owner automatically - resolve it by hand, then migrate";
     }
 
     public const string DevicesTab = "devices";

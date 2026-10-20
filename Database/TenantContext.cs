@@ -29,8 +29,10 @@ public sealed class TenantContext
 
     public bool IsBypassed => _bypassReason is not null;
 
-    // Why the filters are off, for the benefit of anyone looking at a context
-    // in the debugger and wondering why it can see everything.
+    // Why the filters are off. Named at the call site and reported back in
+    // the exception if something later tries to act for a User in the same
+    // scope, so "who turned the filters off" is answerable from the error
+    // rather than from a debugger.
     public string? BypassReason => _bypassReason;
 
     // Call at the start of an operation performed on behalf of a User, before
@@ -39,7 +41,8 @@ public sealed class TenantContext
     {
         if (_bypassReason is not null)
         {
-            throw new InvalidOperationException(Constants.Tenancy.SetUserAfterBypassError);
+            throw new InvalidOperationException(
+                string.Format(Constants.Tenancy.SetUserAfterBypassErrorFormat, _bypassReason));
         }
 
         // Re-setting the same User is how a Blazor page behaves: its

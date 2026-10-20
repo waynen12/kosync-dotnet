@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Kosync.Database;
 using Kosync.Database.Entities;
+using Kosync.Database.Legacy;
 using Kosync.Models;
 using Kosync.Services;
 using Kosync.Tests.TestSupport;
@@ -180,6 +181,26 @@ public class TenantScopingTests : IntegrationTestBase
         Assert.Equal(ownBookId, (await db.Documents.SingleAsync(d => d.DocumentHash == "hash-a")).BookId);
     }
 
+    // GET /syncs/progress/{hash} used to carry its own `d.UserId == user.Id`
+    // predicate; the tenant filter replaced it. Worth its own test because a
+    // KOReader hash is derived from the file's content, so two Users reading
+    // the same book really do share one - this is the one place where an
+    // unscoped lookup would return somebody else's row rather than nothing.
+    [Fact]
+    public async Task SyncProgressForASharedDocumentHash_ReturnsTheCallersOwnProgress()
+    {
+        await CreateUserAsync("reader-a");
+        await CreateUserAsync("reader-b");
+
+        await PushAsync("reader-a", "reader-a", "shared-hash", "device-a", percentage: 0.10m);
+        await PushAsync("reader-b", "reader-b", "shared-hash", "device-b", percentage: 0.90m);
+
+        var body = await BodyAsync(await GetAsync("/syncs/progress/shared-hash", "reader-a", "reader-a"));
+
+        Assert.Equal(0.10m, body.GetProperty("percentage").GetDecimal());
+        Assert.Equal("device-a", body.GetProperty("device_id").GetString());
+    }
+
     // ADR 0004 names this as the trap: an interactive Blazor circuit has no
     // usable HttpContext after its first render (ADR 0003), so a resolver
     // built on IHttpContextAccessor passes every integration test and then
@@ -282,6 +303,24 @@ public class TenantScopingTests : IntegrationTestBase
 
         Assert.True(db.TenantFiltersBypassed);
         Assert.NotNull(db.Users.SingleOrDefault(u => u.Username == "admin"));
+    }
+
+    // The legacy import is the third place allowed outside the filters, and
+    // the one whose failure would be silent: running it fail-closed would
+    // read an empty database and import on top of data that is already there.
+    [Fact]
+    public void LiteDbImport_WithoutTheFiltersBypassed_Refuses()
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+
+        var exception = Assert.Throws<InvalidOperationException>(() => LiteDbMigrator.MigrateIfNeeded(
+            db,
+            Path.Combine(Factory.DataDirectory, "Kosync.db"),
+            scope.ServiceProvider.GetRequiredService<PasswordHasher>(),
+            NullLogger.Instance));
+
+        Assert.Equal(Constants.Tenancy.LiteDbImportRequiresBypassError, exception.Message);
     }
 
     // The guards on the bypass itself. Mixing "acting for a User" and "system

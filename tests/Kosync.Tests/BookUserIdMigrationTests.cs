@@ -104,7 +104,7 @@ public class BookUserIdMigrationTests
 
         var exception = Assert.ThrowsAny<Exception>(() => MigrateToLatest(connection));
 
-        Assert.Contains("span multiple Users", exception.Message);
+        Assert.Contains(Constants.Tenancy.BookOwnershipConflictMessage, exception.Message);
 
         // Rolled back: the column the migration was adding is not there, so
         // the operator can fix the data and run it again.

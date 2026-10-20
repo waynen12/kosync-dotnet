@@ -23,10 +23,11 @@ namespace Kosync.Database.Migrations
         //    User's Book under another User's name. There is no code path that
         //    can produce one today, so rather than guessing, the migration
         //    aborts and leaves the database untouched. The staging table below
-        //    is how: its CHECK constraint is named with the message, because
-        //    SQLite reports a failed named CHECK by name and that is the only
-        //    way raw migration SQL gets to say anything legible.
-        private const string BackfillSql = """
+        //    is how: its CHECK constraint is named with
+        //    Constants.Tenancy.BookOwnershipConflictMessage, because SQLite
+        //    reports a failed named CHECK by name and that is the only way raw
+        //    migration SQL gets to say anything legible.
+        private static readonly string BackfillSql = $"""
             DELETE FROM "Books"
             WHERE NOT EXISTS (SELECT 1 FROM "Documents" WHERE "Documents"."BookId" = "Books"."Id");
 
@@ -34,7 +35,7 @@ namespace Kosync.Database.Migrations
                 "BookId" INTEGER NOT NULL PRIMARY KEY,
                 "UserId" INTEGER NOT NULL,
                 "OwnerCount" INTEGER NOT NULL,
-                CONSTRAINT "a Book whose Documents span multiple Users cannot be given an owner automatically - resolve it by hand, then migrate" CHECK ("OwnerCount" = 1)
+                CONSTRAINT "{Constants.Tenancy.BookOwnershipConflictMessage}" CHECK ("OwnerCount" = 1)
             );
 
             INSERT INTO "BookOwnershipBackfill" ("BookId", "UserId", "OwnerCount")

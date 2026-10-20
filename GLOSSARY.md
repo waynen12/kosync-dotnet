@@ -24,6 +24,17 @@ a capability a User holds, not a separate kind of account, and it confers
 no ability to read another User's reading.
 _Avoid_: admin as a distinct entity, operator, owner
 
+**Tenant**:
+The one User every database read is scoped to for the duration of an
+operation. Set explicitly at the start of each operation — a sync request
+from its `x-auth-user` header, a portal page from the circuit's
+authentication state — because the callers that know "who" know it by
+incompatible means (ADR 0004). No Tenant set means no rows, not all rows:
+the three paths that legitimately run outside any User (startup seeding,
+the LiteDB import, `dotnet ef` at design time) say so by name instead.
+_Avoid_: current user (ambient-sounding, and the thing ADR 0004 rejected),
+customer, organisation (there is no grouping above a User)
+
 **Provisional Password**:
 A password chosen for a User by somebody else — by an Administrator
 creating the account, or by the installer for the very first `admin`. It

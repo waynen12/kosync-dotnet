@@ -4,6 +4,17 @@ public static class LiteDbMigrator
 {
     public static void MigrateIfNeeded(KosyncDbContext db, string liteDbPath, PasswordHasher passwordHasher, ILogger logger)
     {
+        // The import reads and writes every User's rows at once, so it is one
+        // of the three places ADR 0004 allows outside the tenant filters. Its
+        // caller is where that bypass is declared by name; this is the check
+        // that it actually was, because an import running fail-closed would
+        // see an empty database and quietly do the wrong thing rather than
+        // fail.
+        if (!db.TenantFiltersBypassed)
+        {
+            throw new InvalidOperationException(Constants.Tenancy.LiteDbImportRequiresBypassError);
+        }
+
         if (!File.Exists(liteDbPath))
         {
             return;
