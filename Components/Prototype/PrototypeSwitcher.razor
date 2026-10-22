@@ -62,9 +62,11 @@
     [Parameter, EditorRequired]
     public string Current { get; set; } = PrototypeConstants.VariantA;
 
+    // No Login chip: issue #16 folded variant A into the real /login, which
+    // renders no switcher, so the link would have been a one-way trip out of
+    // the prototype.
     private static readonly (string Label, string Route)[] Screens =
     [
-        ("Login", AppRoutes.Login),
         ("Dashboard", AppRoutes.Dashboard),
         ("Users", PrototypeRoutes.Users),
     ];

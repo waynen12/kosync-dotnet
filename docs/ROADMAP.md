@@ -390,7 +390,12 @@ variants, and `prototype.js`.
 or made permanent:
 
 - `Components/Pages/Login.razor` — `LoginModel` was made `public` and the
-  page took `@layout PrototypeEmptyLayout`.
+  page took `@layout PrototypeEmptyLayout`. **Done (#16):** `LoginModel` is
+  private again, and the page now takes `LoginLayout` — a permanent
+  chromeless layout, not a revert to `MainLayout`. `/login` is a full-bleed
+  gradient to the viewport edges, so it cannot sit inside the app shell, and
+  #17 turns that shell into the *authenticated* nav. Do not "revert" this
+  one further.
 - `Components/Pages/Dashboard.razor` — also took
   `@layout PrototypeEmptyLayout`, a three-way variant switch and a
   `<PrototypeSwitcher>`, and lost its two `<CardGrid>` calls. Easy to miss:

@@ -4,9 +4,10 @@
    The ai-hub design language itself now lives in app.css (issue #15): the
    token block, the primitives and the centred layout containers are all
    permanent and loaded on every page. What is left here is only the parts
-   still awaiting a fold-in ticket - the shell (#17), the login screens
-   (#16), the three dashboard/users variants (#18, #28) - plus the pt-*
-   switcher, which ships with nothing.
+   still awaiting a fold-in ticket - the shell (#17) and the three
+   dashboard/users variants (#18, #28) - plus the pt-* switcher, which ships
+   with nothing. The login screens went with issue #16; their rules are in
+   app.css section 6.
 
    Everything is namespaced hub-/pt-, so nothing leaks into the real
    dashboard's .ks-* styles.
@@ -93,101 +94,6 @@
 }
 
 .hub-toast-brand { border-left: 3px solid var(--hub-brand); }
-
-/* =========================================================================
-   LOGIN
-   ========================================================================= */
-.hub-login {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-    background: var(--hub-gradient);
-}
-
-.hub-login-card {
-    width: 100%;
-    max-width: 24rem; /* max-w-sm */
-    background: var(--hub-card);
-    color: var(--hub-card-fg);
-    border: 1px solid var(--hub-border);
-    border-radius: var(--hub-radius-2xl);
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
-    padding: 32px;
-}
-
-.hub-login-head { text-align: center; margin-bottom: 24px; }
-.hub-login-title { font-size: 24px; font-weight: 800; letter-spacing: -0.015em; margin: 0; }
-.hub-login-sub { font-size: 14px; color: var(--hub-muted-fg); margin: 4px 0 0; }
-
-.hub-login-error {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    background: color-mix(in srgb, var(--hub-destructive) 12%, transparent);
-    color: var(--hub-destructive);
-    border-radius: var(--hub-radius-lg);
-    padding: 9px 12px;
-    font-size: 13px;
-    font-weight: 500;
-    margin-bottom: 16px;
-}
-
-.hub-login-hint {
-    font-size: 12px;
-    color: var(--hub-muted-fg);
-    line-height: 1.5;
-    text-align: center;
-    margin: 20px 0 0;
-}
-
-/* --- Login B: gradient split screen, hub card on the right -------------- */
-.hub-login-split { padding: 0; align-items: stretch; background: var(--hub-bg); }
-
-.hub-login-aside {
-    flex: 1 1 46%;
-    background: var(--hub-gradient);
-    color: #fff;
-    padding: 56px 48px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 24px;
-}
-
-.hub-login-aside-brand { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
-.hub-login-aside-pitch { font-size: 17px; line-height: 1.45; opacity: 0.9; margin: 0; max-width: 22ch; }
-.hub-login-features { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
-.hub-login-features li { display: flex; align-items: center; gap: 10px; font-size: 14px; opacity: 0.92; }
-
-.hub-login-main {
-    flex: 1 1 54%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 48px 24px;
-}
-
-.hub-login-split .hub-login-card { box-shadow: none; border-radius: var(--hub-radius-xl); }
-
-@media (max-width: 860px) {
-    .hub-login-split { flex-direction: column; }
-    .hub-login-aside { padding: 28px 20px; gap: 14px; flex: 0 0 auto; }
-    .hub-login-aside-brand { font-size: 22px; }
-    .hub-login-aside-pitch { font-size: 15px; max-width: none; }
-    .hub-login-features { display: none; }
-    .hub-login-main { padding: 28px 16px 48px; }
-}
-
-/* --- Login C: compact, gradient reduced to a hairline ------------------- */
-.hub-login-quiet { background: var(--hub-bg); }
-.hub-login-quiet .hub-login-card { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); max-width: 21rem; padding: 28px; position: relative; overflow: hidden; }
-.hub-login-quiet .hub-login-card::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: var(--hub-gradient); }
-.hub-login-quiet .hub-login-head { text-align: left; }
-.hub-login-quiet .hub-login-hint { text-align: left; }
-
-.hub-login-mark { display: inline-flex; align-items: center; gap: 8px; color: var(--hub-brand); font-weight: 800; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 14px; }
 
 /* =========================================================================
    VARIANT A - card grid (ai-hub's Resources grid, applied to sync data)

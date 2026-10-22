@@ -17,8 +17,9 @@
      3. Base                  reset and document defaults
      4. Primitives            buttons, inputs, cards, badges, type
      5. Layout containers     the page-level wrappers
-     6. Pre-hub rules         .ks-* chrome and the detail pages
-     7. Breakpoints           every @media query in the system
+     6. Login                 the one screen with its own shell
+     7. Pre-hub rules         .ks-* chrome and the detail pages
+     8. Breakpoints           every @media query in the system
    ========================================================================= */
 
 @import url("https://fonts.googleapis.com/css2?family=Geist:wght@300..900&family=Geist+Mono:wght@300..700&display=swap");
@@ -377,7 +378,62 @@ a {
 }
 
 /* =========================================================================
-   6. PRE-HUB RULES
+   6. LOGIN
+
+   The one screen with its own shell: a full-bleed gradient with a centred
+   card, rather than the nav-plus-main shape every authenticated page takes
+   (docs/ROADMAP.md, "/login layout"). Ported out of the prototype with
+   issue #16 - prototype.css is only linked by PrototypeSwitcher, so these
+   rules have to live here for /login to render once the switcher is gone.
+   ========================================================================= */
+.hub-login {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: var(--hub-gradient);
+}
+
+.hub-login-card {
+    width: 100%;
+    max-width: 24rem; /* max-w-sm */
+    background: var(--hub-card);
+    color: var(--hub-card-fg);
+    border: 1px solid var(--hub-border);
+    border-radius: var(--hub-radius-2xl);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+    padding: 32px;
+}
+
+.hub-login-head { text-align: center; margin-bottom: 24px; }
+.hub-login-title { font-size: 24px; font-weight: 800; letter-spacing: -0.015em; margin: 0; }
+.hub-login-sub { font-size: 14px; color: var(--hub-muted-fg); margin: 4px 0 0; }
+
+/* Where ai-hub's sonner toast would have been - see Login.razor. */
+.hub-login-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    background: color-mix(in srgb, var(--hub-destructive) 12%, transparent);
+    color: var(--hub-destructive);
+    border-radius: var(--hub-radius-lg);
+    padding: 9px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 16px;
+}
+
+.hub-login-hint {
+    font-size: 12px;
+    color: var(--hub-muted-fg);
+    line-height: 1.5;
+    text-align: center;
+    margin: 20px 0 0;
+}
+
+/* =========================================================================
+   7. PRE-HUB RULES
 
    Everything below predates the fold-in and runs on the section-2 aliases.
    The shell chrome goes with issue #17 (HubNav -> MainLayout) and the card
@@ -672,11 +728,6 @@ a {
     margin: 0 0 16px;
 }
 
-.ks-login-error {
-    display: inline-block;
-    margin: 0 0 16px;
-}
-
 .ks-doc-card {
     background: var(--ks-card-bg);
     border: 1px solid var(--ks-border);
@@ -752,7 +803,7 @@ a {
 }
 
 /* =========================================================================
-   7. BREAKPOINTS
+   8. BREAKPOINTS
 
    The stylesheet had none at all before this, which is the other half of the
    responsiveness bug the second prototyping session found. Desktop-first,

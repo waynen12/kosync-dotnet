@@ -72,7 +72,7 @@ public class DesignSystemTests
     [InlineData(640)] // the 390px phone target
     public void AppCss_NarrowsTheGutterAtEachBreakpoint(int maxWidth)
     {
-        var css = WithoutComments(StaticAssets.ReadAppCss());
+        var css = StaticAssets.ReadAppCssWithoutComments();
 
         // Asserting the breakpoint does something, not merely that an @media
         // block exists: every page-level horizontal padding reads
@@ -90,7 +90,7 @@ public class DesignSystemTests
         // Comments are stripped first: section 5's prose quotes
         // `margin: 0 auto` to explain the rule, and a naive scan folds that
         // text into the next selector.
-        var css = WithoutComments(StaticAssets.ReadAppCss());
+        var css = StaticAssets.ReadAppCssWithoutComments();
 
         var offenders = Regex.Matches(css, @"([^{}]+)\{([^{}]*)\}")
             .Where(rule => Regex.IsMatch(rule.Groups[2].Value, @"margin:\s*0\s+auto"))
@@ -131,7 +131,4 @@ public class DesignSystemTests
 
     private static HashSet<string> TokenNames(string css, string pattern) =>
         Regex.Matches(css, pattern).Select(match => match.Groups[1].Value).ToHashSet();
-
-    private static string WithoutComments(string css) =>
-        Regex.Replace(css, @"/\*.*?\*/", "", RegexOptions.Singleline);
 }

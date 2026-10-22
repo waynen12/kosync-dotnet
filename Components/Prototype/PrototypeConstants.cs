@@ -60,34 +60,22 @@ public static class PrototypeConstants
     // ---------------------------------------------------------------------
     // Shell / brand
     // ---------------------------------------------------------------------
-    public const string BrandName = "Kosync";
+    // Folded in by #16 - the surviving variants read them from here so there
+    // is one value, not a prototype copy drifting from the shipped one.
+    public const string BrandName = Constants.BrandName;
+    public const string LoginUsernameLabel = Constants.LoginUsernameLabel;
+    public const string LoginPasswordLabel = Constants.LoginPasswordLabel;
+
     public const string BrandTagline = "Your reading, across every device.";
     public const string ThemeToggleLabel = "Toggle theme";
     public const string SignOutLabel = "Sign out";
     public const string ChangePasswordLabel = "Change password";
     public const string ManageAccountsLabel = "Manage accounts";
 
-    // ---------------------------------------------------------------------
-    // Login
-    // ---------------------------------------------------------------------
-    public const string LoginHeading = "Sign in to continue";
-    public const string LoginUsernameLabel = "Username";
-    public const string LoginPasswordLabel = "Password";
-    public const string LoginUsernamePlaceholder = "your username";
-    public const string LoginPasswordPlaceholder = "••••••••";
-    public const string LoginSubmitText = "Sign in";
-    // The error text is NOT here. It survives whichever variant wins (all
-    // three render it), and the fold-in (#19) can't delete this file while
-    // the test suite references the string from it - so #13 moved it ahead
-    // of the rest to Constants.LoginErrorText.
-    public const string LoginSyncHint = "Use the same username and password your KOReader devices sync with.";
-
-    public static readonly string[] LoginFeatureBullets =
-    [
-        "Every device that has synced, and when",
-        "Progress per book, furthest-along wins",
-        "Sync issues flagged where they happened",
-    ];
+    // The Login block is gone: #16 folded variant A into the real /login and
+    // deleted all three login variants, so every string it held either moved
+    // to Constants.cs or lost its last reader with variants B and C. The two
+    // labels the Users variants still share are above, aliased.
 
     // ---------------------------------------------------------------------
     // Dashboard

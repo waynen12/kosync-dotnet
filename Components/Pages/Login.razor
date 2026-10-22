@@ -1,44 +1,67 @@
 @* @page requires a literal - keep this in sync with AppRoutes.Login *@
 @page "/login"
 @attribute [AllowAnonymous]
-@layout PrototypeEmptyLayout
+@layout LoginLayout
 @inject KosyncDbContext Db
 @inject NavigationManager Navigation
 @inject IPService IPService
 @inject PasswordHasher PasswordHasher
 @inject ILogger<Login> Logger
 
-@* PROTOTYPE (throwaway): ?variant=A|B|C swaps only the rendering. The form
-   post, credential check and sign-in below are the real ones, so each
-   variant can actually be logged in through. Remove the variant switch and
-   the PrototypeSwitcher once a variant wins - see Components/Prototype/. *@
+@* Static SSR, deliberately (ADR 0003): a plain form POST with no circuit.
+   Nothing here may take a @rendermode - the sign-in below needs an
+   HttpContext, which an interactive render does not have. *@
 
-<PageTitle>Log in</PageTitle>
+<PageTitle>@Constants.LoginPageTitle</PageTitle>
 
-@if (Variant == PrototypeConstants.VariantB)
-{
-    <LoginVariantB Input="Input" OnSubmit="HandleLogin" ShowError="showError" />
-}
-else if (Variant == PrototypeConstants.VariantC)
-{
-    <LoginVariantC Input="Input" OnSubmit="HandleLogin" ShowError="showError" />
-}
-else
-{
-    <LoginVariantA Input="Input" OnSubmit="HandleLogin" ShowError="showError" />
-}
+@* Deliberately not .hub-root: that is the nav-plus-main shell every other
+   page wraps itself in, and .hub-login would have to re-declare half of it
+   to override the background. *@
+<div class="hub-login">
+    <div class="hub-login-card">
+        <div class="hub-login-head">
+            <h1 class="hub-login-title">@Constants.BrandName</h1>
+            <p class="hub-login-sub">@Constants.LoginHeading</p>
+        </div>
 
-<PrototypeSwitcher Screen="@AppRoutes.Login" Current="@Variant" />
+        @* ai-hub raises a failed sign-in as a sonner toast, which needs a
+           live client. This screen is Static SSR, so the error renders
+           inline where the toast would have been. *@
+        @if (showError)
+        {
+            <div class="hub-login-error" role="alert">
+                <HubIcon Name="@Constants.Icons.Alert" Size="@Constants.Icons.InlineSize" />
+                <span>@Constants.LoginErrorText</span>
+            </div>
+        }
+
+        <EditForm Model="Input" FormName="login" OnSubmit="HandleLogin" method="post">
+            <div class="hub-stack-4">
+                <div class="hub-field">
+                    <label class="hub-label" for="login-username">@Constants.LoginUsernameLabel</label>
+                    <InputText id="login-username" class="hub-input" @bind-Value="Input.Username"
+                               placeholder="@Constants.LoginUsernamePlaceholder" autocomplete="username" />
+                </div>
+
+                <div class="hub-field">
+                    <label class="hub-label" for="login-password">@Constants.LoginPasswordLabel</label>
+                    <InputText id="login-password" type="password" class="hub-input" @bind-Value="Input.Password"
+                               placeholder="@Constants.LoginPasswordPlaceholder" autocomplete="current-password" />
+                </div>
+
+                <button type="submit" class="hub-btn hub-btn-brand hub-btn-lg hub-btn-block">
+                    @Constants.LoginSubmitText
+                </button>
+            </div>
+        </EditForm>
+
+        <p class="hub-login-hint">@Constants.LoginSyncHint</p>
+    </div>
+</div>
 
 @code {
     [SupplyParameterFromForm]
     private LoginModel Input { get; set; } = new();
-
-    [SupplyParameterFromQuery(Name = PrototypeConstants.VariantQueryParam)]
-    [Parameter]
-    public string? VariantParam { get; set; }
-
-    private string Variant => PrototypeConstants.Normalize(VariantParam);
 
     private bool showError;
 
@@ -75,9 +98,7 @@ else
         Navigation.NavigateTo(AppRoutes.Dashboard, forceLoad: true);
     }
 
-    // Public so the prototype login variants can bind to it. Revert to
-    // private when the prototype is removed.
-    public class LoginModel
+    private class LoginModel
     {
         public string Username { get; set; } = "";
         public string Password { get; set; } = "";

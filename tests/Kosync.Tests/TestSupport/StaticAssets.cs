@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace Kosync.Tests.TestSupport;
 
 // KosyncWebApplicationFactory deliberately points the content root at a
@@ -9,6 +11,12 @@ public static class StaticAssets
     private const string ProjectFileName = "Kosync.csproj";
 
     public static string ReadAppCss() => File.ReadAllText(Path.Combine(WwwRoot, "css", "app.css"));
+
+    // Every scan of the stylesheet wants this: app.css's section prose names
+    // the selectors and tokens it is explaining, and a naive scan reads that
+    // prose as a rule.
+    public static string ReadAppCssWithoutComments() =>
+        Regex.Replace(ReadAppCss(), @"/\*.*?\*/", "", RegexOptions.Singleline);
 
     private static string WwwRoot => Path.Combine(RepositoryRoot, "wwwroot");
 

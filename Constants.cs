@@ -109,6 +109,32 @@ public static class Constants
 
     public const string MergeFailedError = "Merge failed.";
 
+    // The product name, rendered as the login card's title and (issue #17)
+    // the app shell's brand.
+    public const string BrandName = "Kosync";
+
+    // One voice across the screen: the card, the submit button and the
+    // browser tab all say "sign in", not a mix of "log in" and "sign in".
+    public const string LoginPageTitle = "Sign in";
+
+    public const string LoginHeading = "Sign in to continue";
+
+    public const string LoginUsernameLabel = "Username";
+
+    public const string LoginPasswordLabel = "Password";
+
+    public const string LoginUsernamePlaceholder = "your username";
+
+    public const string LoginPasswordPlaceholder = "••••••••";
+
+    public const string LoginSubmitText = "Sign in";
+
+    // Portal password and sync password are the same stored credential
+    // (ADR 0005), which is not obvious from a login form - so the form says
+    // so rather than letting a reader guess at a separate portal account.
+    public const string LoginSyncHint =
+        "Use the same username and password your KOReader devices sync with.";
+
     // Deliberately says neither which of the two was wrong nor whether the
     // User exists, is inactive or isn't an Administrator.
     public const string LoginErrorText = "Invalid username or password";
@@ -119,6 +145,10 @@ public static class Constants
     // keep the set of available icons discoverable from one place.
     public static class Icons
     {
+        // For an icon sitting on a line of body text rather than standing on
+        // its own - HubIconPaths.DefaultSize is the standalone size.
+        public const int InlineSize = 15;
+
         public const string Alert = "alert";
 
         public const string BookOpen = "book-open";
