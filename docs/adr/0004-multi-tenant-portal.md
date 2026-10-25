@@ -46,6 +46,14 @@ those are account operations rather than reading someone's library. That
 endpoint's cross-user reach was never a privacy decision anybody made; it
 was written when the server had one user.
 
+That list of kept powers is about accounts, and it does not settle
+`DELETE /manage/users/documents`, which still reaches across Users:
+deleting another User's Document is neither an account operation nor
+reading a library, so this ADR left it in a gap rather than in a
+carve-out it made. Raised as issue #35 for a deliberate decision, since
+the endpoint is also a slower read oracle for exactly what the GET above
+stopped disclosing.
+
 ## Consequences
 
 - Supersedes the "single-operator tool, no separate user system for the
