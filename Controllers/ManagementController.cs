@@ -12,9 +12,10 @@ public class ManagementController : ControllerBase
     private KosyncDbContext _db;
     private UserService _userService;
     private PasswordHasher _passwordHasher;
+    private TenantContext _tenant;
 
 
-    public ManagementController(ILogger<ManagementController> logger, ProxyService proxyService, IPService ipService, KosyncDbContext db, UserService userService, PasswordHasher passwordHasher)
+    public ManagementController(ILogger<ManagementController> logger, ProxyService proxyService, IPService ipService, KosyncDbContext db, UserService userService, PasswordHasher passwordHasher, TenantContext tenant)
     {
         _logger = logger;
         _proxyService = proxyService;
@@ -22,6 +23,7 @@ public class ManagementController : ControllerBase
         _db = db;
         _userService = userService;
         _passwordHasher = passwordHasher;
+        _tenant = tenant;
     }
 
     [HttpGet("/manage/users")]
@@ -253,11 +255,16 @@ public class ManagementController : ControllerBase
         }
 
 
-        if (!_userService.IsAdmin &&
-            !username.Equals(_userService.Username, StringComparison.OrdinalIgnoreCase))
-            // allow a user to request their own docs
+        // The one endpoint under /manage/* that reads a library rather than
+        // managing an account, so it is the one that does not widen for an
+        // Administrator (issue #27, ADR 0004): tenancy is absolute, and a
+        // request for anybody but yourself gets the same refusal whoever
+        // asks. Deliberately not a 403 or a "user does not exist" - the
+        // answer must not tell the caller which of those it is, nor that
+        // being an Administrator made any difference.
+        if (!string.Equals(username, _userService.Username, StringComparison.OrdinalIgnoreCase))
         {
-            LogWarning($"Unauthorized GET request to /manage/users/documents from user [{_userService.Username}].");
+            LogWarning($"Unauthorized GET request to /manage/users/documents for user [{username}] from user [{_userService.Username}].");
 
             return StatusCode(401, new
             {
@@ -275,20 +282,16 @@ public class ManagementController : ControllerBase
             });
         }
 
-        LogInfo($"User [{username}]'s documents requested by [{_userService.Username}]");
+        LogInfo($"User [{_userService.Username}] requested their own documents");
 
-        var user = _db.Users.FirstOrDefault(i => i.Username == username);
-        if (user is null)
-        {
-            return StatusCode(400, new
-            {
-                message = "User does not exist"
-            });
-        }
+        // Scoped the way every other read of a library is, by setting the
+        // tenant and letting the global query filters do it (ADR 0004).
+        // Replacing the old IgnoreQueryFilters + hand-written UserId
+        // predicate is the actual fix: there is no longer a "which User" to
+        // get wrong here, because the query cannot name one.
+        _tenant.SetUser(_userService.UserId!.Value);
 
         var documents = _db.Documents
-            .IgnoreQueryFilters()
-            .Where(d => d.UserId == user.Id)
             .Include(d => d.SyncEvents)
             .ThenInclude(s => s.Device)
             .ToList()

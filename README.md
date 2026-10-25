@@ -87,6 +87,8 @@ There are some management API endpoints you can interact with using a tool like 
 
 Only the admin user can make requests to these API endpoints, with the exception of users being allowed to query and delete their own documents and delete their own account.
 
+Reading a user's documents is the one thing being an admin does *not* unlock: `GET /manage/users/documents` only ever returns the caller's own documents, because an admin manages accounts but never reads another user's library. See [ADR 0004](docs/adr/0004-multi-tenant-portal.md).
+
 All requests to these API endpoints require the following headers.
 
 ```json
@@ -169,7 +171,7 @@ Deletes a user. The username to be deleted must be passed via a query parameter.
 
 ### GET /manage/users/documents?username=username
 
-Returns a list of documents for a user and their sync status. The username for the user must be passed via a query parameter.
+Returns a list of your own documents and their sync status. Your username must be passed via a query parameter; any other username is refused with a `401`, for an admin as much as for anybody else.
 
 **Example Response**
 

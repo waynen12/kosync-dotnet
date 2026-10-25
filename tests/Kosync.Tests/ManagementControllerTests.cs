@@ -130,6 +130,50 @@ public class ManagementControllerTests : IntegrationTestBase
         Assert.Equal("device-1", document.GetProperty("deviceId").GetString());
     }
 
+    // Issue #27 / ADR 0004: tenancy is absolute. An Administrator manages
+    // accounts and never reads another User's library, so this is refused
+    // with exactly the answer a non-Administrator gets - being an
+    // Administrator is not a wider version of this endpoint, it is no
+    // version of it.
+    // The hand-written `d.UserId == user.Id` predicate this endpoint used to
+    // carry was replaced by the tenant filters, so the scoping is worth
+    // asserting through the new mechanism. A KOReader document hash is
+    // derived from the file's contents, so two Users reading the same book
+    // really do share one - which makes this the case where an unscoped read
+    // returns somebody else's row rather than nothing.
+    [Fact]
+    public async Task GetDocuments_SelfAccess_ExcludesAnotherUsersSameHashedDocument()
+    {
+        await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
+        await PushAsync("admin", "admin", percentage: 0.10m, deviceId: "admin-device");
+        await PushAsync("reader", "pw", percentage: 0.90m, deviceId: "reader-device");
+
+        var body = await BodyAsync(await GetAsync("/manage/users/documents?username=admin", "admin", "admin"));
+
+        var document = body.EnumerateArray().Single();
+        Assert.Equal(0.10m, document.GetProperty("percentage").GetDecimal());
+        Assert.Equal("admin-device", document.GetProperty("deviceId").GetString());
+    }
+
+    [Fact]
+    public async Task GetDocuments_AdminRequestingAnotherUser_Returns401()
+    {
+        await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1",
+            progress = "42%",
+            percentage = 0.42m,
+            device = "Kobo",
+            device_id = "device-1"
+        }, "reader", "pw");
+
+        var response = await GetAsync("/manage/users/documents?username=reader", "admin", "admin");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.DoesNotContain("hash1", await response.Content.ReadAsStringAsync());
+    }
+
     [Fact]
     public async Task GetDocuments_OtherNonAdmin_Returns401()
     {
@@ -221,5 +265,20 @@ public class ManagementControllerTests : IntegrationTestBase
         var response = await PutAsync("/manage/users/password?username=admin", new PasswordChangeRequest { password = "new-password" }, "admin", "admin");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    // Deliberately pushes one document hash for every User that uses this:
+    // a KOReader hash is content-derived, so sharing one is what two readers
+    // of the same book actually look like in the database.
+    private Task<HttpResponseMessage> PushAsync(string username, string password, decimal percentage, string deviceId)
+    {
+        return PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "shared-hash",
+            progress = "p1",
+            percentage = percentage,
+            device = deviceId,
+            device_id = deviceId,
+        }, username, password);
     }
 }
