@@ -12,6 +12,13 @@ public static class StaticAssets
 
     public static string ReadAppCss() => File.ReadAllText(Path.Combine(WwwRoot, "css", "app.css"));
 
+    public static string ReadThemeJs() => File.ReadAllText(Path.Combine(WwwRoot, "js", "theme.js"));
+
+    // theme.js is half prose - the enhancedload hook and the toggle-contents
+    // rule are both long comments naming the very things a scan looks for.
+    public static string ReadThemeJsWithoutComments() =>
+        Regex.Replace(ReadThemeJs(), @"//.*$", "", RegexOptions.Multiline);
+
     // Every scan of the stylesheet wants this: app.css's section prose names
     // the selectors and tokens it is explaining, and a naive scan reads that
     // prose as a rule.

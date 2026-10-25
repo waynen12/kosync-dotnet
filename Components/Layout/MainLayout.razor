@@ -1,16 +1,50 @@
+@* The app shell every authenticated page takes: ai-hub's top nav, ported
+   from the prototype's HubNav.razor with issue #17. A translucent blurred
+   strip over the brand gradient, the wordmark on the left, the signed-in
+   Username and the round icon buttons on the right.
+
+   /login does not come through here - it is a full-bleed gradient to the
+   viewport edges and takes LoginLayout instead (docs/ROADMAP.md, "/login
+   layout"). This shell is the authenticated chrome, and has a User. *@
 @inherits LayoutComponentBase
 
-<header class="ks-shell-header">
-    <a class="ks-shell-brand" href="@AppRoutes.Dashboard">Kosync</a>
-    <div class="ks-shell-actions">
-        <AuthorizeView>
-            <Authorized>
-                <span class="ks-shell-user">Logged in as @(context.User.Identity!.Name).</span>
-            </Authorized>
-        </AuthorizeView>
-        <button type="button" class="ks-theme-toggle" data-theme-toggle onclick="window.kosyncTheme.toggle()">🌙 Dark</button>
-    </div>
-</header>
-<main class="ks-shell-main">
-    @Body
-</main>
+<div class="hub-root">
+    @* The band is the page's banner landmark; the nav inside it is the
+       navigation. Why the gradient sits on the outer element is app.css
+       section 7's business. *@
+    <header class="hub-topband">
+        <nav class="hub-nav">
+            <a class="hub-nav-brand" href="@AppRoutes.Dashboard">@Constants.BrandName</a>
+
+            <div class="hub-nav-actions">
+                <AuthorizeView>
+                    <Authorized>
+                        <span class="hub-nav-user">@context.User.Identity!.Name</span>
+                    </Authorized>
+                </AuthorizeView>
+
+                @* Pure JS, and it must stay that way: flipping the theme is
+                   local UI state, which ADR 0003's amendment forbids
+                   round-tripping. An @@onclick here would open a circuit and
+                   bounce a click off the server to set one attribute.
+
+                   Both icons render and CSS hides one - see theme.js for why
+                   the toggle's contents are nobody else's business. *@
+                <button type="button" class="hub-icon-btn" onclick="window.kosyncTheme.toggle()"
+                        title="@Constants.ThemeToggleLabel" aria-label="@Constants.ThemeToggleLabel">
+                    <span class="hub-theme-moon"><HubIcon Name="@Constants.Icons.Moon" Size="@Constants.Icons.ButtonSize" /></span>
+                    <span class="hub-theme-sun"><HubIcon Name="@Constants.Icons.Sun" Size="@Constants.Icons.ButtonSize" /></span>
+                </button>
+            </div>
+        </nav>
+    </header>
+
+    @* The prototype's nav also carried "Manage accounts", "Change password"
+       and "Sign out" icon buttons. None of the three has a destination yet:
+       issue #28 builds the accounts page, #24 the change-password screen, and
+       sign-out has no endpoint. They belong next to the toggle above when
+       those tickets land, rather than shipping as dead chrome now. *@
+    <main class="hub-app-main">
+        @Body
+    </main>
+</div>

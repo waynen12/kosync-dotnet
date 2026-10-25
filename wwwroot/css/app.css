@@ -18,8 +18,9 @@
      4. Primitives            buttons, inputs, cards, badges, type
      5. Layout containers     the page-level wrappers
      6. Login                 the one screen with its own shell
-     7. Pre-hub rules         .ks-* chrome and the detail pages
-     8. Breakpoints           every @media query in the system
+     7. App shell             the authenticated nav every other page wears
+     8. Pre-hub rules         .ks-* detail-page chrome
+     9. Breakpoints           every @media query in the system
    ========================================================================= */
 
 @import url("https://fonts.googleapis.com/css2?family=Geist:wght@300..900&family=Geist+Mono:wght@300..700&display=swap");
@@ -64,6 +65,10 @@
     --hub-on-brand: #fff;
     --hub-on-brand-muted: rgba(255, 255, 255, 0.8);
     --hub-on-brand-wash: rgba(255, 255, 255, 0.18);
+
+    /* The other direction: a dark scrim laid over the gradient to seat the
+       nav strip on it. Same reasoning - not theme-flipped. */
+    --hub-on-brand-scrim: rgba(0, 0, 0, 0.15);
 
     --hub-font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --hub-font-mono: "Geist Mono", "SFMono-Regular", Consolas, monospace;
@@ -128,7 +133,6 @@
     --ks-card-bg: var(--hub-card);
     --ks-accent: var(--hub-brand);
     --ks-track: var(--hub-muted);
-    --ks-shell-bg: var(--hub-sidebar);
     --ks-danger: var(--hub-destructive);
     --ks-danger-bg: color-mix(in srgb, var(--hub-destructive) 12%, transparent);
     --ks-warning: var(--hub-amber-strong);
@@ -433,61 +437,76 @@ a {
 }
 
 /* =========================================================================
-   7. PRE-HUB RULES
+   7. APP SHELL
 
-   Everything below predates the fold-in and runs on the section-2 aliases.
-   The shell chrome goes with issue #17 (HubNav -> MainLayout) and the card
-   grid with issue #18; the detail-page rules stay until issue #33. Radii and
-   spacing here are intentionally untouched - new palette, old geometry, as
-   docs/ROADMAP.md calls for.
+   Components/Layout/MainLayout.razor - the chrome every authenticated page
+   wears. Ported out of the prototype's HubNav.razor with issue #17, for the
+   same reason the login rules moved in section 6: prototype.css is only ever
+   linked by PrototypeSwitcher, so rules left there go unstyled the moment
+   issue #19 deletes it.
+
+   This replaced the `.ks-shell-*` chrome wholesale, which is why no alias
+   for it survives in section 2.
    ========================================================================= */
 
-/* Shell chrome - shared across every authenticated page and reused by the
-   Books view (issue #5's "reusable shell"). */
-.ks-shell-header {
+/* The gradient sits on the band, not the nav, so the nav's dark wash has
+   something to read against. */
+.hub-topband {
+    background: var(--hub-gradient);
+}
+
+.hub-nav {
+    /* Stacking context above the page below it, so a page-level shadow or a
+       sticky toolbar cannot paint over the nav. */
+    position: relative;
+    z-index: 10;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 14px var(--hub-gutter);
-    background: var(--ks-shell-bg);
-    border-bottom: 1px solid var(--ks-border);
+    gap: 12px;
+    padding: 16px var(--hub-gutter);
+    background: var(--hub-on-brand-scrim);
+    backdrop-filter: blur(8px);
 }
 
-.ks-shell-brand {
+.hub-nav-brand {
+    color: var(--hub-on-brand);
     font-weight: 700;
-    font-size: 15px;
-    letter-spacing: 0.02em;
+    font-size: 20px;
+    letter-spacing: -0.015em;
 }
 
-.ks-shell-actions {
+.hub-nav-actions {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 8px;
 }
 
-.ks-shell-user {
-    font-size: 13px;
-    color: var(--ks-muted);
+.hub-nav-user {
+    color: var(--hub-on-brand-muted);
+    font-size: 14px;
     /* A Username is user-supplied and need not contain a break opportunity,
-       so flex-wrap alone would not stop a long one overflowing the header. */
+       so flex-wrap alone would not stop a long one overflowing the nav. */
     min-width: 0;
     overflow-wrap: anywhere;
 }
 
-.ks-theme-toggle {
-    background: var(--ks-card-bg);
-    border: 1px solid var(--ks-border);
-    color: var(--ks-fg);
-    padding: 6px 12px;
-    border-radius: 999px;
-    font-size: 12.5px;
-    font-weight: 700;
-    cursor: pointer;
-}
-
-.ks-shell-main {
+/* The nav's sibling. Pages bring their own centred container (section 5), so
+   this only claims the rest of the column and the clearance below the fold. */
+.hub-app-main {
+    flex: 1;
+    min-width: 0;
     padding-bottom: 80px;
 }
+
+/* =========================================================================
+   8. PRE-HUB RULES
+
+   Everything below predates the fold-in and runs on the section-2 aliases.
+   The card grid goes with issue #18; the detail-page rules stay until issue
+   #33. Radii and spacing here are intentionally untouched - new palette, old
+   geometry, as docs/ROADMAP.md calls for.
+   ========================================================================= */
 
 /* Card grid landing screen */
 .ks-header {
@@ -803,7 +822,7 @@ a {
 }
 
 /* =========================================================================
-   8. BREAKPOINTS
+   9. BREAKPOINTS
 
    The stylesheet had none at all before this, which is the other half of the
    responsiveness bug the second prototyping session found. Desktop-first,
@@ -833,14 +852,15 @@ a {
     .hub-page-title { font-size: 20px; }
     .hub-empty { padding: 64px 0; }
 
-    /* The shell header's brand and actions stop fitting on one line well
-       before 390px. */
-    .ks-shell-header {
+    /* A long enough Username stops the brand and the actions fitting on one
+       line; this gives them somewhere to go. Carried over from the pre-hub
+       shell, which had the same rule for the same reason. */
+    .hub-nav {
         flex-wrap: wrap;
         gap: 10px;
     }
 
-    .ks-shell-actions { gap: 10px; }
+    .hub-nav-actions { gap: 6px; }
     .ks-header { padding-top: 20px; }
     .ks-title { font-size: 20px; }
     .ks-detail { padding-top: 20px; }

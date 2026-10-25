@@ -4,37 +4,22 @@
    The ai-hub design language itself now lives in app.css (issue #15): the
    token block, the primitives and the centred layout containers are all
    permanent and loaded on every page. What is left here is only the parts
-   still awaiting a fold-in ticket - the shell (#17) and the three
-   dashboard/users variants (#18, #28) - plus the pt-* switcher, which ships
-   with nothing. The login screens went with issue #16; their rules are in
-   app.css section 6.
+   still awaiting a fold-in ticket - the three dashboard/users variants (#18,
+   #28) - plus the pt-* switcher, which ships with nothing. The login screens
+   went with issue #16 (app.css section 6) and the nav strip with #17
+   (section 7), so HubNav.razor now reads its rules from app.css.
 
    Everything is namespaced hub-/pt-, so nothing leaks into the real
    dashboard's .ks-* styles.
    ========================================================================= */
 
 /* -------------------------------------------------------------------------
-   Shell - translucent nav over the brand gradient, then a gradient hero
+   Hero - the gradient band under variant A's nav
+
+   `.hub-topband` and the `.hub-nav*` strip itself went to app.css section 7
+   with issue #17; only the hero is still prototype-only, because the
+   variant-B shell that won has no hero.
    ------------------------------------------------------------------------- */
-.hub-nav {
-    position: relative;
-    z-index: 10;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 16px var(--hub-gutter);
-    background: rgba(0, 0, 0, 0.15);
-    backdrop-filter: blur(8px);
-}
-
-.hub-nav-brand { color: #fff; font-weight: 700; font-size: 20px; letter-spacing: -0.015em; }
-.hub-nav-actions { display: flex; align-items: center; gap: 8px; }
-.hub-nav-user { color: rgba(255, 255, 255, 0.8); font-size: 14px; }
-
-/* The gradient band behind the nav, so the nav's black overlay reads. */
-.hub-topband { background: var(--hub-gradient); }
-
 .hub-hero { padding: 0 var(--hub-gutter) 48px; text-align: center; }
 .hub-hero-title { color: #fff; font-size: 36px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 8px; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
 .hub-hero-sub { color: rgba(255, 255, 255, 0.85); font-size: 16px; margin: 0 0 24px; }

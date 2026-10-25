@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Kosync.Tests.TestSupport;
 
 namespace Kosync.Tests;
@@ -74,20 +73,9 @@ public class LoginViewTests : IntegrationTestBase
         // PrototypeSwitcher ever linked - and /login no longer renders it.
         // A class the page asks for but app.css does not define is therefore
         // an unstyled login screen, which no markup assertion can see.
-        var rendered = Regex.Matches(html, @"class=""([^""]*)""")
-            .SelectMany(match => match.Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-            .Where(name => name.StartsWith("hub-"))
-            .ToHashSet();
-
-        var css = StaticAssets.ReadAppCssWithoutComments();
-
-        // The trailing lookahead matters: without it `.hub-login-card` also
-        // reads as a definition of `.hub-login`, and a missing rule passes.
-        var defined = Regex.Matches(css, @"\.(hub-[a-z0-9-]+)(?![\w-])")
-            .Select(match => match.Groups[1].Value)
-            .ToHashSet();
+        var rendered = HubClasses.RenderedIn(html);
 
         Assert.NotEmpty(rendered);
-        Assert.Empty(rendered.Except(defined));
+        Assert.Empty(rendered.Except(HubClasses.DefinedInAppCss()));
     }
 }

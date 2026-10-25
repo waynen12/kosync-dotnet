@@ -60,14 +60,15 @@ public static class PrototypeConstants
     // ---------------------------------------------------------------------
     // Shell / brand
     // ---------------------------------------------------------------------
-    // Folded in by #16 - the surviving variants read them from here so there
-    // is one value, not a prototype copy drifting from the shipped one.
+    // Folded in by #16 and #17 - the surviving variants read them from here
+    // so there is one value, not a prototype copy drifting from the shipped
+    // one.
     public const string BrandName = Constants.BrandName;
     public const string LoginUsernameLabel = Constants.LoginUsernameLabel;
     public const string LoginPasswordLabel = Constants.LoginPasswordLabel;
+    public const string ThemeToggleLabel = Constants.ThemeToggleLabel;
 
     public const string BrandTagline = "Your reading, across every device.";
-    public const string ThemeToggleLabel = "Toggle theme";
     public const string SignOutLabel = "Sign out";
     public const string ChangePasswordLabel = "Change password";
     public const string ManageAccountsLabel = "Manage accounts";

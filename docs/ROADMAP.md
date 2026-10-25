@@ -341,7 +341,7 @@ and where it goes:
 | `LoginVariantA.razor` | `Components/Pages/Login.razor` | Strings move to `Constants.cs`, not `PrototypeConstants.cs` |
 | `DashboardVariantB.razor` + `HubSidebar.razor` | `Components/Pages/Dashboard.razor` | Replaces `Components/Shared/CardGrid.razor`, which then has no caller |
 | `UsersVariantB.razor` | a new Users page | **Blocked on Phase 2.5** — no account service, no tenancy |
-| `HubNav.razor` | `Components/Layout/MainLayout.razor` | Replaces `.ks-shell-header` |
+| `HubNav.razor` | `Components/Layout/MainLayout.razor` | **Done (#17):** replaced `.ks-shell-*` outright — those rules and the `--ks-shell-bg` alias are gone, and the nav rules are app.css section 7. The nav carries brand, Username and the theme toggle only; the prototype's "Manage accounts", "Change password" and "Sign out" buttons land with #28, #24 and a sign-out endpoint respectively, rather than shipping as dead chrome |
 | `prototype.css` token block + primitives | `wwwroot/css/app.css` | **Does not delete the `--ks-*` tokens** — see "the detail pages" below |
 | `HubIcon.razor` | keep as-is | Or take a real icon dependency — decide then |
 | *(nothing)* | `Components/Pages/BookDetail.razor`, `DeviceDetail.razor` | **No prototype exists for these** — see below |

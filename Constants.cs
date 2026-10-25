@@ -109,9 +109,13 @@ public static class Constants
 
     public const string MergeFailedError = "Merge failed.";
 
-    // The product name, rendered as the login card's title and (issue #17)
-    // the app shell's brand.
+    // The product name, rendered as the login card's title and the app
+    // shell's brand.
     public const string BrandName = "Kosync";
+
+    // The app shell's theme toggle carries no visible text - it is an icon
+    // button - so this is its accessible name rather than a label.
+    public const string ThemeToggleLabel = "Toggle theme";
 
     // One voice across the screen: the card, the submit button and the
     // browser tab all say "sign in", not a mix of "log in" and "sign in".
@@ -148,6 +152,9 @@ public static class Constants
         // For an icon sitting on a line of body text rather than standing on
         // its own - HubIconPaths.DefaultSize is the standalone size.
         public const int InlineSize = 15;
+
+        // For an icon that is the whole control, inside a .hub-icon-btn.
+        public const int ButtonSize = 18;
 
         public const string Alert = "alert";
 
