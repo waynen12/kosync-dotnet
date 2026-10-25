@@ -10,6 +10,7 @@ public class KosyncDbContext : DbContext
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<Device> Devices => Set<Device>();
     public DbSet<SyncEvent> SyncEvents => Set<SyncEvent>();
+    public DbSet<ServerSetting> ServerSettings => Set<ServerSetting>();
 
     private readonly TenantContext _tenant;
 
@@ -57,6 +58,9 @@ public class KosyncDbContext : DbContext
         modelBuilder.Entity<User>()
             .HasIndex(u => u.Username)
             .IsUnique();
+
+        modelBuilder.Entity<ServerSetting>()
+            .HasKey(s => s.Key);
 
         // Deleting a User takes their Books with them. Without this, removing
         // a User would trip the foreign key: ManagementController sweeps up
@@ -121,6 +125,9 @@ public class KosyncDbContext : DbContext
     // Users are deliberately absent. /login must find a User by name before
     // it knows who is logging in, and managing accounts is an Administrator
     // capability that does not extend to reading anybody's library.
+    //
+    // So is ServerSetting, for a simpler reason: it has no UserId to filter
+    // on and holds facts about the server, not about anybody's library.
     private void ApplyTenantFilters(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Book>()

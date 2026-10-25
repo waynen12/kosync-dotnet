@@ -59,3 +59,38 @@ this decision entirely, on a server intended to face the internet.
 - Password expiry is anticipated but not built. Whatever represents
   "must change password now" should not be a one-shot flag that expiry
   cannot later re-raise.
+
+## Notes from building it
+
+- The state is `User.PasswordState`, an enum of `Provisional` and
+  `UserChosen` rather than a bool, so expiry can arrive as a third value.
+  `Provisional` is zero, which makes it what a caller that forgot to say
+  ends up with — the safe way round, since it is the state that grants
+  nothing. Two routes opt out explicitly and say why: KOReader
+  self-registration (the person typed the password into their own device)
+  and the LiteDB import (the User has been syncing with it for however long
+  the legacy server ran). `User.MustChangePassword` is derived from the
+  enum rather than stored, so a state added later cannot be introduced
+  without deciding whether it blocks.
+- "One-shot" needs something that outlives a restart, because the env var
+  does too: `ADMIN_PASSWORD_RESET` stays in the compose file that triggered
+  it, so honouring it whenever it is merely present would reinstate exactly
+  the reset-on-every-boot behaviour this ADR removed from `ADMIN_PASSWORD`.
+  It is therefore acted on once per *distinct value*, with the value last
+  acted on held in a new `ServerSetting` table (GLOSSARY: Server Setting).
+  Changing the value is how an operator recovers a second time.
+- The reset runs after the admin is seeded, not before. The other order
+  leaves a fresh install's token unrecorded and therefore still pending, so
+  it would fire on the next restart against a password the admin had
+  meanwhile chosen.
+- Users that already exist when the migration runs are taken as
+  `UserChosen`. Their passwords work today and upgrading the server is not
+  a reason to lock anybody out of their own account; this ADR governs
+  accounts created from here on.
+- `/manage/users/password` decides between the two states by comparing the
+  target's id to the authenticated caller's, not by comparing usernames: a
+  password you set for yourself is your own choice, one set for somebody
+  else is Provisional. The blanket "cannot update admin user" refusals on
+  `/manage/users/active` and `DELETE /manage/users` are untouched and still
+  too broad — they are the self-demotion and last-admin guards' job, and
+  they belong to the Users administration work.

@@ -522,19 +522,33 @@ public class ManagementController : ControllerBase
             });
         }
 
-        if (user.IsAdministrator)
-        {
-            LogWarning($"Attempt to change admin password from user [{_userService.Username}].");
-            return StatusCode(400, new
-            {
-                message = "Cannot update admin user"
-            });
-        }
+        // No admin guard here. This endpoint used to refuse any admin target
+        // outright, which was reaching for the self-demotion and last-admin
+        // protections but applied far too broadly: it also stopped an
+        // Administrator from changing their own password, by this or any
+        // other route, while the seeded admin's password is Provisional and
+        // replacing it is the one thing that account must be able to do
+        // (ADR 0006). Neither of the real protections is in play here -
+        // setting a password demotes nobody and removes nobody.
+        //
+        // Compared by id rather than by name: the caller is already resolved,
+        // so this cannot be thrown off by how the username was spelled in the
+        // query string.
+        var isOwnPassword = user.Id == _userService.UserId;
 
         user.PasswordHash = _passwordHasher.HashPlainText(payload.password);
+
+        // Whose choice this password was. Set for yourself it is yours; set
+        // for somebody else - by an Administrator who will now hand it over -
+        // it is Provisional and grants that User nothing until they replace
+        // it, whether or not they had replaced one before.
+        user.PasswordState = isOwnPassword ? PasswordState.UserChosen : PasswordState.Provisional;
+
         _db.SaveChanges();
 
-        LogInfo($"User [{username}]'s password updated by [{_userService.Username}].");
+        LogInfo(isOwnPassword
+            ? $"User [{_userService.Username}] changed their own password."
+            : $"User [{username}]'s password was set to a provisional one by [{_userService.Username}].");
         return StatusCode(200, new
         {
             message = "Password changed successfully"

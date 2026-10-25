@@ -86,6 +86,20 @@ namespace Kosync.Database.Migrations
                     b.ToTable("Documents");
                 });
 
+            modelBuilder.Entity("Kosync.Database.Entities.ServerSetting", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("ServerSettings");
+                });
+
             modelBuilder.Entity("Kosync.Database.Entities.SyncEvent", b =>
                 {
                     b.Property<int>("Id")
@@ -135,6 +149,9 @@ namespace Kosync.Database.Migrations
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("PasswordState")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Username")
                         .IsRequired()

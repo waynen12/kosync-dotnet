@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Kosync.Database;
+using Kosync.Database.Entities;
 using Kosync.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -69,6 +70,22 @@ public abstract class IntegrationTestBase : IDisposable
         }
 
         return await Client.SendAsync(request);
+    }
+
+    protected PasswordState StoredPasswordStateOf(string username) =>
+        Factory.StoredPasswordStateOf(username);
+
+    // Stands in for a User completing the forced password change, which has
+    // no route of its own yet - the portal page that does it is issue #24.
+    // Lets a test arrange a User who is past that point and assert on what
+    // happens to them next.
+    protected void TreatPasswordAsUserChosen(string username)
+    {
+        using var scope = Factory.CreateSystemScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+
+        db.Users.Single(u => u.Username == username).PasswordState = PasswordState.UserChosen;
+        db.SaveChanges();
     }
 
     protected static async Task<JsonElement> BodyAsync(HttpResponseMessage response)

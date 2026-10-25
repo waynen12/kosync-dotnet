@@ -63,6 +63,17 @@ so a Stored Credential that has just been verified against a given Auth Key
 is remembered briefly in memory and the KDF skipped on repeat sync pushes.
 _Avoid_: password hash when the distinction from the Auth Key matters
 
+**Server Setting**:
+A durable fact about this server, keyed by name — not configuration.
+Configuration arrives fresh on every boot from environment variables and
+`appsettings`, so it cannot remember anything; a Server Setting is what
+survives a restart, which is the only thing that can make a once-only
+action happen once. The first is the `ADMIN_PASSWORD_RESET` value already
+acted on, because that variable stays set in the compose file that
+triggered it.
+_Avoid_: config, option, preference (all three suggest an operator sets it;
+these are written by the server, about itself)
+
 ### Reading and sync
 
 **Book**:

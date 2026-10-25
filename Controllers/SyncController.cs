@@ -124,6 +124,10 @@ public class SyncController : ControllerBase
         {
             Username = payload.username,
             PasswordHash = _passwordHasher.HashAuthKey(payload.password),
+            // One of the two routes where the password is not Provisional:
+            // the person registering typed it into their own KOReader, so
+            // there is nobody else's choice to replace (ADR 0006).
+            PasswordState = PasswordState.UserChosen,
         };
 
         _db.Users.Add(user);

@@ -30,6 +30,12 @@ public static class KosyncDbInitializer
         UpgradePasswordHashes(db, passwordHasher, logger);
 
         CreateDefaults(db, passwordHasher);
+
+        // After CreateDefaults, so there is always an admin row to act on.
+        // The other order would leave a fresh install's reset token
+        // unrecorded and therefore still pending, firing on the next restart
+        // against a password the admin had meanwhile chosen.
+        ResetAdminPasswordIfRequested(db, passwordHasher, logger);
     }
 
     // Credentials written before ADR 0005 are bare MD5s. The stored value is
@@ -60,27 +66,88 @@ public static class KosyncDbInitializer
 
     private static void CreateDefaults(KosyncDbContext db, PasswordHasher passwordHasher)
     {
-        var adminPassword = Environment.GetEnvironmentVariable("ADMIN_PASSWORD");
-        if (adminPassword is null)
-        {
-            adminPassword = "admin";
-        }
+        var adminUser = db.Users.FirstOrDefault(u => u.Username == Constants.Admin.Username);
 
-        var adminUser = db.Users.FirstOrDefault(u => u.Username == "admin");
         if (adminUser is null)
         {
             adminUser = new User()
             {
-                Username = "admin",
-                IsAdministrator = true,
+                Username = Constants.Admin.Username,
+                // Chosen by the installer rather than by the admin, so it
+                // grants nothing until replaced (ADR 0006).
+                PasswordHash = passwordHasher.HashPlainText(SeedAdminPassword),
+                PasswordState = PasswordState.Provisional,
             };
+
             db.Users.Add(adminUser);
         }
 
-        adminUser.PasswordHash = passwordHasher.HashPlainText(adminPassword);
+        // Reasserted on every startup, unlike the password: these are what
+        // makes the account the administrator, and an install whose only
+        // admin had been deactivated would otherwise have nobody who can
+        // manage accounts.
         adminUser.IsActive = true;
         adminUser.IsAdministrator = true;
 
         db.SaveChanges();
     }
+
+    // Recovery from a genuinely lost admin password (ADR 0006). It returns
+    // the admin to a *Provisional* password rather than to a working one, so
+    // the recovery path cannot itself leave a usable credential sitting in an
+    // env var: all the operator can do with it is log in and replace it.
+    //
+    // Acted on once per distinct value, because the variable stays set in the
+    // compose file that triggered it. Honouring it whenever it is merely
+    // present would reinstate exactly the reset-on-every-boot behaviour this
+    // ADR removed from ADMIN_PASSWORD.
+    private static void ResetAdminPasswordIfRequested(KosyncDbContext db, PasswordHasher passwordHasher, ILogger logger)
+    {
+        var requestedToken = Environment.GetEnvironmentVariable(Constants.EnvironmentVariables.AdminPasswordReset);
+
+        if (string.IsNullOrWhiteSpace(requestedToken))
+        {
+            return;
+        }
+
+        var applied = db.ServerSettings
+            .FirstOrDefault(s => s.Key == Constants.ServerSettings.AppliedAdminPasswordReset);
+
+        if (applied is not null && applied.Value == requestedToken)
+        {
+            return;
+        }
+
+        var adminUser = db.Users.Single(u => u.Username == Constants.Admin.Username);
+
+        adminUser.PasswordHash = passwordHasher.HashPlainText(SeedAdminPassword);
+        adminUser.PasswordState = PasswordState.Provisional;
+
+        if (applied is null)
+        {
+            db.ServerSettings.Add(new ServerSetting
+            {
+                Key = Constants.ServerSettings.AppliedAdminPasswordReset,
+                Value = requestedToken,
+            });
+        }
+        else
+        {
+            applied.Value = requestedToken;
+        }
+
+        db.SaveChanges();
+
+        logger.LogWarning(
+            "{Variable} has returned user [{Username}] to a provisional password; it grants nothing until replaced in the portal. Acted on once for this value - change it to recover again.",
+            Constants.EnvironmentVariables.AdminPasswordReset,
+            Constants.Admin.Username);
+    }
+
+    // ADMIN_PASSWORD is read only where an admin account is being created -
+    // on a fresh install, or by the one-shot reset. It is deliberately not
+    // consulted for an admin that already exists (ADR 0006).
+    private static string SeedAdminPassword =>
+        Environment.GetEnvironmentVariable(Constants.EnvironmentVariables.AdminPassword)
+            ?? Constants.Admin.DefaultPassword;
 }

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Kosync.Database;
+using Kosync.Database.Entities;
 using Kosync.Database.Legacy;
 using Kosync.Tests.TestSupport;
 using LiteDB;
@@ -89,6 +90,38 @@ public class LiteDbMigrationTests
 
             Assert.NotEqual("raw-hashed-key", stored);
             Assert.True(hasher.VerifyAuthKey("raw-hashed-key", stored));
+        }
+        finally
+        {
+            File.Delete(fixturePath);
+        }
+    }
+
+    // An imported User has been syncing with this password for however long
+    // the legacy server ran. Importing is not somebody choosing it for them,
+    // so it comes across as their own and the import does not lock anybody
+    // out of an account they already had (ADR 0006).
+    [Fact]
+    public void MigrateIfNeeded_ImportsEachUsersPasswordAsTheirOwn()
+    {
+        var fixturePath = Path.Combine(Path.GetTempPath(), $"kosync-legacy-{Guid.NewGuid()}.db");
+        try
+        {
+            SeedLegacyFixture(fixturePath);
+
+            using var connection = new SqliteConnection("DataSource=:memory:");
+            connection.Open();
+            var options = new DbContextOptionsBuilder<KosyncDbContext>().UseSqlite(connection).Options;
+            using var db = TestDb.CreateSystemContext(options);
+            db.Database.Migrate();
+
+            LiteDbMigrator.MigrateIfNeeded(db, fixturePath, TestPasswords.CreateHasher(), NullLogger.Instance);
+
+            Assert.All(db.Users.ToList(), user =>
+            {
+                Assert.Equal(PasswordState.UserChosen, user.PasswordState);
+                Assert.False(user.MustChangePassword);
+            });
         }
         finally
         {

@@ -1,4 +1,5 @@
 using Kosync.Database;
+using Kosync.Database.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -26,6 +27,17 @@ public static class TestDb
             .BypassFilters(Constants.Tenancy.TestFixtureBypassReason);
 
         return scope;
+    }
+
+    // Whose choice a User's stored password was (ADR 0006). Read from the
+    // database because it has no endpoint of its own: nothing a caller can
+    // ask for turns on it yet, only what the server will later refuse.
+    public static PasswordState StoredPasswordStateOf(this KosyncWebApplicationFactory factory, string username)
+    {
+        using var scope = factory.CreateSystemScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+
+        return db.Users.Single(u => u.Username == username).PasswordState;
     }
 
     // A scope that sees exactly what the named User sees - the same view the

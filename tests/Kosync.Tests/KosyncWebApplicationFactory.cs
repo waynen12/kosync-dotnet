@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Kosync.Tests;
 
@@ -28,6 +29,16 @@ public class KosyncWebApplicationFactory : WebApplicationFactory<Program>
     // server actually runs it across requests.
     public IPasswordKdf? Kdf { get; init; }
 
+    // What the seeded admin's password counts as once the app has started.
+    //
+    // The app really seeds a Provisional one (ADR 0006), which the portal and
+    // the sync API refuse until the User replaces it. Roughly two dozen tests
+    // in this suite log in as admin/admin to get at something else entirely,
+    // and would all fail on that refusal - so the default here is an admin
+    // who has already replaced theirs, and a test about the forced change
+    // asks for Provisional instead.
+    public PasswordState AdminPasswordState { get; init; } = PasswordState.UserChosen;
+
     public string ContentRoot { get; }
 
     public string DataDirectory => Path.Combine(ContentRoot, "data");
@@ -42,8 +53,34 @@ public class KosyncWebApplicationFactory : WebApplicationFactory<Program>
         // Force deterministic values regardless of what's set in the ambient
         // shell/CI environment - these are read directly from the process
         // environment by the app, not from configuration.
-        Environment.SetEnvironmentVariable("ADMIN_PASSWORD", "admin");
+        Environment.SetEnvironmentVariable(
+            Constants.EnvironmentVariables.AdminPassword, Constants.Admin.DefaultPassword);
         Environment.SetEnvironmentVariable("REGISTRATION_DISABLED", null);
+
+        // Would otherwise reset the seeded admin to a Provisional password on
+        // startup if it happened to be set in the shell or on CI.
+        Environment.SetEnvironmentVariable(Constants.EnvironmentVariables.AdminPasswordReset, null);
+    }
+
+    // The seeding in KosyncDbInitializer runs as the host starts, so this is
+    // the first moment AdminPasswordState can be applied: CreateHost is the
+    // one hook that gets to run after the app's own startup pass.
+    protected override IHost CreateHost(IHostBuilder builder)
+    {
+        var host = base.CreateHost(builder);
+
+        if (AdminPasswordState is not PasswordState.Provisional)
+        {
+            using var scope = host.Services.CreateScope();
+            scope.ServiceProvider.GetRequiredService<TenantContext>()
+                .BypassFilters(Constants.Tenancy.TestFixtureBypassReason);
+
+            var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+            db.Users.Single(u => u.Username == Constants.Admin.Username).PasswordState = AdminPasswordState;
+            db.SaveChanges();
+        }
+
+        return host;
     }
 
     // Must be called before the first client/server is created (i.e. before

@@ -39,6 +39,11 @@ public static class LiteDbMigrator
                 PasswordHash = passwordHasher.HashAuthKey(legacyUser.PasswordHash),
                 IsActive = legacyUser.IsActive,
                 IsAdministrator = legacyUser.IsAdministrator,
+                // The other route where the password is not Provisional: an
+                // imported User has been syncing with this one for as long as
+                // the legacy server ran, and importing their data is not
+                // somebody choosing a password for them (ADR 0006).
+                PasswordState = PasswordState.UserChosen,
             };
 
             var devicesByDeviceId = new Dictionary<string, Device>();

@@ -1,4 +1,5 @@
 using System.Net;
+using Kosync.Database.Entities;
 using Kosync.Models;
 using Kosync.Tests.TestSupport;
 
@@ -56,6 +57,17 @@ public class ManagementControllerTests : IntegrationTestBase
         var response = await PostAsync("/manage/users", new UserCreateRequest { username = "other", password = "pw" }, "reader", "pw");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    // An Administrator typed this password and will hand it over, so it is
+    // Provisional: it identifies the new User and grants them nothing until
+    // they replace it (ADR 0006).
+    [Fact]
+    public async Task CreateUser_GivesTheNewUserAProvisionalPassword()
+    {
+        await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
+
+        Assert.Equal(PasswordState.Provisional, StoredPasswordStateOf("reader"));
     }
 
     [Fact]
@@ -259,12 +271,44 @@ public class ManagementControllerTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.OK, authResponse.StatusCode);
     }
 
+    // This endpoint used to refuse any admin target outright, which meant an
+    // Administrator could not change their own password by any route at all -
+    // and the seeded admin's password is Provisional, so replacing it is the
+    // one thing the account has to be able to do (ADR 0006).
     [Fact]
-    public async Task UpdatePassword_CannotUpdateAdmin_Returns400()
+    public async Task UpdatePassword_AdminChangingTheirOwn_AllowsAuthWithNewPassword()
     {
         var response = await PutAsync("/manage/users/password?username=admin", new PasswordChangeRequest { password = "new-password" }, "admin", "admin");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await GetAsync("/users/auth", "admin", "new-password")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await GetAsync("/users/auth", "admin", "admin")).StatusCode);
+    }
+
+    // The distinction that replaces the blanket refusal: a password you set
+    // for yourself is your own choice and nothing forces you to replace it.
+    [Fact]
+    public async Task UpdatePassword_AdminChangingTheirOwn_MakesItTheirOwnChoice()
+    {
+        await PutAsync("/manage/users/password?username=admin", new PasswordChangeRequest { password = "new-password" }, "admin", "admin");
+
+        Assert.Equal(PasswordState.UserChosen, StoredPasswordStateOf("admin"));
+    }
+
+    // Whereas a password an Administrator sets for somebody else is exactly
+    // what a Provisional Password is, however the account came to exist. The
+    // User here had already replaced their initial password, so this is the
+    // state being raised a second time - which is the thing a one-shot
+    // "has changed it once" flag could not have expressed (ADR 0006).
+    [Fact]
+    public async Task UpdatePassword_AdminSettingAnothersPassword_ReturnsItToProvisional()
+    {
+        await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
+        TreatPasswordAsUserChosen("reader");
+
+        await PutAsync("/manage/users/password?username=reader", new PasswordChangeRequest { password = "handed-over" }, "admin", "admin");
+
+        Assert.Equal(PasswordState.Provisional, StoredPasswordStateOf("reader"));
     }
 
     // Pushes the one hash every caller of this shares, which is the point

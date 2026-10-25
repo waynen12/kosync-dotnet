@@ -49,7 +49,13 @@ services:
 
 `/app/data` will contain the database, which stores user and document progress information.
 
-An admin user with the username `admin` will be created when the server first starts. If you provide the `ADMIN_PASSWORD` environment variable, the password for this admin user will be changed to the value provided. If you do not provide a value, the password for this user will be set to `admin`. The recommendation is to set this to a strong password generated with a password manager like [Bitwarden](https://bitwarden.com/). This admin user can be used to interact with the management API.
+An admin user with the username `admin` will be created when the server first starts. `ADMIN_PASSWORD` sets that account's password **when it is created, and never again** — it is seed-only. If you do not provide a value, the password is set to `admin`. The recommendation is to set this to a strong password generated with a password manager like [Bitwarden](https://bitwarden.com/). This admin user can be used to interact with the management API.
+
+This is a change in behaviour: **editing `ADMIN_PASSWORD` on an existing install now does nothing.** Earlier versions reapplied it on every startup, which meant a password you set yourself was silently reverted the next time the container restarted.
+
+A password somebody else chose for you — the one `ADMIN_PASSWORD` seeds, or one an administrator sets when creating an account — is recorded as *provisional*: it identifies the account, and it is meant to be replaced by a password of your own rather than kept. An administrator can change their own password through `PUT /manage/users/password`, which no longer refuses admin accounts.
+
+If you genuinely lose the admin password, set `ADMIN_PASSWORD_RESET` to any value and restart. On startup the admin's password goes back to `ADMIN_PASSWORD` (or `admin`), provisional again. It is acted on **once per value**, so the variable can stay in your compose file across later restarts without resetting anything again — which is the whole point, given that reset-on-every-boot is the behaviour removed above. To recover a second time, change it to a different value.
 
 If the `REGISTRATION_DISABLED` environment variable is set to `true`, the sync server will respond with an `User registration is disabled` error message when trying to create a new user. This is useful if you expose your sync server to the public internet, but don't want anyone to be able to register a user. This is a feature that is not available in the official sync server.
 

@@ -1,5 +1,6 @@
 using System.Net;
 using Kosync.Database;
+using Kosync.Database.Entities;
 using Kosync.Models;
 using Kosync.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
@@ -89,6 +90,17 @@ public class SyncControllerTests : IntegrationTestBase
         var authResponse = await Client.SendAsync(authRequest);
 
         Assert.Equal(HttpStatusCode.OK, authResponse.StatusCode);
+    }
+
+    // Nobody else picked this password - the person registering typed it into
+    // their own KOReader - so it is theirs from the start and there is
+    // nothing to force them to replace (ADR 0006).
+    [Fact]
+    public async Task CreateUser_SelfRegistration_LeavesThePasswordTheUsersOwn()
+    {
+        await PostAsync("/users/create", new UserCreateRequest { username = "newuser", password = "some-hashed-key" });
+
+        Assert.Equal(PasswordState.UserChosen, StoredPasswordStateOf("newuser"));
     }
 
     [Fact]

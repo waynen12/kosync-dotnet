@@ -35,6 +35,40 @@ public static class Constants
         public const int DefaultVerifiedCredentialCacheSeconds = 300;
     }
 
+    // The settings the app reads straight from the process environment rather
+    // than through configuration. Named here so that the tests exercising
+    // them share one spelling with the code that reads them.
+    public static class EnvironmentVariables
+    {
+        public const string AdminPassword = "ADMIN_PASSWORD";
+
+        // One-shot recovery for a genuinely lost admin password (ADR 0006).
+        // Honoured once per distinct value, because the variable itself stays
+        // set in a compose file across every restart - so "has this one been
+        // applied already" is a fact about the server, recorded in
+        // ServerSettings, not something the variable's presence can answer.
+        public const string AdminPasswordReset = "ADMIN_PASSWORD_RESET";
+    }
+
+    // The first account, created on a fresh install (ADR 0006).
+    public static class Admin
+    {
+        public const string Username = "admin";
+
+        // Where the admin's password comes from when ADMIN_PASSWORD is not
+        // given, and what ADMIN_PASSWORD_RESET falls back to. Provisional
+        // either way, so it grants nothing until the User replaces it.
+        public const string DefaultPassword = "admin";
+    }
+
+    // Keys into the ServerSetting table. These are not configuration: they
+    // record what this server has already done, which is why they outlive a
+    // restart and an env var cannot replace them.
+    public static class ServerSettings
+    {
+        public const string AppliedAdminPasswordReset = "AdminPasswordReset.Applied";
+    }
+
     // Multi-tenant scoping (ADR 0004). See Database/TenantContext.cs for the
     // mechanism these belong to.
     public static class Tenancy
