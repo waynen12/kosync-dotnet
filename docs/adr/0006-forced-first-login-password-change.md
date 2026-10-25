@@ -70,8 +70,10 @@ this decision entirely, on a server intended to face the internet.
   self-registration (the person typed the password into their own device)
   and the LiteDB import (the User has been syncing with it for however long
   the legacy server ran). `User.MustChangePassword` is derived from the
-  enum rather than stored, so a state added later cannot be introduced
-  without deciding whether it blocks.
+  enum rather than stored, and is written as "anything that is not the
+  User's own choice" rather than as a list of blocking states — so a state
+  added later blocks until somebody deliberately exempts it, rather than
+  being let through by an enumeration nobody remembered to extend.
 - "One-shot" needs something that outlives a restart, because the env var
   does too: `ADMIN_PASSWORD_RESET` stays in the compose file that triggered
   it, so honouring it whenever it is merely present would reinstate exactly
@@ -79,6 +81,13 @@ this decision entirely, on a server intended to face the internet.
   It is therefore acted on once per *distinct value*, with the value last
   acted on held in a new `ServerSetting` table (GLOSSARY: Server Setting).
   Changing the value is how an operator recovers a second time.
+- Merge-order hazard worth naming: the state landed before anything
+  enforces it. Until the sync refusal and the portal gate are in, a
+  Provisional Password is a fully working credential, so `ADMIN_PASSWORD`
+  and the reset both still leave a usable password derived from an env var.
+  Nothing is worse than it was — that is simply the old behaviour — but the
+  recovery path is only as safe as this ADR claims once the enforcement
+  ships.
 - The reset runs after the admin is seeded, not before. The other order
   leaves a fresh install's token unrecorded and therefore still pending, so
   it would fire on the next restart against a password the admin had

@@ -152,6 +152,12 @@ public class ManagementController : ControllerBase
             Username = payload.username,
             PasswordHash = passwordHash,
             IsAdministrator = false
+            // PasswordState is left at its default of Provisional, which is
+            // what this route wants: an Administrator picked this password
+            // and is about to hand it over, so it grants the new User nothing
+            // until they replace it (ADR 0006). The two routes where the
+            // password is the User's own choice are the ones that have to say
+            // so - this one is the default case.
         };
 
         _db.Users.Add(user);

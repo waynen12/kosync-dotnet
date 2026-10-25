@@ -16,8 +16,14 @@ public class User
     public PasswordState PasswordState { get; set; } = PasswordState.Provisional;
 
     // "This account does nothing until its password is replaced." Derived
-    // rather than stored, so that a PasswordState added later cannot be
-    // introduced without deciding here whether it blocks.
+    // rather than stored, so the answer cannot drift out of step with the
+    // state it is derived from.
+    //
+    // Written as "anything that is not the User's own choice" rather than as
+    // a list of blocking states: a PasswordState added later - the expiry
+    // ADR 0006 anticipates - therefore blocks until somebody deliberately
+    // exempts it here, instead of being allowed through by an enumeration
+    // that nobody remembered to extend.
     [NotMapped]
     public bool MustChangePassword => PasswordState is not PasswordState.UserChosen;
 

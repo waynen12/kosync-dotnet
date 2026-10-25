@@ -82,6 +82,29 @@ public class AdminPasswordSeedingTests : IDisposable
         Assert.False(AdminPasswordIs("seeded-password"));
     }
 
+    // The case an operator actually hits: having lost track of the password,
+    // they edit ADMIN_PASSWORD in the compose file and restart, expecting
+    // that to take. It does not - the variable is seed-only, and an admin
+    // that already exists is never reseeded from it. Distinct from the test
+    // above, which reboots with the variable unchanged and so would still
+    // pass if the code reseeded from a *changed* value.
+    [Fact]
+    public void Restart_WithAnEditedAdminPassword_StillLeavesTheChosenPasswordAlone()
+    {
+        using (AdminPasswordOf("seeded-password"))
+        {
+            Boot();
+        }
+
+        TheAdminChangesTheirPasswordTo("the-users-own-password");
+
+        using var edited = AdminPasswordOf("edited-in-the-compose-file");
+        Boot();
+
+        Assert.True(AdminPasswordIs("the-users-own-password"));
+        Assert.False(AdminPasswordIs("edited-in-the-compose-file"));
+    }
+
     // Recovery from a genuinely lost admin password. It deliberately does not
     // return the admin to a working credential: the recovery password is
     // Provisional, so all it can do is replace itself (ADR 0006).

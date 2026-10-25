@@ -69,7 +69,7 @@ public class SyncControllerTests : IntegrationTestBase
     [Fact]
     public async Task CreateUser_WhenRegistrationDisabled_Returns402()
     {
-        using var scope = new EnvironmentVariableScope("REGISTRATION_DISABLED", "true");
+        using var scope = new EnvironmentVariableScope(Constants.EnvironmentVariables.RegistrationDisabled, "true");
 
         var response = await PostAsync("/users/create", new UserCreateRequest { username = "newuser", password = "hash" });
 
@@ -100,7 +100,7 @@ public class SyncControllerTests : IntegrationTestBase
     {
         await PostAsync("/users/create", new UserCreateRequest { username = "newuser", password = "some-hashed-key" });
 
-        Assert.Equal(PasswordState.UserChosen, StoredPasswordStateOf("newuser"));
+        Assert.Equal(PasswordState.UserChosen, Factory.StoredPasswordStateOf("newuser"));
     }
 
     [Fact]

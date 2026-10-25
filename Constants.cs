@@ -48,6 +48,8 @@ public static class Constants
         // applied already" is a fact about the server, recorded in
         // ServerSettings, not something the variable's presence can answer.
         public const string AdminPasswordReset = "ADMIN_PASSWORD_RESET";
+
+        public const string RegistrationDisabled = "REGISTRATION_DISABLED";
     }
 
     // The first account, created on a fresh install (ADR 0006).

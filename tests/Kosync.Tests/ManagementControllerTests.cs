@@ -67,7 +67,7 @@ public class ManagementControllerTests : IntegrationTestBase
     {
         await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
 
-        Assert.Equal(PasswordState.Provisional, StoredPasswordStateOf("reader"));
+        Assert.Equal(PasswordState.Provisional, Factory.StoredPasswordStateOf("reader"));
     }
 
     [Fact]
@@ -292,7 +292,7 @@ public class ManagementControllerTests : IntegrationTestBase
     {
         await PutAsync("/manage/users/password?username=admin", new PasswordChangeRequest { password = "new-password" }, "admin", "admin");
 
-        Assert.Equal(PasswordState.UserChosen, StoredPasswordStateOf("admin"));
+        Assert.Equal(PasswordState.UserChosen, Factory.StoredPasswordStateOf("admin"));
     }
 
     // Whereas a password an Administrator sets for somebody else is exactly
@@ -304,11 +304,11 @@ public class ManagementControllerTests : IntegrationTestBase
     public async Task UpdatePassword_AdminSettingAnothersPassword_ReturnsItToProvisional()
     {
         await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
-        TreatPasswordAsUserChosen("reader");
+        Factory.SetPasswordState("reader", PasswordState.UserChosen);
 
         await PutAsync("/manage/users/password?username=reader", new PasswordChangeRequest { password = "handed-over" }, "admin", "admin");
 
-        Assert.Equal(PasswordState.Provisional, StoredPasswordStateOf("reader"));
+        Assert.Equal(PasswordState.Provisional, Factory.StoredPasswordStateOf("reader"));
     }
 
     // Pushes the one hash every caller of this shares, which is the point

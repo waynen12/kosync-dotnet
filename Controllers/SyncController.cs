@@ -98,7 +98,7 @@ public class SyncController : ControllerBase
     [HttpPost("/users/create")]
     public ObjectResult CreateUser(UserCreateRequest payload)
     {
-        if (Environment.GetEnvironmentVariable("REGISTRATION_DISABLED") == "true")
+        if (Environment.GetEnvironmentVariable(Constants.EnvironmentVariables.RegistrationDisabled) == "true")
         {
             LogWarning("Account creation attempted but registration is disabled.");
             return StatusCode(402, new

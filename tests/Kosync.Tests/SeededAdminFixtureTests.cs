@@ -16,7 +16,7 @@ public class SeededAdminFixtureTests : IntegrationTestBase
     [Fact]
     public void TheFixtureAdmin_HasAlreadyReplacedTheirPassword()
     {
-        Assert.Equal(PasswordState.UserChosen, StoredPasswordStateOf(Constants.Admin.Username));
+        Assert.Equal(PasswordState.UserChosen, Factory.StoredPasswordStateOf(Constants.Admin.Username));
     }
 
     // What a test exercising the forced change opts into. It is also what the

@@ -40,6 +40,24 @@ public static class TestDb
         return db.Users.Single(u => u.Username == username).PasswordState;
     }
 
+    // Stands in for a User completing the forced password change, which has
+    // no route of its own yet - the portal page that does it is issue #24.
+    // Lets a test arrange a User who is past that point and assert on what
+    // happens to them next.
+    //
+    // KosyncWebApplicationFactory sets the same column from inside
+    // CreateHost and cannot call this: there is no factory.Services to take a
+    // scope from until the host it is building exists.
+    public static void SetPasswordState(
+        this KosyncWebApplicationFactory factory, string username, PasswordState state)
+    {
+        using var scope = factory.CreateSystemScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+
+        db.Users.Single(u => u.Username == username).PasswordState = state;
+        db.SaveChanges();
+    }
+
     // A scope that sees exactly what the named User sees - the same view the
     // dashboard takes. Throws if the User does not exist, so a typo surfaces
     // as a failure rather than as a mysteriously empty result.
