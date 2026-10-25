@@ -26,6 +26,16 @@ public class ManagementController : ControllerBase
         _tenant = tenant;
     }
 
+    // Same explicit scoping step the sync endpoints take, for the same
+    // reason (ADR 0004): a request says who it is with the x-auth-user
+    // header, and nothing else on the server knows "who" that way. Only
+    // GetDocuments needs it here - every other endpoint in this controller
+    // is an account operation, and Users carry no tenant filter.
+    private void ScopeToAuthenticatedUser()
+    {
+        _tenant.SetUser(_userService.UserId!.Value);
+    }
+
     [HttpGet("/manage/users")]
     public ObjectResult GetUsers()
     {
@@ -284,12 +294,12 @@ public class ManagementController : ControllerBase
 
         LogInfo($"User [{_userService.Username}] requested their own documents");
 
-        // Scoped the way every other read of a library is, by setting the
-        // tenant and letting the global query filters do it (ADR 0004).
-        // Replacing the old IgnoreQueryFilters + hand-written UserId
-        // predicate is the actual fix: there is no longer a "which User" to
-        // get wrong here, because the query cannot name one.
-        _tenant.SetUser(_userService.UserId!.Value);
+        // Scoped the way every other read of a library is, by the global
+        // query filters. Replacing the old IgnoreQueryFilters plus a
+        // hand-written UserId predicate is the actual fix: there is no
+        // longer a "which User" to get wrong, because the query cannot
+        // name one.
+        ScopeToAuthenticatedUser();
 
         var documents = _db.Documents
             .Include(d => d.SyncEvents)

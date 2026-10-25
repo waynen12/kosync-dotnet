@@ -145,8 +145,8 @@ public class ManagementControllerTests : IntegrationTestBase
     public async Task GetDocuments_SelfAccess_ExcludesAnotherUsersSameHashedDocument()
     {
         await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
-        await PushAsync("admin", "admin", percentage: 0.10m, deviceId: "admin-device");
-        await PushAsync("reader", "pw", percentage: 0.90m, deviceId: "reader-device");
+        await PushSharedHashAsync("admin", "admin", percentage: 0.10m, deviceId: "admin-device");
+        await PushSharedHashAsync("reader", "pw", percentage: 0.90m, deviceId: "reader-device");
 
         var body = await BodyAsync(await GetAsync("/manage/users/documents?username=admin", "admin", "admin"));
 
@@ -267,10 +267,11 @@ public class ManagementControllerTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    // Deliberately pushes one document hash for every User that uses this:
-    // a KOReader hash is content-derived, so sharing one is what two readers
-    // of the same book actually look like in the database.
-    private Task<HttpResponseMessage> PushAsync(string username, string password, decimal percentage, string deviceId)
+    // Pushes the one hash every caller of this shares, which is the point
+    // rather than an incidental fixture value: a KOReader hash is derived
+    // from the file's contents, so two Users reading the same book really do
+    // hold the same hash.
+    private Task<HttpResponseMessage> PushSharedHashAsync(string username, string password, decimal percentage, string deviceId)
     {
         return PutAsync("/syncs/progress", new DocumentRequest
         {
