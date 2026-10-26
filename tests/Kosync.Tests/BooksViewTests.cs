@@ -8,8 +8,12 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Kosync.Tests;
 
-// Covers issue #6: the Books card-grid landing page and its per-Book
+// Covers issue #6: the Books section of the dashboard and its per-Book
 // drill-in detail page.
+//
+// The landing page was a card grid until issue #18 replaced it with the hub's
+// dense table, so the assertions here are about what a Book shows in that
+// table. DashboardViewTests owns the table's shape and the sidebar.
 public class BooksViewTests : IntegrationTestBase
 {
     [Fact]
@@ -24,7 +28,7 @@ public class BooksViewTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task Dashboard_BooksTab_ShowsBookCardWithProgressAndDocumentHash()
+    public async Task Dashboard_BooksTab_ShowsBookRowWithProgressAndDocumentCount()
     {
         await PutAsync("/syncs/progress", new DocumentRequest
         {
@@ -35,18 +39,26 @@ public class BooksViewTests : IntegrationTestBase
             device_id = "device-1"
         }, "admin", "admin");
 
+        var bookId = await GetBookIdAsync("hash1");
+
         using var client = Factory.NoRedirectClient();
         await DashboardLogin.LogInAsync(client, "admin", "admin");
 
         var html = await (await client.GetAsync(AppRoutes.DashboardBooksTab)).Content.ReadAsStringAsync();
 
-        Assert.Contains("hash1", html);
+        // A Book has no title until Phase 3 observes or curates one
+        // (ADR 0007), so the table names it by its id.
+        Assert.Contains($"Book #{bookId}", html);
+        Assert.Contains(@"<td class=""hub-table-num"">1</td>", html);
         Assert.Contains("42%", html);
+        // Its one Document's hash went with the card - see DashboardViewTests,
+        // which owns that change.
+        Assert.DoesNotContain(">hash1<", html);
         Assert.DoesNotContain("No books have synced yet.", html);
     }
 
     [Fact]
-    public async Task BookCard_LinksToItsRoutedDetailPage()
+    public async Task BookRow_LinksToItsRoutedDetailPage()
     {
         await PutAsync("/syncs/progress", new DocumentRequest
         {

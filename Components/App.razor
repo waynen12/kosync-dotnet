@@ -7,6 +7,10 @@
     <base href="/" />
     <link rel="stylesheet" href="/css/app.css" />
     <script src="/js/theme.js"></script>
+    @* Deferred, unlike theme.js: the theme has to be on <html> before the
+       first paint or the page flashes, whereas a filter has nothing to do
+       until someone types. *@
+    <script src="@($"/js/{Constants.Dashboard.FilterScript}")" defer></script>
     <HeadOutlet />
 </head>
 <body>

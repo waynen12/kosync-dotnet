@@ -8,8 +8,13 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Kosync.Tests;
 
-// Covers issue #5: the Devices card-grid landing page and its per-Device
+// Covers issue #5: the Devices section of the dashboard and its per-Device
 // drill-in detail page.
+//
+// The landing page was a card grid until issue #18 replaced it with the hub's
+// dense table, so the assertions here are about what a Device shows in that
+// table - its name, its Document count, its progress and when it last synced.
+// DashboardViewTests owns the table's shape and the sidebar.
 public class DevicesViewTests : IntegrationTestBase
 {
     [Fact]
@@ -24,7 +29,7 @@ public class DevicesViewTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task Dashboard_ShowsDeviceCardWithLastSyncedAndPerDocumentProgress()
+    public async Task Dashboard_ShowsDeviceRowWithLastSyncedAndFurthestAlongProgress()
     {
         await PutAsync("/syncs/progress", new DocumentRequest
         {
@@ -41,14 +46,18 @@ public class DevicesViewTests : IntegrationTestBase
         var html = await (await client.GetAsync(AppRoutes.Dashboard)).Content.ReadAsStringAsync();
 
         Assert.Contains("Kobo Nova", html);
-        Assert.Contains("hash1", html);
+        // A Device has no progress of its own, so its furthest-along
+        // Document's stands in. One Document here, so 42% is both.
         Assert.Contains("42%", html);
         Assert.Contains("just now", html);
+        // The hash row the card used to carry is gone with the card - see
+        // DashboardViewTests, which owns that change.
+        Assert.DoesNotContain(">hash1<", html);
         Assert.DoesNotContain("No devices have synced yet.", html);
     }
 
     [Fact]
-    public async Task DeviceCard_LinksToItsRoutedDetailPage()
+    public async Task DeviceRow_LinksToItsRoutedDetailPage()
     {
         await PutAsync("/syncs/progress", new DocumentRequest
         {
@@ -154,10 +163,36 @@ public class DevicesViewTests : IntegrationTestBase
     }
 
     // Covers issue #13: a Device with nothing synced yet must say so in terms
-    // of Documents. A Device's card lists that Device's Documents, so "no
-    // books" would describe the wrong thing entirely.
+    // of Documents. A Device's detail view lists that Device's Documents, so
+    // "no books" would describe the wrong thing entirely.
+    //
+    // #18 is why this reads the detail page rather than the dashboard, where
+    // the card used to list a Device's Documents and so used to carry this
+    // empty state. The table shows a count, asserted separately below.
     [Fact]
-    public async Task DeviceCard_WithoutDocuments_SaysNoDocumentsRatherThanNoBooks()
+    public async Task DeviceDetail_WithoutDocuments_SaysNoDocumentsRatherThanNoBooks()
+    {
+        await SeedDeviceWithoutSyncEventsAsync("device-1", "Kobo Nova");
+
+        var deviceId = await GetDeviceIdAsync("device-1");
+
+        using var client = Factory.NoRedirectClient();
+        await DashboardLogin.LogInAsync(client, "admin", "admin");
+
+        var html = await (await client.GetAsync(AppRoutes.DeviceDetail(deviceId))).Content.ReadAsStringAsync();
+
+        Assert.Contains("Kobo Nova", html);
+        // Rendered-or-not goes through the constant so the assertion can't
+        // drift from the copy; the old wording stays a literal, because
+        // that is the regression this guards and no constant holds it.
+        Assert.Contains(Constants.NoDeviceDocumentsSyncedText, html);
+        Assert.DoesNotContain("No books synced yet", html);
+    }
+
+    // The dashboard's half of the same case. A Device that has synced nothing
+    // is a row with a 0, not an absent row and not an empty-library message.
+    [Fact]
+    public async Task Dashboard_WithoutDocuments_StillRowsTheDeviceWithAZeroCount()
     {
         await SeedDeviceWithoutSyncEventsAsync("device-1", "Kobo Nova");
 
@@ -167,11 +202,9 @@ public class DevicesViewTests : IntegrationTestBase
         var html = await (await client.GetAsync(AppRoutes.Dashboard)).Content.ReadAsStringAsync();
 
         Assert.Contains("Kobo Nova", html);
-        // Rendered-or-not goes through the constant so the assertion can't
-        // drift from the copy; the old wording stays a literal, because
-        // that is the regression this guards and no constant holds it.
-        Assert.Contains(Constants.NoDeviceDocumentsSyncedText, html);
-        Assert.DoesNotContain("No books synced yet", html);
+        Assert.Contains(@"<td class=""hub-table-num"">0</td>", html);
+        Assert.Contains("Never synced", html);
+        Assert.DoesNotContain(Constants.NoDevicesSyncedText, html);
     }
 
     // A Device row only ever appears through a progress push, which also

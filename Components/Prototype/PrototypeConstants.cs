@@ -68,7 +68,7 @@ public static class PrototypeConstants
     public const string LoginPasswordLabel = Constants.LoginPasswordLabel;
     public const string ThemeToggleLabel = Constants.ThemeToggleLabel;
 
-    public const string BrandTagline = "Your reading, across every device.";
+    public const string BrandTagline = Constants.Dashboard.Tagline;
     public const string SignOutLabel = "Sign out";
     public const string ChangePasswordLabel = "Change password";
     public const string ManageAccountsLabel = "Manage accounts";
@@ -81,31 +81,35 @@ public static class PrototypeConstants
     // ---------------------------------------------------------------------
     // Dashboard
     // ---------------------------------------------------------------------
-    public const string DashboardSearchPlaceholder = "Search by device, book or hash...";
+    // Folded in by #18 - variant B won, so everything the real dashboard
+    // renders is now Constants.Dashboard and aliased here rather than copied,
+    // for the same reason as the shell block above. The strings still spelled
+    // out are the ones only a losing variant reads.
+    public const string DashboardSearchPlaceholder = Constants.Dashboard.SearchPlaceholder;
     public const string FilterAllLabel = "Everything";
     public const string FilterDevicesLabel = "Devices";
     public const string FilterBooksLabel = "Books";
     public const string FilterFlaggedLabel = "Flagged";
-    public const string NoMatchesText = "Nothing matches that filter.";
-    public const string DevicesGroupLabel = "Devices";
-    public const string BooksGroupLabel = "Books";
+    public const string NoMatchesText = Constants.Dashboard.NoMatchesText;
+    public const string DevicesGroupLabel = Constants.Dashboard.DevicesLabel;
+    public const string BooksGroupLabel = Constants.Dashboard.BooksLabel;
 
-    public const string NavDevicesLabel = "Devices";
-    public const string NavBooksLabel = "Books";
+    public const string NavDevicesLabel = Constants.Dashboard.DevicesLabel;
+    public const string NavBooksLabel = Constants.Dashboard.BooksLabel;
     public const string NavUsersLabel = "Accounts";
     public const string NavAccountLabel = "My account";
-    public const string NavLibraryGroupLabel = "Library";
+    public const string NavLibraryGroupLabel = Constants.Dashboard.NavGroupLibrary;
     public const string NavAdminGroupLabel = "Administration";
 
     public const string StatDevicesLabel = "Devices";
     public const string StatBooksLabel = "Books";
     public const string StatFlaggedLabel = "Flagged";
 
-    public const string ColumnName = "Name";
-    public const string ColumnDocuments = "Documents";
-    public const string ColumnProgress = "Progress";
-    public const string ColumnLastSynced = "Last synced";
-    public const string ColumnFlags = "Flags";
+    public const string ColumnName = Constants.Dashboard.ColumnName;
+    public const string ColumnDocuments = Constants.Dashboard.ColumnDocuments;
+    public const string ColumnProgress = Constants.Dashboard.ColumnProgress;
+    public const string ColumnLastSynced = Constants.Dashboard.ColumnLastSynced;
+    public const string ColumnFlags = Constants.Dashboard.ColumnFlags;
     public const string DocumentsSuffix = "documents";
     public const string ProgressSuffix = "progress";
     public const string NeverSyncedText = "never";

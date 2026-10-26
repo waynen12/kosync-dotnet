@@ -111,16 +111,87 @@ public static class Constants
             "a Book whose Documents span multiple Users cannot be given an owner automatically - resolve it by hand, then migrate";
     }
 
+    // The dashboard's two sections. These are URL values, not labels: the
+    // section is chosen by navigating to ?tab=, so they are what AppRoutes
+    // writes into a link and what the page reads back out of the query.
     public const string DevicesTab = "devices";
 
     public const string BooksTab = "books";
+
+    // The hub dashboard - a sidebar beside a dense table of Devices or Books
+    // (issue #18, docs/ROADMAP.md "Screen layouts"). Moved here from
+    // PrototypeConstants.cs when variant B won, rather than copied: the
+    // prototype folder goes with issue #19.
+    public static class Dashboard
+    {
+        public const string PageTitle = "Dashboard";
+
+        public const string Tagline = "Your reading, across every device.";
+
+        public const string NavGroupLibrary = "Library";
+
+        // The sidebar's two section labels. Separate from DevicesTab/BooksTab
+        // above, which are the URL spelling of the same choice.
+        public const string DevicesLabel = "Devices";
+
+        public const string BooksLabel = "Books";
+
+        public const string ColumnName = "Name";
+
+        public const string ColumnDocuments = "Documents";
+
+        public const string ColumnProgress = "Progress";
+
+        public const string ColumnLastSynced = "Last synced";
+
+        public const string ColumnFlags = "Flags";
+
+        // Every row's one action, and the reason the whole row need not be a
+        // click target - see the no-row-onclick comment in Dashboard.razor.
+        public const string OpenAction = "Open";
+
+        // A row with nothing to flag still gets a cell, so the Flags column
+        // stays a column you can scan down rather than a ragged one.
+        public const string NoFlagsText = "—";
+
+        public const string SearchPlaceholder = "Search by device, book or hash...";
+
+        public const string NoMatchesText = "Nothing matches that filter.";
+
+        // What the filter input points at and the table answers to. An id
+        // rather than a walk up the DOM, so the script stays four lines of
+        // "find the scope, hide what doesn't match".
+        public const string TableId = "dashboard-table";
+
+        // The filter's implementation, named here because both App.razor's
+        // <script> and the test asserting it never reaches the server have to
+        // mean the same file.
+        public const string FilterScript = "dashboard-filter.js";
+
+        // Pluralised by DashboardFormatting for the toolbar's flagged count,
+        // so it reads "3 split books" rather than "3 flagged".
+        public const string SplitBookNoun = "split book";
+
+        // A Book has no title of its own until Phase 3 (ADR 0007) observes or
+        // curates one, so the dashboard names it by its id.
+        public const string BookNameFormat = "Book #{0}";
+    }
+
+    // The two things the dashboard counts. Singular, because
+    // DashboardFormatting.Pluralize is what turns a count into a phrase.
+    public const string DeviceNoun = "device";
+
+    public const string BookNoun = "book";
 
     public const string NoDevicesSyncedText = "No devices have synced yet.";
 
     public const string NoBooksSyncedText = "No books have synced yet.";
 
-    // A Device's card and detail view list that Device's Documents, so the
-    // empty state has to talk about Documents - not Books.
+    // A Device's detail view lists that Device's Documents, so its empty
+    // state has to talk about Documents - not Books (issue #13). The
+    // dashboard used to need this too, when a Device's card listed its
+    // Documents; the table it became shows a count instead, where an empty
+    // Device reads as a plain 0 and cannot name the wrong thing.
     public const string NoDeviceDocumentsSyncedText = "No documents synced yet";
 
     public const string NoBookProgressText = "No progress yet";

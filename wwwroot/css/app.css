@@ -19,8 +19,9 @@
      5. Layout containers     the page-level wrappers
      6. Login                 the one screen with its own shell
      7. App shell             the authenticated nav every other page wears
-     8. Pre-hub rules         .ks-* detail-page chrome
-     9. Breakpoints           every @media query in the system
+     8. Dashboard             the sidebar shell and the dense table
+     9. Pre-hub rules         .ks-* detail-page chrome
+    10. Breakpoints           every @media query in the system
    ========================================================================= */
 
 @import url("https://fonts.googleapis.com/css2?family=Geist:wght@300..900&family=Geist+Mono:wght@300..700&display=swap");
@@ -492,134 +493,145 @@ a {
 }
 
 /* The nav's sibling. Pages bring their own centred container (section 5), so
-   this only claims the rest of the column and the clearance below the fold. */
+   this only claims the rest of the column and the clearance below the fold.
+
+   The column-flex is for the dashboard's sidebar (section 8): a flex item's
+   height is its content's, so `flex: 1` on the shell inside is the only way
+   a full-height sidebar reaches the bottom of a short page. Every centred
+   container in section 5 already carries the `width: 100%` that keeps it
+   stretching rather than shrinking to content in here. */
 .hub-app-main {
+    display: flex;
+    flex-direction: column;
     flex: 1;
     min-width: 0;
     padding-bottom: 80px;
 }
 
 /* =========================================================================
-   8. PRE-HUB RULES
+   8. DASHBOARD SHELL AND TABLE
 
-   Everything below predates the fold-in and runs on the section-2 aliases.
-   The card grid goes with issue #18; the detail-page rules stay until issue
-   #33. Radii and spacing here are intentionally untouched - new palette, old
-   geometry, as docs/ROADMAP.md calls for.
+   Components/Pages/Dashboard.razor - the sidebar beside a dense table of
+   Devices or Books. Ported out of the prototype's variant B with issue #18,
+   for the same reason sections 6 and 7 moved: prototype.css is only ever
+   linked by PrototypeSwitcher, so rules left there go unstyled the moment
+   issue #19 deletes it.
+
+   Why a table and not the card grid it replaced - a grid row is as tall as
+   its tallest card, and these lists are scanned rather than browsed - is
+   docs/ROADMAP.md's business ("Why the card grid lost, for both lists").
    ========================================================================= */
-
-/* Card grid landing screen */
-.ks-header {
-    padding: 28px var(--hub-gutter) 0;
-    max-width: var(--hub-maxw);
-    margin: 0 auto;
-    width: 100%;
-}
-
-.ks-title {
-    font-size: 24px;
-    font-weight: 700;
-    margin: 0 0 2px;
-}
-
-.ks-subtitle {
-    color: var(--ks-muted);
-    font-size: 14px;
-    margin: 0 0 20px;
-}
-
-.ks-tabs {
+.hub-shell {
     display: flex;
-    gap: 6px;
-    border-bottom: 1px solid var(--ks-border);
-    margin-bottom: 24px;
-    overflow-x: auto;
+    flex: 1;
+    min-height: 0;
 }
 
-.ks-tab {
-    background: none;
-    border: none;
-    padding: 10px 16px;
+.hub-sidebar {
+    flex: 0 0 15rem;
+    background: var(--hub-sidebar);
+    border-right: 1px solid var(--hub-border);
+    padding: 16px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.hub-sidebar-group { padding: 14px 10px 6px; }
+
+.hub-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--hub-radius-lg);
     font-size: 14px;
-    font-weight: 600;
-    color: var(--ks-muted);
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
+    font-weight: 500;
+    color: var(--hub-fg);
+    text-decoration: none;
+}
+
+.hub-nav-item:hover { background: var(--hub-muted); }
+.hub-nav-item.current { background: color-mix(in srgb, var(--hub-brand) 12%, transparent); color: var(--hub-brand); }
+.hub-nav-count { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--hub-muted-fg); font-variant-numeric: tabular-nums; }
+
+/* No bottom padding: .hub-app-main (section 7) already clears the fold for
+   every page, and this one is inside it. */
+.hub-shell-main { flex: 1; min-width: 0; padding: 24px var(--hub-gutter) 0; }
+
+/* The section-5 containers are centred in a page-wide column; in here the
+   column is the sidebar's sibling and already the right width. */
+.hub-shell-main > .hub-page-head,
+.hub-shell-main > .hub-toolbar { padding-left: 0; padding-right: 0; max-width: none; }
+.hub-shell-main > .hub-page-head { padding-top: 0; }
+
+/* .hub-input is full-width by default, which in a flex toolbar would eat the
+   whole row. Wide enough for an md5 hash to be recognisable while typing. */
+.hub-toolbar-search { width: 15rem; }
+
+/* The toolbar's "· 2 split books" - the one thing on the page worth drawing
+   the eye before the table itself. */
+.hub-flagged-count { color: var(--hub-amber-strong); font-weight: 600; }
+
+.hub-table-wrap { background: var(--hub-card); border: 1px solid var(--hub-border); border-radius: var(--hub-radius-xl); overflow-x: auto; }
+
+/* min-width over the six columns, with the wrap scrolling: the alternative
+   is collapsing columns at a breakpoint, and the column being dropped is
+   always the one somebody opened the page to compare. */
+.hub-table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 760px; }
+
+.hub-table th {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--hub-border);
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--hub-muted-fg);
     white-space: nowrap;
 }
 
-.ks-tab.active {
-    color: var(--ks-accent);
-    border-bottom-color: var(--ks-accent);
-}
+.hub-table td { padding: 12px 16px; border-bottom: 1px solid var(--hub-border); vertical-align: middle; }
+.hub-table tr:last-child td { border-bottom: none; }
+.hub-table tbody tr:hover { background: color-mix(in srgb, var(--hub-muted) 60%, transparent); }
+.hub-table-name { font-weight: 500; }
+.hub-table-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hub-table-actions { text-align: right; white-space: nowrap; }
+.hub-table-progress { display: flex; align-items: center; gap: 8px; }
 
-.ks-grid {
-    max-width: var(--hub-maxw);
-    margin: 0 auto;
-    width: 100%;
-    padding: 0 var(--hub-gutter);
-    display: grid;
-    /* min() keeps the 300px track from overflowing a 390px viewport, which
-       a bare minmax(300px, 1fr) would. */
-    grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
-    gap: 18px;
-}
-
-.ks-card {
-    display: block;
-    background: var(--ks-card-bg);
-    border: 1px solid var(--ks-border);
-    border-radius: 14px;
-    padding: 18px 20px;
-}
-
-.ks-card-clickable {
-    cursor: pointer;
-    transition: box-shadow 0.12s, transform 0.12s;
-}
-
-.ks-card-clickable:hover {
-    box-shadow: 0 4px 14px rgba(20, 20, 30, 0.12);
-    transform: translateY(-1px);
-}
-
-.ks-card-head {
+/* The name cell's link fills the cell, so the row reads as clickable without
+   the script a whole-row click target would need (Dashboard.razor). */
+.hub-table-link {
     display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin-bottom: 2px;
-    gap: 10px;
-}
-
-.ks-card-title {
-    font-size: 15.5px;
-    font-weight: 700;
+    align-items: center;
+    gap: 8px;
     min-width: 0;
     overflow-wrap: anywhere;
 }
 
+.hub-table-link:hover { color: var(--hub-brand); }
+
+/* The toolbar's filter, which runs in wwwroot/js/dashboard-filter.js and
+   never reaches the server (ADR 0003). A hidden row is display:none rather
+   than removed, so the filter owns no list state. */
+[data-hidden="true"] { display: none; }
+.hub-list-none { display: none; color: var(--hub-muted-fg); font-size: 14px; padding: 32px 0; text-align: center; }
+[data-none="true"] > .hub-list-none { display: block; }
+
+/* =========================================================================
+   9. PRE-HUB RULES
+
+   Everything below predates the fold-in and runs on the section-2 aliases.
+   The card-grid rules went with issue #18, which deleted their last caller;
+   the detail-page rules stay until issue #33. Radii and spacing here are
+   intentionally untouched - new palette, old geometry, as docs/ROADMAP.md
+   calls for.
+   ========================================================================= */
+
 .ks-card-meta {
     font-size: 12px;
     color: var(--ks-muted);
-}
-
-.ks-card-sub {
-    font-size: 12.5px;
-    color: var(--ks-muted);
-    margin-bottom: 12px;
-}
-
-.ks-doc-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 7px 0;
-    border-top: 1px solid var(--ks-border);
-}
-
-.ks-doc-row:first-of-type {
-    border-top: none;
 }
 
 .ks-doc-hash {
@@ -654,23 +666,6 @@ a {
     padding: 0;
     max-width: none;
     margin: 0;
-}
-
-.ks-pbar-track {
-    background: var(--ks-track);
-    border-radius: 999px;
-    height: 6px;
-    width: 70px;
-    display: inline-block;
-    overflow: hidden;
-    flex: 0 0 auto;
-}
-
-.ks-pbar-fill {
-    display: block;
-    height: 100%;
-    border-radius: 999px;
-    background: var(--ks-accent);
 }
 
 /* Drill-in detail page */
@@ -822,7 +817,7 @@ a {
 }
 
 /* =========================================================================
-   9. BREAKPOINTS
+   10. BREAKPOINTS
 
    The stylesheet had none at all before this, which is the other half of the
    responsiveness bug the second prototyping session found. Desktop-first,
@@ -833,6 +828,10 @@ a {
    Breakpoints are literals because @media conditions cannot read custom
    properties - the gutter they re-declare is a token, so one override here
    re-gutters every container.
+
+   860px is the dashboard sidebar's own, and sits between the two: it is the
+   width at which 15rem of sidebar stops leaving the table enough room, not a
+   device class.
    ========================================================================= */
 @media (max-width: 1024px) {
     :root {
@@ -840,6 +839,34 @@ a {
     }
 
     .hub-main { padding-bottom: 88px; }
+}
+
+/* The dashboard sidebar becomes a bottom tab bar. It stays the same list of
+   links either way - the section is a URL, so there is no disclosure state
+   to re-think at this width. */
+@media (max-width: 860px) {
+    .hub-shell { flex-direction: column; }
+
+    .hub-sidebar {
+        position: fixed;
+        inset: auto 0 0 0;
+        z-index: 40;
+        flex: 0 0 auto;
+        flex-direction: row;
+        justify-content: space-around;
+        border-right: none;
+        border-top: 1px solid var(--hub-border);
+        padding: 6px;
+        gap: 2px;
+    }
+
+    /* The group heading has no room, and two items need no heading. */
+    .hub-sidebar-group { display: none; }
+    .hub-nav-item { flex: 1; flex-direction: column; gap: 2px; font-size: 11px; padding: 6px 4px; justify-content: center; }
+    .hub-nav-count { display: none; }
+
+    /* Clears the tab bar, which is out of flow. */
+    .hub-shell-main { padding-bottom: 72px; }
 }
 
 @media (max-width: 640px) {
@@ -861,8 +888,6 @@ a {
     }
 
     .hub-nav-actions { gap: 6px; }
-    .ks-header { padding-top: 20px; }
-    .ks-title { font-size: 20px; }
     .ks-detail { padding-top: 20px; }
     .ks-detail-title { font-size: 19px; }
 

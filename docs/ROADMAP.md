@@ -339,7 +339,7 @@ and where it goes:
 | Prototype | Folds into | Notes |
 |---|---|---|
 | `LoginVariantA.razor` | `Components/Pages/Login.razor` | Strings move to `Constants.cs`, not `PrototypeConstants.cs` |
-| `DashboardVariantB.razor` + `HubSidebar.razor` | `Components/Pages/Dashboard.razor` | Replaces `Components/Shared/CardGrid.razor`, which then has no caller |
+| `DashboardVariantB.razor` + `HubSidebar.razor` | `Components/Pages/Dashboard.razor` | **Done (#18):** `CardGrid.razor` and `CardGridItem.cs` are deleted, and their rules are out of `app.css`. Section selection is a `?tab=` link, so it costs no circuit message; the table's search is `wwwroot/js/dashboard-filter.js`, client-only for the same reason the theme toggle is. The sidebar carries the Library group only — its Administration group pointed at the prototype Users route, and #28/#24 build the real destinations |
 | `UsersVariantB.razor` | a new Users page | **Blocked on Phase 2.5** — no account service, no tenancy |
 | `HubNav.razor` | `Components/Layout/MainLayout.razor` | **Done (#17):** replaced `.ks-shell-*` outright — those rules and the `--ks-shell-bg` alias are gone, and the nav rules are app.css section 7. The nav carries brand, Username and the theme toggle only; the prototype's "Manage accounts", "Change password" and "Sign out" buttons land with #28, #24 and a sign-out endpoint respectively, rather than shipping as dead chrome |
 | `prototype.css` token block + primitives | `wwwroot/css/app.css` | **Does not delete the `--ks-*` tokens** — see "the detail pages" below |
@@ -381,6 +381,17 @@ that for the ~20 single-document Books the card was mostly one md5 hash,
 filename becomes a Document's label on the **detail pages**, not on the
 dashboard, which no longer labels Documents at all.
 
+**Done (#18)**, with one thing the fold-in had to keep. The hashes are
+still in each row's `data-ks-text`, which is what the toolbar's filter
+matches against, so "search by device, book or hash" still finds the Book
+whose hash KOReader just showed you — the lookup is the reason you have
+the hash in the first place. They are in no column. Two knock-ons:
+`Constants.NoDeviceDocumentsSyncedText` (issue #13) moved to
+`DeviceDetail.razor`, since the table shows an empty Device as a plain `0`
+and has no per-Device empty state to put it in; and `.ks-card-meta` and
+`.ks-doc-card` survive the card-grid deletion because `BookDetail.razor`
+renders them.
+
 Delete the rest: `PrototypeConstants.cs`, `PrototypeRoutes.cs`,
 `PrototypeDemoData.cs`, `PrototypeSwitcher.razor`, `PrototypeUsers.razor`,
 `PrototypeEmptyLayout.razor`, `PrototypeDashboardItem.cs`, the losing
@@ -400,6 +411,9 @@ or made permanent:
   `@layout PrototypeEmptyLayout`, a three-way variant switch and a
   `<PrototypeSwitcher>`, and lost its two `<CardGrid>` calls. Easy to miss:
   this one was absent from the list until a later review caught it.
+  **Done (#18):** all three are gone and the page takes `MainLayout` again.
+  It does not get its `<CardGrid>` calls back — the table replaced them, and
+  `PrototypeDashboardItem` became `Components/Shared/DashboardRow.cs`.
 - `Components/_Imports.razor` — two `@using` lines marked as throwaway.
 - `tests/Kosync.Tests/DashboardAuthTests.cs` — one assertion left
   re-pointed at prototype copy (`">admin<"`); it should assert against

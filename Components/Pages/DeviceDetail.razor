@@ -23,7 +23,10 @@
 
         @if (device.Documents.Count == 0)
         {
-            <p class="ks-empty ks-empty-inline">No sync history yet.</p>
+            @* Issue #13's wording, and since #18 this is where it lives: the
+               dashboard's table shows a Document count rather than listing
+               Documents, so a Device's empty state is only ever here. *@
+            <p class="ks-empty ks-empty-inline">@Constants.NoDeviceDocumentsSyncedText</p>
         }
         else
         {
