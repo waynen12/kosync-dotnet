@@ -267,10 +267,16 @@ public class ManagementControllerTests : IntegrationTestBase
         var response = await PutAsync("/manage/users/password?username=reader", new PasswordChangeRequest { password = "new-password" }, "admin", "admin");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        // The password an Administrator just set is Provisional and refuses
-        // sync of its own accord (ADR 0006) - asserted by its own test below.
-        // What this one is about is which password now opens the account, so
-        // the User is taken past the forced change before asking.
+        // The real sequence, in order. A password an Administrator set is
+        // Provisional, so the new password is refused first (ADR 0006) - and
+        // refused for *that* reason rather than for being the wrong password,
+        // which the old password could not tell apart.
+        var beforeChange = await GetAsync("/users/auth", "reader", "new-password");
+        Assert.Equal(HttpStatusCode.Unauthorized, beforeChange.StatusCode);
+        Assert.Contains("Password change required", (await BodyAsync(beforeChange)).GetProperty("message").GetString());
+
+        // Then the User replaces it, and the password the Administrator set is
+        // the one that was replaced - which is what this test is really about.
         Factory.SetPasswordState("reader", PasswordState.UserChosen);
 
         var authResponse = await GetAsync("/users/auth", "reader", "new-password");

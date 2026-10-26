@@ -56,11 +56,8 @@ public static class Constants
         // is indistinguishable from a wrong password to stock KOReader, and
         // KOReader surfaces the server's message - so this is the only
         // channel that reaches them (ADR 0006).
-        private const string PasswordChangeRequiredTemplate =
+        public const string PasswordChangeRequiredFormat =
             "Password change required — log in at {0} to set a new password.";
-
-        public static string PasswordChangeRequired(string portalLoginUrl) =>
-            string.Format(PasswordChangeRequiredTemplate, portalLoginUrl);
     }
 
     // The settings the app reads straight from the process environment rather

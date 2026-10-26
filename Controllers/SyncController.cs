@@ -42,15 +42,15 @@ public class SyncController : ControllerBase
     // The message names the portal because to stock KOReader a bare 401 is
     // indistinguishable from a wrong password, and re-typing the password is
     // then exactly the wrong thing for the User to try.
-    private ObjectResult? RefusalIfPasswordMustChange(string attempt)
+    private ObjectResult? RefusalIfPasswordMustChange(string refusedAction)
     {
         if (!_userService.MustChangePassword) { return null; }
 
-        LogWarning($"{attempt} from user [{_userService.Username}] refused: their password is provisional and must be changed.");
+        LogWarning($"{refusedAction} from user [{_userService.Username}] refused: their password is provisional and must be changed.");
 
         return StatusCode(401, new
         {
-            message = Constants.Portal.PasswordChangeRequired(_portal.LoginUrl)
+            message = string.Format(Constants.Portal.PasswordChangeRequiredFormat, _portal.LoginUrl)
         });
     }
 

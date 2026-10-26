@@ -55,15 +55,16 @@ This is a change in behaviour: **editing `ADMIN_PASSWORD` on an existing install
 
 A password somebody else chose for you — the one `ADMIN_PASSWORD` seeds, or one an administrator sets when creating an account — is recorded as *provisional*: it identifies the account, and it is meant to be replaced by a password of your own rather than kept. An administrator can change their own password through `PUT /manage/users/password`, which no longer refuses admin accounts.
 
-**While a password is provisional the account cannot sync.** `/users/auth`, `PUT /syncs/progress` and `GET /syncs/progress/{documentHash}` all refuse it with a `401`, so a fresh install syncs nothing until somebody has logged in and replaced `admin`/`admin`. This is deliberate: it keeps a password an administrator typed from quietly becoming a device's long-lived credential. The accepted cost is that a new user has to visit the web dashboard before their KOReader device will sync. See [ADR 0006](docs/adr/0006-forced-first-login-password-change.md).
+**While a password is provisional the account cannot sync.** `/users/auth`, `PUT /syncs/progress` and `GET /syncs/progress/{documentHash}` all refuse it with a `401`, so a fresh install syncs nothing until somebody has logged into the portal and replaced `admin`/`admin`. This is deliberate: it keeps a password an administrator typed from quietly becoming a device's long-lived credential. The accepted cost is that a new user has to visit the portal before their KOReader device will sync. See [ADR 0006](docs/adr/0006-forced-first-login-password-change.md).
 
 The refusal names the address to go and do that at, because KOReader shows the server's message and a bare refusal looks exactly like a wrong password. The server cannot work out its own public address — it is behind your reverse proxy, on your domain — so set `Portal__BaseUrl`:
 
 ```yaml
     environment:
-      # Where your users reach the dashboard from. Defaults to
+      # Where your users reach the portal from. Defaults to
       # http://localhost:8080, which is only right if you are reading this
-      # on the machine running the server.
+      # on the machine running the server. Deliberately not in
+      # appsettings.json: one default, in one place.
       - Portal__BaseUrl=https://kosync.example.org
 ```
 

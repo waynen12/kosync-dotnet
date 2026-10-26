@@ -4,6 +4,12 @@ namespace Kosync.Models;
 // sync tells a User to visit is a deployment decision (appsettings.json, or
 // Portal__BaseUrl in a container) rather than a compiled-in guess at an
 // address only the operator knows - see Constants.Portal.DefaultBaseUrl.
+//
+// Deliberately *not* also written into the shipped appsettings.json. A value
+// there would win over this initializer in production while the tests, whose
+// content root has no appsettings.json, went on exercising the constant - so
+// editing the JSON would change what every refused device is told with the
+// suite still green. One default, in one place, is the whole point.
 public class PortalOptions
 {
     public string BaseUrl { get; set; } = Constants.Portal.DefaultBaseUrl;
