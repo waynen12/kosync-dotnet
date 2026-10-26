@@ -126,8 +126,6 @@ public static class Constants
     {
         public const string PageTitle = "Dashboard";
 
-        public const string Tagline = "Your reading, across every device.";
-
         public const string NavGroupLibrary = "Library";
 
         // The sidebar's two section labels. Separate from DevicesTab/BooksTab
@@ -145,6 +143,11 @@ public static class Constants
         public const string ColumnLastSynced = "Last synced";
 
         public const string ColumnFlags = "Flags";
+
+        // The actions column's heading is deliberately blank on screen - the
+        // column holds one button per row and a label over it is noise - so
+        // this is read out rather than shown (.hub-sr-only).
+        public const string ColumnActions = "Actions";
 
         // Every row's one action, and the reason the whole row need not be a
         // click target - see the no-row-onclick comment in Dashboard.razor.
@@ -168,20 +171,25 @@ public static class Constants
         // mean the same file.
         public const string FilterScript = "dashboard-filter.js";
 
-        // Pluralised by DashboardFormatting for the toolbar's flagged count,
-        // so it reads "3 split books" rather than "3 flagged".
-        public const string SplitBookNoun = "split book";
+        // What the toolbar counts. Singular, because
+        // DashboardFormatting.Pluralize is what turns a count into a phrase.
+        public const string DeviceNoun = "device";
+
+        public const string BookNoun = "book";
+
+        // The flagged half of that count, which counts *rows* - and a row is
+        // a Book in one section and a Device in the other. A Device is not a
+        // Split Book (GLOSSARY.md): it is a Device holding a Document that
+        // belongs to one. So the two sections cannot share a phrase, and the
+        // Devices wording would be a lie if they did.
+        public const string FlaggedBooksNoun = "split book";
+
+        public const string FlaggedDevicesFormat = "{0} with a split Book";
 
         // A Book has no title of its own until Phase 3 (ADR 0007) observes or
         // curates one, so the dashboard names it by its id.
         public const string BookNameFormat = "Book #{0}";
     }
-
-    // The two things the dashboard counts. Singular, because
-    // DashboardFormatting.Pluralize is what turns a count into a phrase.
-    public const string DeviceNoun = "device";
-
-    public const string BookNoun = "book";
 
     public const string NoDevicesSyncedText = "No devices have synced yet.";
 
@@ -219,6 +227,10 @@ public static class Constants
     // The product name, rendered as the login card's title and the app
     // shell's brand.
     public const string BrandName = "Kosync";
+
+    // The one-line pitch under a page heading. Brand copy rather than
+    // dashboard copy, which is why it sits here and not in Dashboard below.
+    public const string BrandTagline = "Your reading, across every device.";
 
     // The app shell's theme toggle carries no visible text - it is an icon
     // button - so this is its accessible name rather than a label.
@@ -262,6 +274,14 @@ public static class Constants
 
         // For an icon that is the whole control, inside a .hub-icon-btn.
         public const int ButtonSize = 18;
+
+        // For an icon standing beside a nav label in the dashboard sidebar -
+        // a size up from inline, a size down from a control.
+        public const int SidebarSize = 17;
+
+        // For an icon inside a .hub-badge or a .hub-btn-sm, where the text it
+        // sits against is 11.5-12px.
+        public const int BadgeSize = 12;
 
         public const string Alert = "alert";
 

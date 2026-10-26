@@ -32,8 +32,8 @@
     <nav class="hub-sidebar">
         <p class="hub-sidebar-group hub-section-label">@Constants.Dashboard.NavGroupLibrary</p>
 
-        <a class="@NavItemClass(!IsBooks)" href="@AppRoutes.Dashboard">
-            <HubIcon Name="@Constants.Icons.Device" Size="@SidebarIconSize" />
+        <a class="@NavItemClass(!IsBooks)" href="@AppRoutes.Dashboard" aria-current="@AriaCurrent(!IsBooks)">
+            <HubIcon Name="@Constants.Icons.Device" Size="@Constants.Icons.SidebarSize" />
             <span>@Constants.Dashboard.DevicesLabel</span>
             @* No count on an empty library, rather than a 0 reading as a
                fault. The empty state says it in words instead. *@
@@ -43,8 +43,8 @@
             }
         </a>
 
-        <a class="@NavItemClass(IsBooks)" href="@AppRoutes.DashboardBooksTab">
-            <HubIcon Name="@Constants.Icons.BookOpen" Size="@SidebarIconSize" />
+        <a class="@NavItemClass(IsBooks)" href="@AppRoutes.DashboardBooksTab" aria-current="@AriaCurrent(IsBooks)">
+            <HubIcon Name="@Constants.Icons.BookOpen" Size="@Constants.Icons.SidebarSize" />
             <span>@Constants.Dashboard.BooksLabel</span>
             @if (bookRows.Count > 0)
             {
@@ -56,7 +56,7 @@
     <main class="hub-shell-main">
         <div class="hub-page-head">
             <h1 class="hub-page-title">@SectionLabel</h1>
-            <p class="hub-page-sub">@Constants.Dashboard.Tagline</p>
+            <p class="hub-page-sub">@Constants.BrandTagline</p>
         </div>
 
         @if (Rows.Count == 0)
@@ -71,7 +71,7 @@
                     @if (FlaggedCount > 0)
                     {
                         <span> · </span>
-                        <span class="hub-flagged-count">@DashboardFormatting.Pluralize(FlaggedCount, Constants.Dashboard.SplitBookNoun)</span>
+                        <span class="hub-flagged-count">@FlaggedText</span>
                     }
                 </span>
 
@@ -94,7 +94,11 @@
                             <th>@Constants.Dashboard.ColumnProgress</th>
                             <th>@Constants.Dashboard.ColumnLastSynced</th>
                             <th>@Constants.Dashboard.ColumnFlags</th>
-                            <th class="hub-table-actions"></th>
+                            @* Blank on screen - one button per row needs no
+                               label over it - but not blank to a screen
+                               reader, which otherwise meets an unnamed
+                               column. *@
+                            <th class="hub-table-actions"><span class="hub-sr-only">@Constants.Dashboard.ColumnActions</span></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -127,10 +131,10 @@
                                 </td>
                                 <td class="hub-muted hub-xs">@row.RelativeTime</td>
                                 <td>
-                                    @if (row.IsSplitBook)
+                                    @if (row.IsFlagged)
                                     {
                                         <span class="hub-badge hub-badge-warn">
-                                            <HubIcon Name="@Constants.Icons.Merge" Size="@FlagIconSize" />
+                                            <HubIcon Name="@Constants.Icons.Merge" Size="@Constants.Icons.BadgeSize" />
                                             @Constants.SplitBookFlag
                                         </span>
                                     }
@@ -142,7 +146,7 @@
                                 <td class="hub-table-actions">
                                     <a class="hub-btn hub-btn-outline hub-btn-sm" href="@row.Href">
                                         @Constants.Dashboard.OpenAction
-                                        <HubIcon Name="@Constants.Icons.ChevronRight" Size="@FlagIconSize" />
+                                        <HubIcon Name="@Constants.Icons.ChevronRight" Size="@Constants.Icons.BadgeSize" />
                                     </a>
                                 </td>
                             </tr>
@@ -168,14 +172,6 @@
     [Parameter]
     public string? Tab { get; set; }
 
-    // Standing on its own in the sidebar, so a size up from an icon inline in
-    // body text (Constants.Icons.InlineSize) and down from one that is the
-    // whole control (ButtonSize).
-    private const int SidebarIconSize = 17;
-
-    // Inside a badge or a small button, where the text is 11.5-12px.
-    private const int FlagIconSize = 12;
-
     private bool IsBooks => Tab == Constants.BooksTab;
 
     private string SectionLabel =>
@@ -183,14 +179,29 @@
 
     // The heading's label is a section name ("Books"); the toolbar counts
     // things ("2 books"), so it needs the singular to pluralise from.
-    private string SectionNoun => IsBooks ? Constants.BookNoun : Constants.DeviceNoun;
+    private string SectionNoun =>
+        IsBooks ? Constants.Dashboard.BookNoun : Constants.Dashboard.DeviceNoun;
 
-    private int FlaggedCount => Rows.Count(row => row.IsSplitBook);
+    private int FlaggedCount => Rows.Count(row => row.IsFlagged);
+
+    // A flagged Book is a Split Book; a flagged Device merely holds a
+    // Document belonging to one, so the two cannot be counted in the same
+    // words without the Devices section saying something untrue.
+    private string FlaggedText => IsBooks
+        ? DashboardFormatting.Pluralize(FlaggedCount, Constants.Dashboard.FlaggedBooksNoun)
+        : string.Format(
+            Constants.Dashboard.FlaggedDevicesFormat,
+            DashboardFormatting.Pluralize(FlaggedCount, Constants.Dashboard.DeviceNoun));
 
     // Built here rather than inline, so the section not on screen renders
     // `class="hub-nav-item"` instead of a trailing-space `"hub-nav-item "`.
     private static string NavItemClass(bool current) =>
         current ? "hub-nav-item current" : "hub-nav-item";
+
+    // The same fact as the `current` class, for a reader that cannot see a
+    // background colour. Null renders no attribute at all, which is what
+    // "not the current page" has to be - aria-current="false" is a value.
+    private static string? AriaCurrent(bool current) => current ? "page" : null;
 
     private List<DashboardRow> deviceRows = new();
     private List<DashboardRow> bookRows = new();

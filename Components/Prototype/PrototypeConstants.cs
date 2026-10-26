@@ -68,7 +68,7 @@ public static class PrototypeConstants
     public const string LoginPasswordLabel = Constants.LoginPasswordLabel;
     public const string ThemeToggleLabel = Constants.ThemeToggleLabel;
 
-    public const string BrandTagline = Constants.Dashboard.Tagline;
+    public const string BrandTagline = Constants.BrandTagline;
     public const string SignOutLabel = "Sign out";
     public const string ChangePasswordLabel = "Change password";
     public const string ManageAccountsLabel = "Manage accounts";

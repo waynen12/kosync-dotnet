@@ -157,6 +157,59 @@ public class DashboardViewTests : IntegrationTestBase
         Assert.Matches(@"\.ks-doc-card(?![\w-])", css);
     }
 
+    // The Flags column means two different things, and only one of them is a
+    // Split Book: a flagged Book *is* one (GLOSSARY.md), a flagged Device
+    // merely holds a Document that belongs to one. The toolbar counts rows,
+    // so the Devices section counting them as split Books would be a plain
+    // falsehood - two Devices sharing one split Book are not two split Books.
+    [Fact]
+    public async Task Toolbar_CountsFlaggedRowsInTheWordsOfTheSectionShowing()
+    {
+        await PushProgressAsync("hash1", 0.10m, "Kobo Nova", "device-1");
+        await PushProgressAsync("hash2", 0.20m, "Pixel Phone", "device-2");
+
+        await MergeIntoOneBookAsync("hash1", "hash2");
+
+        var books = await DashboardAsync(AppRoutes.DashboardBooksTab);
+        var devices = await DashboardAsync(AppRoutes.Dashboard);
+
+        // One Book, split across the two Documents.
+        Assert.Contains("1 split book", books);
+
+        // Both Devices hold one of those Documents, so both rows are flagged
+        // - and there is still only the one split Book.
+        Assert.Contains("2 devices with a split Book", devices);
+        Assert.DoesNotContain("2 split books", devices);
+    }
+
+    // The actions column's heading is blank by design, which leaves a screen
+    // reader at an unnamed column unless the name is there and hidden.
+    [Fact]
+    public async Task Table_NamesTheActionsColumnForAScreenReaderWithoutShowingIt()
+    {
+        await PushProgressAsync("hash1", 0.42m, "Kobo Nova", "device-1");
+
+        var html = await DashboardAsync(AppRoutes.Dashboard);
+
+        Assert.Contains(
+            $@"<span class=""hub-sr-only"">{Constants.Dashboard.ColumnActions}</span>",
+            html);
+    }
+
+    // `current` is a background colour. On its own it tells a reader who
+    // cannot see it nothing about which section they are in.
+    [Fact]
+    public async Task SectionNav_MarksTheCurrentSectionForAScreenReaderToo()
+    {
+        var html = await DashboardAsync(AppRoutes.DashboardBooksTab);
+
+        Assert.Contains($@"href=""{AppRoutes.DashboardBooksTab}"" aria-current=""page""", html);
+
+        // And exactly one link claims it - "no attribute" is what the other
+        // section has to render, because aria-current="false" is a value.
+        Assert.Single(Regex.Matches(Sidebar(html), @"aria-current="));
+    }
+
     // ADR 0003's amendment lists search-as-you-type among the things that are
     // UI state and must not round-trip, so the toolbar's filter is a plain
     // <input> over a per-row index and a few lines of JS - no @@oninput, and

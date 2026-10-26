@@ -36,11 +36,20 @@
 
     function wire() {
         document.querySelectorAll("[data-ks-filter]").forEach(function (input) {
-            // Enhanced navigation can hand back an input this already ran on.
-            if (input.__ksFilterWired) return;
-            input.__ksFilterWired = true;
+            // Enhanced navigation can hand back an input this already ran on,
+            // so the listener is attached once...
+            if (!input.__ksFilterWired) {
+                input.__ksFilterWired = true;
+                input.addEventListener("input", function () { applyFilter(input); });
+            }
 
-            input.addEventListener("input", function () { applyFilter(input); });
+            // ...but the filter is re-applied every time, because the other
+            // half of enhanced navigation is a table that has changed under a
+            // term still sitting in the box. Without this, typing "hash1" on
+            // Devices and clicking Books leaves the term on screen over
+            // unfiltered rows - or worse, leaves a row hidden and the
+            // "nothing matches" message up beside rows that are visible.
+            applyFilter(input);
         });
     }
 

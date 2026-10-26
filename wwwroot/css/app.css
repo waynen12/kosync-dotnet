@@ -320,6 +320,18 @@ a {
     color: var(--hub-muted-fg);
 }
 
+/* For a label a screen reader needs and the design does not want - a column
+   heading over a row of buttons, say. Clipped to a 1px box rather than
+   `display: none`, which would take it out of the accessibility tree too. */
+.hub-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
 .hub-divider { border: none; border-top: 1px solid var(--hub-border); margin: 0; }
 .hub-gradient { background: var(--hub-gradient); }
 
