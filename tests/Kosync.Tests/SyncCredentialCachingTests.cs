@@ -1,4 +1,5 @@
 using System.Net;
+using Kosync.Database.Entities;
 using Kosync.Models;
 using Kosync.Tests.TestSupport;
 
@@ -43,6 +44,12 @@ public class SyncCredentialCachingTests
         create.SetCredentials("admin", "admin");
         Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(create)).StatusCode);
 
+        // A password an Administrator set is Provisional and refuses sync
+        // (ADR 0006), which would stop this test before the KDF came into it.
+        // Both of these stand in for the User completing the forced change -
+        // what is under test is the cache, not the credential story.
+        factory.SetPasswordState("reader", PasswordState.UserChosen);
+
         Assert.Equal(HttpStatusCode.OK, (await PushProgressAsync(client, 0.1m, "reader", "first")).StatusCode);
 
         var change = new HttpRequestMessage(HttpMethod.Put, "/manage/users/password?username=reader")
@@ -52,6 +59,8 @@ public class SyncCredentialCachingTests
         };
         change.SetCredentials("admin", "admin");
         Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(change)).StatusCode);
+
+        factory.SetPasswordState("reader", PasswordState.UserChosen);
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await PushProgressAsync(client, 0.2m, "reader", "first")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await PushProgressAsync(client, 0.3m, "reader", "second")).StatusCode);

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Kosync.Controllers;
 
@@ -13,9 +14,10 @@ public class SyncController : ControllerBase
     private UserService _userService;
     private PasswordHasher _passwordHasher;
     private TenantContext _tenant;
+    private PortalOptions _portal;
 
 
-    public SyncController(ILogger<SyncController> logger, ProxyService proxyService, IPService ipService, KosyncDbContext db, UserService userService, PasswordHasher passwordHasher, TenantContext tenant)
+    public SyncController(ILogger<SyncController> logger, ProxyService proxyService, IPService ipService, KosyncDbContext db, UserService userService, PasswordHasher passwordHasher, TenantContext tenant, IOptions<PortalOptions> portal)
     {
         _logger = logger;
         _proxyService = proxyService;
@@ -24,6 +26,32 @@ public class SyncController : ControllerBase
         _userService = userService;
         _passwordHasher = passwordHasher;
         _tenant = tenant;
+        _portal = portal.Value;
+    }
+
+    // The sync half of "an account does nothing until its password is
+    // replaced" (ADR 0006). Returns the refusal to hand back, or null to
+    // carry on.
+    //
+    // Called after the authentication and active checks and before anything
+    // is read or written, on every endpoint an authenticated client can
+    // reach. Unlike the tenant scoping below, forgetting the call here does
+    // leak something real - a Provisional Password that works - so each
+    // endpoint's test asserts the refusal rather than trusting the call site.
+    //
+    // The message names the portal because to stock KOReader a bare 401 is
+    // indistinguishable from a wrong password, and re-typing the password is
+    // then exactly the wrong thing for the User to try.
+    private ObjectResult? RefusalIfPasswordMustChange(string attempt)
+    {
+        if (!_userService.MustChangePassword) { return null; }
+
+        LogWarning($"{attempt} from user [{_userService.Username}] refused: their password is provisional and must be changed.");
+
+        return StatusCode(401, new
+        {
+            message = Constants.Portal.PasswordChangeRequired(_portal.LoginUrl)
+        });
     }
 
     // A KOReader client says who it is with the x-auth-user header, and
@@ -87,6 +115,9 @@ public class SyncController : ControllerBase
                 message = "User is inactive"
             });
         }
+
+        var refusal = RefusalIfPasswordMustChange("Login");
+        if (refusal is not null) { return refusal; }
 
         LogInfo($"User [{username}] logged in.");
         return StatusCode(200, new
@@ -169,6 +200,9 @@ public class SyncController : ControllerBase
                 message = "Unauthorized"
             });
         }
+
+        var refusal = RefusalIfPasswordMustChange("Progress update");
+        if (refusal is not null) { return refusal; }
 
         ScopeToAuthenticatedUser();
 
@@ -277,6 +311,9 @@ public class SyncController : ControllerBase
                 message = "Unauthorized"
             });
         }
+
+        var refusal = RefusalIfPasswordMustChange("Progress request");
+        if (refusal is not null) { return refusal; }
 
         ScopeToAuthenticatedUser();
 

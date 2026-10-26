@@ -8,6 +8,9 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.Configure<PasswordHashingOptions>(
     builder.Configuration.GetSection(Constants.Passwords.ConfigurationSection));
 
+builder.Services.Configure<PortalOptions>(
+    builder.Configuration.GetSection(Constants.Portal.ConfigurationSection));
+
 builder.Services.AddMemoryCache();
 
 builder.Services.AddSingleton<ProxyService, ProxyService>();

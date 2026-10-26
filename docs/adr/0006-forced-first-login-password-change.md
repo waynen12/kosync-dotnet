@@ -87,7 +87,34 @@ this decision entirely, on a server intended to face the internet.
   and the reset both still leave a usable password derived from an env var.
   Nothing is worse than it was — that is simply the old behaviour — but the
   recovery path is only as safe as this ADR claims once the enforcement
-  ships.
+  ships. The sync half of that enforcement is now in; the portal gate is
+  still issue #24, so until it lands a Provisional Password opens the
+  dashboard but syncs nothing.
+- The sync refusal sits on all three authenticated protocol endpoints
+  rather than on a filter or middleware. The protocol surface is four
+  endpoints that each already hand-roll their own auth and active checks
+  from `UserService`, so a third check beside them reads the way the
+  existing ones do; a filter would have been the better shape only if
+  there were a `[Authorize]`-style attribute for these endpoints to share,
+  and there isn't. What makes this safe is that forgetting the call on a
+  future endpoint is a leak rather than an empty result — the opposite of
+  the tenant scoping right beside it — so each endpoint has its own test
+  asserting the refusal, not a shared one asserting the helper.
+- `/manage/*` is deliberately *not* refused, so "the account is inert" is
+  not yet literally true: a Provisional Password can still read its own
+  library over the management API. Blocking that wholesale would take
+  `PUT /manage/users/password` with it, which is the route a User without a
+  working portal replaces their password through — so the refusal would
+  have to carve out its own escape hatch. Left alone until the portal
+  change-password page (#24) makes that hatch unnecessary.
+- The portal URL in the message is configuration (`Portal__BaseUrl`),
+  deliberately not derived from the request. The `Host` header on a sync
+  request is whatever the device was pointed at, which is often an
+  internal address, a bare IP, or the wrong scheme behind a proxy — and the
+  one reader who needs this message is the one whose setup is least likely
+  to make that guess right. The shipped default is `http://localhost:8080`,
+  which is honest about being a guess: correct only for somebody running
+  the server on the machine they are sitting at.
 - The reset runs after the admin is seeded, not before. The other order
   leaves a fresh install's token unrecorded and therefore still pending, so
   it would fire on the next restart against a password the admin had

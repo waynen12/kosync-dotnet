@@ -55,6 +55,18 @@ This is a change in behaviour: **editing `ADMIN_PASSWORD` on an existing install
 
 A password somebody else chose for you — the one `ADMIN_PASSWORD` seeds, or one an administrator sets when creating an account — is recorded as *provisional*: it identifies the account, and it is meant to be replaced by a password of your own rather than kept. An administrator can change their own password through `PUT /manage/users/password`, which no longer refuses admin accounts.
 
+**While a password is provisional the account cannot sync.** `/users/auth`, `PUT /syncs/progress` and `GET /syncs/progress/{documentHash}` all refuse it with a `401`, so a fresh install syncs nothing until somebody has logged in and replaced `admin`/`admin`. This is deliberate: it keeps a password an administrator typed from quietly becoming a device's long-lived credential. The accepted cost is that a new user has to visit the web dashboard before their KOReader device will sync. See [ADR 0006](docs/adr/0006-forced-first-login-password-change.md).
+
+The refusal names the address to go and do that at, because KOReader shows the server's message and a bare refusal looks exactly like a wrong password. The server cannot work out its own public address — it is behind your reverse proxy, on your domain — so set `Portal__BaseUrl`:
+
+```yaml
+    environment:
+      # Where your users reach the dashboard from. Defaults to
+      # http://localhost:8080, which is only right if you are reading this
+      # on the machine running the server.
+      - Portal__BaseUrl=https://kosync.example.org
+```
+
 If you genuinely lose the admin password, set `ADMIN_PASSWORD_RESET` to any value and restart. On startup the admin's password goes back to `ADMIN_PASSWORD` (or `admin`), provisional again. It is acted on **once per value**, so the variable can stay in your compose file across later restarts without resetting anything again — which is the whole point, given that reset-on-every-boot is the behaviour removed above. To recover a second time, change it to a different value.
 
 If the `REGISTRATION_DISABLED` environment variable is set to `true`, the sync server will respond with an `User registration is disabled` error message when trying to create a new user. This is useful if you expose your sync server to the public internet, but don't want anyone to be able to register a user. This is a feature that is not available in the official sync server.

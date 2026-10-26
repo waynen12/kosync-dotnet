@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Kosync.Database;
 using Kosync.Database.Entities;
+using Kosync.Models;
 using Kosync.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,9 +19,16 @@ public abstract class IntegrationTestBase : IDisposable
 
     protected IntegrationTestBase()
     {
-        Factory = new KosyncWebApplicationFactory();
+        Factory = CreateFactory();
         Client = Factory.CreateClient();
     }
+
+    // The default fixture: an admin who has already replaced their seeded
+    // password, because most tests log in as admin/admin to get at something
+    // else (see SeededAdminFixtureTests). A test class whose subject *is* the
+    // fixture - a Provisional Password, a configured setting - overrides this
+    // rather than standing up a second host alongside the inherited one.
+    protected virtual KosyncWebApplicationFactory CreateFactory() => new();
 
     protected async Task<HttpResponseMessage> GetAsync(string url, string? username = null, string? password = null)
     {
@@ -70,6 +78,25 @@ public abstract class IntegrationTestBase : IDisposable
         }
 
         return await Client.SendAsync(request);
+    }
+
+    // A second User who can actually sync. Created the way an Administrator
+    // creates one, then taken past the forced password change - because the
+    // Provisional Password an Administrator hands over refuses sync
+    // (ADR 0006), and the tests reaching for this are about tenancy, document
+    // counts or credential caching rather than about that refusal. The tests
+    // that *are* about it live in ProvisionalPasswordSyncRefusalTests.
+    protected async Task CreateSyncingUserAsync(string username, string password)
+    {
+        var response = await PostAsync(
+            "/manage/users",
+            new UserCreateRequest { username = username, password = password },
+            Constants.Admin.Username,
+            Constants.Admin.DefaultPassword);
+
+        response.EnsureSuccessStatusCode();
+
+        Factory.SetPasswordState(username, PasswordState.UserChosen);
     }
 
     protected static async Task<JsonElement> BodyAsync(HttpResponseMessage response)

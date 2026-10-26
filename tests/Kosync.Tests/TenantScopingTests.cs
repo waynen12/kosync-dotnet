@@ -402,9 +402,11 @@ public class TenantScopingTests : IntegrationTestBase
         return await new DeviceDashboardService(db).GetDevicesAsync();
     }
 
-    private Task<HttpResponseMessage> CreateUserAsync(string username)
+    // Every User here goes on to sync, so each is taken past the forced
+    // password change - see IntegrationTestBase.CreateSyncingUserAsync.
+    private Task CreateUserAsync(string username)
     {
-        return PostAsync("/manage/users", new UserCreateRequest { username = username, password = username }, "admin", "admin");
+        return CreateSyncingUserAsync(username, username);
     }
 
     private Task<HttpResponseMessage> PushAsync(

@@ -39,6 +39,11 @@ public class KosyncWebApplicationFactory : WebApplicationFactory<Program>
     // asks for Provisional instead.
     public PasswordState AdminPasswordState { get; init; } = PasswordState.UserChosen;
 
+    // Stands in for the operator's own Portal:BaseUrl. Null leaves the
+    // setting unconfigured, so the app falls back to its shipped default the
+    // way a deployment that never set it does.
+    public string? PortalBaseUrl { get; init; }
+
     public string ContentRoot { get; }
 
     public string DataDirectory => Path.Combine(ContentRoot, "data");
@@ -106,6 +111,13 @@ public class KosyncWebApplicationFactory : WebApplicationFactory<Program>
         {
             Username = username,
             PasswordHash = storedPasswordHash,
+            // A row that predates PasswordState is one the AddUserPasswordState
+            // migration takes as UserChosen: the password works today and
+            // upgrading the server is not a reason to lock anybody out
+            // (ADR 0006). Said here rather than left at the entity default,
+            // because the default is Provisional and that would make this
+            // fixture a User the real migration never produces.
+            PasswordState = PasswordState.UserChosen,
         });
 
         db.SaveChanges();
@@ -121,6 +133,11 @@ public class KosyncWebApplicationFactory : WebApplicationFactory<Program>
         // run at bcrypt's minimum - which also exercises the work factor
         // actually being configurable.
         builder.UseSetting($"{Constants.Passwords.ConfigurationSection}:WorkFactor", WorkFactor.ToString());
+
+        if (PortalBaseUrl is not null)
+        {
+            builder.UseSetting($"{Constants.Portal.ConfigurationSection}:BaseUrl", PortalBaseUrl);
+        }
 
         builder.ConfigureServices(services =>
         {

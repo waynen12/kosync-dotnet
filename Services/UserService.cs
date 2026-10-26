@@ -64,6 +64,21 @@ public class UserService
         }
     }
 
+    // Whether this User's stored password is still somebody else's choice, in
+    // which case the account does nothing until they replace it (ADR 0006).
+    // Read from the User row on every request rather than cached alongside
+    // the verified credential, so the sync refusal stops the moment the
+    // change goes through instead of at the end of a cache window.
+    private bool _mustChangePassword = false;
+    public bool MustChangePassword
+    {
+        get
+        {
+            LoadUser();
+            return _mustChangePassword;
+        }
+    }
+
 
     public UserService(IHttpContextAccessor contextAccessor, KosyncDbContext db, PasswordHasher passwordHasher)
     {
@@ -102,5 +117,7 @@ public class UserService
         _isActive = user.IsActive;
 
         _isAdmin = user.IsAdministrator;
+
+        _mustChangePassword = user.MustChangePassword;
     }
 }

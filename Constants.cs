@@ -35,6 +35,34 @@ public static class Constants
         public const int DefaultVerifiedCredentialCacheSeconds = 300;
     }
 
+    // Where this server's portal can be reached from outside (ADR 0006).
+    // Defaults only - the live value comes from the "Portal" configuration
+    // section via PortalOptions.
+    public static class Portal
+    {
+        public const string ConfigurationSection = "Portal";
+
+        // The server cannot work out its own public address: it sits behind
+        // whatever reverse proxy and domain the operator put in front of it,
+        // and the Host header a KOReader device sends is whatever that device
+        // was pointed at. So this is a deployment setting, and the default is
+        // only right for the one case the server can assume - somebody
+        // running it on the machine they are reading this from, on the port
+        // the container publishes.
+        public const string DefaultBaseUrl = "http://localhost:8080";
+
+        // Named for the person holding the device, who sees it as a sync
+        // error and whose instinct is to re-type the password. A bare refusal
+        // is indistinguishable from a wrong password to stock KOReader, and
+        // KOReader surfaces the server's message - so this is the only
+        // channel that reaches them (ADR 0006).
+        private const string PasswordChangeRequiredTemplate =
+            "Password change required — log in at {0} to set a new password.";
+
+        public static string PasswordChangeRequired(string portalLoginUrl) =>
+            string.Format(PasswordChangeRequiredTemplate, portalLoginUrl);
+    }
+
     // The settings the app reads straight from the process environment rather
     // than through configuration. Named here so that the tests exercising
     // them share one spelling with the code that reads them.

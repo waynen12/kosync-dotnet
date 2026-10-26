@@ -28,7 +28,7 @@ public class ManagementControllerTests : IntegrationTestBase
     [Fact]
     public async Task GetUsers_Admin_ReturnsUsersWithDocumentCount()
     {
-        await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
+        await CreateSyncingUserAsync("reader", "pw");
         await PutAsync("/syncs/progress", new DocumentRequest
         {
             document = "hash1",
@@ -120,7 +120,7 @@ public class ManagementControllerTests : IntegrationTestBase
     [Fact]
     public async Task GetDocuments_SelfAccess_ReturnsOwnDocuments()
     {
-        await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
+        await CreateSyncingUserAsync("reader", "pw");
         await PutAsync("/syncs/progress", new DocumentRequest
         {
             document = "hash1",
@@ -156,7 +156,7 @@ public class ManagementControllerTests : IntegrationTestBase
     [Fact]
     public async Task GetDocuments_SelfAccess_ExcludesAnotherUsersSameHashedDocument()
     {
-        await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
+        await CreateSyncingUserAsync("reader", "pw");
         await PushSharedHashAsync("admin", "admin", percentage: 0.10m, deviceId: "admin-device");
         await PushSharedHashAsync("reader", "pw", percentage: 0.90m, deviceId: "reader-device");
 
@@ -170,7 +170,7 @@ public class ManagementControllerTests : IntegrationTestBase
     [Fact]
     public async Task GetDocuments_AdminRequestingAnotherUser_Returns401()
     {
-        await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
+        await CreateSyncingUserAsync("reader", "pw");
         await PutAsync("/syncs/progress", new DocumentRequest
         {
             document = "hash1",
@@ -266,6 +266,12 @@ public class ManagementControllerTests : IntegrationTestBase
 
         var response = await PutAsync("/manage/users/password?username=reader", new PasswordChangeRequest { password = "new-password" }, "admin", "admin");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // The password an Administrator just set is Provisional and refuses
+        // sync of its own accord (ADR 0006) - asserted by its own test below.
+        // What this one is about is which password now opens the account, so
+        // the User is taken past the forced change before asking.
+        Factory.SetPasswordState("reader", PasswordState.UserChosen);
 
         var authResponse = await GetAsync("/users/auth", "reader", "new-password");
         Assert.Equal(HttpStatusCode.OK, authResponse.StatusCode);
