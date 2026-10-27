@@ -87,9 +87,46 @@ this decision entirely, on a server intended to face the internet.
   and the reset both still leave a usable password derived from an env var.
   Nothing is worse than it was — that is simply the old behaviour — but the
   recovery path is only as safe as this ADR claims once the enforcement
-  ships. The sync half of that enforcement is now in; the portal gate is
-  still issue #24, so until it lands a Provisional Password opens the
-  dashboard but syncs nothing.
+  ships. Both halves are now in — the sync refusal and the portal gate —
+  so the recovery path is as safe as described above.
+- The portal gate is `PasswordChangeGateMiddleware`, and it only ever looks
+  at cookie-authenticated requests. The protocol and `/manage/*` endpoints
+  authenticate from headers per request, so they arrive at the gate as
+  anonymous requests and pass straight through to the refusals they
+  already carry. That is deliberate rather than incidental: redirecting
+  them would answer a KOReader client with an HTML page, and it would take
+  `PUT /manage/users/password` — the route a User with no working portal
+  replaces their password through — down with it.
+- Three paths are let through besides the change-password page itself:
+  logout, `/login`, and the framework's own endpoints (`/_blazor`,
+  `/_framework`, `/_content`). The last group is not a route anybody
+  navigates to; redirecting `blazor.web.js` would answer a script request
+  with the HTML of the page the gate is trying to serve.
+- The gate's one blind spot is the mirror image of the reason it is not in
+  `MainLayout`: it sees requests, so it cannot see a circuit that is
+  already open. An Administrator who resets a User's password to
+  Provisional while that User is sat on the dashboard does not interrupt
+  them — the next page load is the gate's first opportunity. A layout
+  check would have caught that one case and missed every non-Blazor
+  request, which is the trade this decision already made.
+- Completing the change does not re-issue the session cookie, because the
+  cookie carries only the username: it is not derived from the credential
+  and so does not go stale when the credential does.
+- Re-typing the same password is refused rather than accepted as a
+  change — otherwise the state flips to `UserChosen` while the password
+  somebody else chose stays in place, which is the one outcome this whole
+  decision exists to prevent. That check runs ahead of the length rule, so
+  a User re-typing `admin` is told to choose a different password rather
+  than invited to pad this one to eight characters.
+- The minimum length lives in `PasswordPolicy` rather than in the page,
+  against two callers that are still to come: the Users administration
+  page (issue #28) and `PUT /manage/users/password`, which today enforces
+  only "not blank". It deliberately does not constrain the Provisional
+  Passwords an Administrator hands over, which exist to be replaced.
+- Logout is a confirm screen with a form post, not a link that signs you
+  out on GET. A GET sign-out is triggered by anything that merely fetches
+  the URL, and the antiforgery token a Blazor named form carries is the
+  standard answer to that. It costs one click on an action taken rarely.
 - The sync refusal sits on all three authenticated protocol endpoints
   rather than on a filter or middleware. The protocol surface is four
   endpoints that each already hand-roll their own auth and active checks
@@ -105,8 +142,11 @@ this decision entirely, on a server intended to face the internet.
   library over the management API. Blocking that wholesale would take
   `PUT /manage/users/password` with it, which is the route a User without a
   working portal replaces their password through — so the refusal would
-  have to carve out its own escape hatch. Left alone until the portal
-  change-password page (#24) makes that hatch unnecessary.
+  have to carve out its own escape hatch. Still left alone now that the
+  portal page (#24) exists, and for a reason that has not gone away: the
+  portal still requires `IsAdministrator` to log in at all until issue
+  #26, so for every other User the management API *is* the route, not a
+  redundant second one. Whoever closes #26 inherits this decision.
 - The portal URL in the message is configuration (`Portal__BaseUrl`),
   deliberately not derived from the request. The `Host` header on a sync
   request is whatever the device was pointed at, which is often an

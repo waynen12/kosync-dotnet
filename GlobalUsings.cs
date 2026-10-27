@@ -2,6 +2,7 @@ global using Kosync;
 global using Kosync.Components;
 global using Kosync.Database;
 global using Kosync.Database.Entities;
+global using Kosync.Middleware;
 global using Kosync.Models;
 global using Kosync.Services;
 global using LiteDB;

@@ -10,6 +10,12 @@ namespace Kosync.Tests.TestSupport;
 // KDF is, and the real default of 12 would cost ~250ms per hash.
 public static class TestPasswords
 {
+    // A password a User would plausibly pick for themselves: long enough to
+    // clear the configured minimum, and nothing like the seeded one - the
+    // whole point of the forced change is that the new credential is not the
+    // one somebody else chose (ADR 0006).
+    public const string Chosen = "a-password-i-chose";
+
     // A hasher with nothing configured at all, so the shipped defaults are
     // what reaches the KDF.
     public static PasswordHasher CreateHasherWithDefaults()

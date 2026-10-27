@@ -449,6 +449,18 @@ a {
     margin: 20px 0 0;
 }
 
+/* The one link a login card carries: the way off this screen that isn't
+   completing the form - "sign out instead" on /change-password, "stay signed
+   in" on /logout. Underlined rather than coloured, so it reads as a way out
+   rather than as a second thing to do beside the brand-coloured submit. */
+.hub-login-link {
+    color: var(--hub-muted-fg);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.hub-login-link:hover { color: var(--hub-fg); }
+
 /* =========================================================================
    7. APP SHELL
 

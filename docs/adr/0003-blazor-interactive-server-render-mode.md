@@ -4,9 +4,15 @@ The dashboard is used by exactly one operator, self-hosted, on infrastructure
 the operator controls. `InteractiveServer` render mode (a persistent
 SignalR circuit, full C# execution on the server) is used throughout the
 authenticated dashboard, with no `InteractiveWebAssembly` or
-`InteractiveAuto` anywhere. `/login` alone is `Static SSR` — a plain form
-POST — since there's no reason to hold open a live circuit before the user
-is even authenticated.
+`InteractiveAuto` anywhere. The account screens are `Static SSR` — plain
+form posts — since there is no reason to hold a live circuit open for any
+of them: `/login` because the user is not authenticated yet, and
+`/change-password` and `/logout` because each is a single form that writes
+to the response (a password, a sign-out), which an interactive render has
+no `HttpContext` to do. `/change-password` has a second reason of its own:
+it is the one authenticated screen a Provisional-Password User can reach
+(ADR 0006), so it must not depend on a circuit the portal gate would never
+let them open.
 
 This is a deliberate departure from the instinct a lot of developers have
 that "modern Blazor" means WebAssembly. WASM buys offline capability and

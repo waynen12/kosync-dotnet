@@ -33,6 +33,13 @@ public static class Constants
         // KDF. Long enough to cover a reading session's page-turn batches,
         // short enough that it is not a second credential store.
         public const int DefaultVerifiedCredentialCacheSeconds = 300;
+
+        // The shortest password a User may choose for themselves, when the
+        // deployment has not said otherwise (PasswordPolicyOptions). It binds
+        // only where a User picks their own - it is deliberately not applied
+        // to the Provisional Passwords an Administrator hands over, which the
+        // forced change replaces anyway (ADR 0006).
+        public const int DefaultMinimumPasswordLength = 8;
     }
 
     // Where this server's portal can be reached from outside (ADR 0006).
@@ -58,6 +65,102 @@ public static class Constants
         // channel that reaches them (ADR 0006).
         public const string PasswordChangeRequiredFormat =
             "Password change required — log in at {0} to set a new password.";
+    }
+
+    // PasswordChangeGateMiddleware, which holds a Provisional-Password User
+    // on the change-password page (ADR 0006). Routing rather than copy,
+    // which is why it is not in ChangePassword below.
+    public static class PortalGate
+    {
+        // Request paths the gate never redirects, beyond the change-password
+        // page, logout and /login themselves (AppRoutes). These are the
+        // framework's own endpoints: Blazor's script and its circuit
+        // negotiation, and any Razor component library's static assets.
+        // Redirecting those answers a script request with an HTML page,
+        // which breaks the very page the gate is sending the User to.
+        //
+        // Matched as path prefixes. wwwroot's own files never reach the gate -
+        // UseStaticFiles short-circuits them before authentication runs.
+        public static readonly string[] ExemptPathPrefixes =
+        [
+            "/_blazor",
+            "/_framework",
+            "/_content",
+        ];
+    }
+
+    // The portal's forced first password change (ADR 0006, issue #24).
+    public static class ChangePassword
+    {
+        public const string PageTitle = "Change password";
+
+        // Under the title, in the card's .hub-login-sub - the same slot
+        // LoginHeading fills on /login.
+        public const string Subheading = "Choose a new password";
+
+        // Shown only to a User the gate sent here, so it is written as the
+        // answer to "why am I on this screen" rather than as a page
+        // subtitle.
+        public const string RequiredNotice =
+            "This password was set for you, so it does nothing until you replace it. Choose your own to use the portal and sync your devices.";
+
+        // The non-optional half of ADR 0006: portal password and sync
+        // password are the same stored credential, so completing this change
+        // invalidates the old one everywhere it is held - and by
+        // construction that happens to every User exactly once, right here.
+        // The ADR accepted that cost in exchange for one credential doing
+        // both jobs, and named this warning as the mitigation.
+        public const string DeviceInvalidationWarning =
+            "Changing your password signs out every KOReader device. Each one keeps syncing with the old password until you open its sync settings and enter the new one.";
+
+        public const string CurrentPasswordLabel = "Current password";
+
+        public const string NewPasswordLabel = "New password";
+
+        public const string ConfirmPasswordLabel = "Confirm new password";
+
+        public const string SubmitText = "Change password";
+
+        // Says only "that wasn't it", the way the login error does: this page
+        // is reached with a session, but a session is not proof that the
+        // person at the keyboard knows the password.
+        public const string CurrentPasswordWrongError = "That is not your current password.";
+
+        public const string ConfirmationMismatchError = "The two new passwords do not match.";
+
+        // Replacing a Provisional Password with itself would flip the state
+        // to UserChosen while leaving the credential somebody else chose in
+        // place - which is the whole thing ADR 0006 is preventing.
+        public const string UnchangedPasswordError = "Choose a password different from your current one.";
+
+        // Reads the configured minimum rather than a literal, so the message
+        // cannot disagree with the rule - see PasswordPolicy.
+        public const string TooShortErrorFormat = "Use at least {0} characters.";
+
+        public const string EmptyPasswordError = "Enter a new password.";
+
+        // The way out that isn't completing the change, for a User who
+        // reached this screen on somebody else's account or simply wants to
+        // leave. The gate lets it through for exactly that reason.
+        public const string SignOutLinkText = "Sign out instead";
+    }
+
+    // The portal's sign-out screen (AppRoutes.Logout).
+    public static class Logout
+    {
+        public const string PageTitle = "Sign out";
+
+        public const string Subheading = "Sign out of the portal?";
+
+        // What signing out of the portal does and does not touch. A User
+        // whose devices have just stopped syncing is the one most likely to
+        // be here, so the screen says plainly that this is not that.
+        public const string Explanation =
+            "This ends your portal session on this browser. Your KOReader devices are not affected.";
+
+        public const string SubmitText = "Sign out";
+
+        public const string CancelText = "Stay signed in";
     }
 
     // The settings the app reads straight from the process environment rather

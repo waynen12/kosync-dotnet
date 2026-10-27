@@ -8,6 +8,9 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.Configure<PasswordHashingOptions>(
     builder.Configuration.GetSection(Constants.Passwords.ConfigurationSection));
 
+builder.Services.Configure<PasswordPolicyOptions>(
+    builder.Configuration.GetSection(Constants.Passwords.ConfigurationSection));
+
 builder.Services.Configure<PortalOptions>(
     builder.Configuration.GetSection(Constants.Portal.ConfigurationSection));
 
@@ -16,6 +19,7 @@ builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<ProxyService, ProxyService>();
 builder.Services.AddSingleton<IPasswordKdf, BCryptPasswordKdf>();
 builder.Services.AddSingleton<PasswordHasher, PasswordHasher>();
+builder.Services.AddSingleton<PasswordPolicy, PasswordPolicy>();
 builder.Services.AddScoped<TenantContext, TenantContext>();
 builder.Services.AddScoped<IPService, IPService>();
 builder.Services.AddScoped<UserService, UserService>();
@@ -74,6 +78,11 @@ app.UseStaticFiles();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// After authentication, because it needs to know who is asking; before the
+// endpoints, because the whole point is that a gated User's request never
+// reaches one (ADR 0006).
+app.UseMiddleware<PasswordChangeGateMiddleware>();
 
 app.UseAntiforgery();
 

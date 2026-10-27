@@ -57,7 +57,11 @@ A password somebody else chose for you — the one `ADMIN_PASSWORD` seeds, or on
 
 **While a password is provisional the account cannot sync.** `/users/auth`, `PUT /syncs/progress` and `GET /syncs/progress/{documentHash}` all refuse it with a `401`, so a fresh install syncs nothing until somebody has logged into the portal and replaced `admin`/`admin`. This is deliberate: it keeps a password an administrator typed from quietly becoming a device's long-lived credential. The accepted cost is that a new user has to visit the portal before their KOReader device will sync. See [ADR 0006](docs/adr/0006-forced-first-login-password-change.md).
 
-The refusal names the address to go and do that at, because KOReader shows the server's message and a bare refusal looks exactly like a wrong password. The server cannot work out its own public address — it is behind your reverse proxy, on your domain — so set `Portal__BaseUrl`:
+**In the portal, a provisional password reaches nothing but the change-password screen.** Signing in at `/login` lands on `/change-password` instead of the dashboard, and every other page redirects back to it until the password has been replaced; signing out is the only other way off that screen. Replacing the password there grants both the portal and sync at once — they are the same stored credential.
+
+Which is also the catch worth knowing before you do it: **changing your password signs out every KOReader device.** Each one keeps trying the old password until you open its sync settings and enter the new one. There is no way round that while one credential does both jobs, which is the trade [ADR 0006](docs/adr/0006-forced-first-login-password-change.md) made deliberately. The portal says so on the screen. You can also change your own password through `PUT /manage/users/password`, with the same consequence. The portal additionally requires a new password of at least 8 characters, configurable with `Passwords__MinimumLength`.
+
+The sync refusal names the address to go and do that at, because KOReader shows the server's message and a bare refusal looks exactly like a wrong password. The server cannot work out its own public address — it is behind your reverse proxy, on your domain — so set `Portal__BaseUrl`:
 
 ```yaml
     environment:

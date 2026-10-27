@@ -17,9 +17,28 @@
             <a class="hub-nav-brand" href="@AppRoutes.Dashboard">@Constants.BrandName</a>
 
             <div class="hub-nav-actions">
+                @* Inside the AuthorizeView with the Username, and not only
+                   for symmetry: the router renders its "Not authorized" view
+                   inside this layout, so anything outside here is chrome an
+                   anonymous visitor is shown. Neither account action means
+                   anything to them.
+
+                   Links rather than buttons, because both destinations are
+                   Static SSR pages (issue #24) and a page that must work
+                   without a circuit cannot be reached by one. *@
                 <AuthorizeView>
                     <Authorized>
                         <span class="hub-nav-user">@context.User.Identity!.Name</span>
+
+                        <a class="hub-icon-btn" href="@AppRoutes.ChangePassword"
+                           title="@Constants.ChangePassword.PageTitle" aria-label="@Constants.ChangePassword.PageTitle">
+                            <HubIcon Name="@Constants.Icons.KeyRound" Size="@Constants.Icons.ButtonSize" />
+                        </a>
+
+                        <a class="hub-icon-btn" href="@AppRoutes.Logout"
+                           title="@Constants.Logout.PageTitle" aria-label="@Constants.Logout.PageTitle">
+                            <HubIcon Name="@Constants.Icons.LogOut" Size="@Constants.Icons.ButtonSize" />
+                        </a>
                     </Authorized>
                 </AuthorizeView>
 
@@ -39,11 +58,10 @@
         </nav>
     </header>
 
-    @* The prototype's nav also carried "Manage accounts", "Change password"
-       and "Sign out" icon buttons. None of the three has a destination yet:
-       issue #28 builds the accounts page, #24 the change-password screen, and
-       sign-out has no endpoint. They belong next to the toggle above when
-       those tickets land, rather than shipping as dead chrome now. *@
+    @* The prototype's nav also carried a "Manage accounts" icon button,
+       which still has no destination - issue #28 builds that page. It
+       belongs beside the two above when that ticket lands, rather than
+       shipping as dead chrome now. *@
     <main class="hub-app-main">
         @Body
     </main>
