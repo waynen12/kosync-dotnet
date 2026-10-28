@@ -42,9 +42,7 @@ public class DashboardAuthTests : IntegrationTestBase
 
         Assert.Equal(HttpStatusCode.Found, response.StatusCode);
         Assert.Equal(AppRoutes.Dashboard, response.Headers.Location!.PathAndQuery);
-        Assert.Contains(
-            response.Headers.GetValues("Set-Cookie"),
-            v => v.StartsWith(".AspNetCore.Cookies="));
+        DashboardLogin.AssertIssuedASessionCookie(response);
 
         var dashboardResponse = await client.GetAsync(AppRoutes.Dashboard);
         var dashboardHtml = await dashboardResponse.Content.ReadAsStringAsync();
@@ -72,16 +70,9 @@ public class DashboardAuthTests : IntegrationTestBase
         Assert.Contains(Constants.LoginErrorText, html);
     }
 
-    [Fact]
-    public async Task Login_WithNonAdminAccount_DoesNotIssueCookie()
-    {
-        await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
-
-        using var client = Factory.NoRedirectClient();
-
-        var response = await DashboardLogin.LogInAsync(client, "reader", "pw");
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.False(response.Headers.Contains("Set-Cookie"));
-    }
+    // A non-Administrator logging in used to be refused here. Issue #26
+    // reversed that - every User logs into the portal with their sync
+    // credentials (ADR 0004) - and PortalLoginForEveryUserTests owns the
+    // behaviour now, including the one precondition that survived it
+    // (an inactive account).
 }

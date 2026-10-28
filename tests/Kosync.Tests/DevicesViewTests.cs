@@ -148,7 +148,7 @@ public class DevicesViewTests : IntegrationTestBase
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("Device not found.", html);
+        Assert.Contains(Constants.DeviceNotFoundText, html);
     }
 
     [Fact]

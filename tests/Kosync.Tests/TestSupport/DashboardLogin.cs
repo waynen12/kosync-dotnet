@@ -15,6 +15,19 @@ public static class DashboardLogin
         });
     }
 
+    // That a sign-in actually issued a session, which is the half of "logged
+    // in" a redirect to the dashboard does not prove. Lives here rather than
+    // in any one test class because the cookie's name is the authentication
+    // scheme's business (ADR 0002), not any single test's.
+    public static void AssertIssuedASessionCookie(HttpResponseMessage response)
+    {
+        Assert.Contains(
+            response.Headers.GetValues("Set-Cookie"),
+            v => v.StartsWith(SessionCookiePrefix));
+    }
+
+    private const string SessionCookiePrefix = ".AspNetCore.Cookies=";
+
     // A client that has signed in and does not follow redirects, which is
     // what a test asserting on a redirect needs - and every test past the
     // login wall needs the first half.

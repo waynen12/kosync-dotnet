@@ -332,6 +332,16 @@ public static class Constants
 
     public const string NoBookProgressText = "No progress yet";
 
+    // What the two drill-ins render for an id they cannot find. Also what
+    // they render for an id belonging to somebody else, which is the same
+    // path on purpose (ADR 0004): a tenant-filtered lookup returns null, so
+    // "not yours" and "not there" are indistinguishable from outside - and
+    // must stay so, or the page becomes an oracle for which ids another User
+    // owns.
+    public const string DeviceNotFoundText = "Device not found.";
+
+    public const string BookNotFoundText = "Book not found.";
+
     public const string ProgressRegressionFlag = "Progress Regression";
 
     public const string SplitBookFlag = "Split Book";
@@ -387,7 +397,9 @@ public static class Constants
         "Use the same username and password your KOReader devices sync with.";
 
     // Deliberately says neither which of the two was wrong nor whether the
-    // User exists, is inactive or isn't an Administrator.
+    // User exists at all or is merely inactive - an inactive account being
+    // the only thing besides the credential that refuses a session, since
+    // issue #26 dropped the Administrator requirement.
     public const string LoginErrorText = "Invalid username or password";
 
     // Icon vocabulary for Components/Shared/HubIcon; HubIconPaths holds the

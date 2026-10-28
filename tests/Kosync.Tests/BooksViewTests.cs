@@ -320,7 +320,7 @@ public class BooksViewTests : IntegrationTestBase
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("Book not found.", html);
+        Assert.Contains(Constants.BookNotFoundText, html);
     }
 
     [Fact]

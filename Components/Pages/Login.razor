@@ -78,7 +78,16 @@
         var passwordMatches = user is not null
             && PasswordHasher.VerifyPlainText(Input.Password ?? string.Empty, user.PasswordHash);
 
-        if (user is null || !user.IsAdministrator || !user.IsActive || !passwordMatches)
+        // No IsAdministrator check, deliberately (ADR 0004): the portal is
+        // where every User reads their own library, and Administrator is a
+        // capability for managing other Users rather than a precondition for
+        // logging in. What still refuses a session is an inactive account.
+        //
+        // Nothing here asks about a Provisional Password either. Such a User
+        // may log in and then reaches only the change-password page, which is
+        // PasswordChangeGateMiddleware's business (ADR 0006) - refusing the
+        // sign-in would leave them with no way to replace the password.
+        if (user is null || !user.IsActive || !passwordMatches)
         {
             Logger.LogWarning("[{ip}] Failed dashboard login attempt for [{username}].", IPService.ClientIP, Input.Username);
             showError = true;
