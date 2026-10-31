@@ -254,6 +254,38 @@ public class ManagementControllerTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    // The username used to be dereferenced without a null check, so an
+    // unknown one was a NullReferenceException and a 500 rather than a 404
+    // (issue #35).
+    [Fact]
+    public async Task DeleteUserDocument_UnknownUsername_Returns404NotServerError()
+    {
+        var response = await DeleteAsync("/manage/users/documents?username=nobody&documentHash=missing", "admin", "admin");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    // An Administrator may delete another User's Document, so this endpoint
+    // cannot hide its outcome the way the GET does (ADR 0004). It can still
+    // decline to confirm which half of the question missed, so "no such User"
+    // and "no such Document" are one answer that names neither (issue #35).
+    [Fact]
+    public async Task DeleteUserDocument_NotFound_DoesNotDiscloseTheTarget()
+    {
+        await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
+
+        var knownUser = await DeleteAsync("/manage/users/documents?username=reader&documentHash=missing", "admin", "admin");
+        var unknownUser = await DeleteAsync("/manage/users/documents?username=nobody&documentHash=missing", "admin", "admin");
+
+        var knownBody = (await BodyAsync(knownUser)).GetProperty("message").GetString();
+        var unknownBody = (await BodyAsync(unknownUser)).GetProperty("message").GetString();
+
+        Assert.Equal(Constants.UserAdmin.DocumentNotFound, knownBody);
+        Assert.Equal(knownBody, unknownBody);
+        Assert.DoesNotContain("reader", knownBody);
+        Assert.DoesNotContain("missing", knownBody);
+    }
+
     [Fact]
     public async Task UpdateUserActive_TogglesState()
     {

@@ -331,15 +331,23 @@ public class ManagementController : ControllerBase
             });
         }
 
-        var user = _db.Users.IgnoreQueryFilters().Include(i => i.Documents).FirstOrDefault(i => i.Username == username)!;
+        // IgnoreQueryFilters is deliberate here, not an oversight: an
+        // Administrator may delete another User's Document as a diagnostic
+        // power (ADR 0004, issue #35). Reading a library stays banned - the
+        // GET above is the endpoint that refuses.
+        var user = _db.Users.IgnoreQueryFilters().Include(i => i.Documents).FirstOrDefault(i => i.Username == username);
 
-        var document = user.Documents.SingleOrDefault(i => i.DocumentHash == documentHash);
+        // Null-propagating so an unknown username lands in the same 404 as a
+        // known User without that Document, rather than dereferencing null.
+        // One answer for both keeps the endpoint from confirming which of the
+        // two it was, and leaves nothing to echo the username back in.
+        var document = user?.Documents.SingleOrDefault(i => i.DocumentHash == documentHash);
 
         if (document is null)
         {
             return StatusCode(404, new
             {
-                message = $"Document hash [{documentHash}] was not found for user [{username}]."
+                message = Constants.UserAdmin.DocumentNotFound
             });
         }
 

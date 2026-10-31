@@ -182,6 +182,14 @@ public static class Constants
 
         public const string UserAlreadyExists = "User already exists";
 
+        // Deliberately says neither which User was asked about nor which hash,
+        // and is the single answer for both "no such User" and "no such
+        // Document" (ADR 0004, issue #35). An Administrator may delete another
+        // User's Document, so this endpoint cannot hide its outcome the way
+        // the GET does - but it has no reason to confirm, to a caller who
+        // guessed wrong, which half of the question was the miss.
+        public const string DocumentNotFound = "Document not found";
+
         // KOReader will not attempt to log in with a blank or whitespace-only
         // password, so a credential like that cannot do the job it exists for.
         public const string PasswordRequired = "Password cannot be empty or whitespace";
