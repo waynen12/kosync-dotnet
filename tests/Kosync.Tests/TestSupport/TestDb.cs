@@ -40,6 +40,55 @@ public static class TestDb
         return db.Users.Single(u => u.Username == username).PasswordState;
     }
 
+    // Grants the Administrator capability directly. /manage/* has no route
+    // that does this - creating an Administrator is the portal's job
+    // (issue #28) - so a test about what an Administrator may do to *another*
+    // Administrator has to arrange the second one here.
+    public static void MakeAdministrator(this KosyncWebApplicationFactory factory, string username)
+    {
+        using var scope = factory.CreateSystemScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+
+        db.Users.Single(u => u.Username == username).IsAdministrator = true;
+        db.SaveChanges();
+    }
+
+    // Whether a User holds the Administrator capability, read from the
+    // database: the portal shows it as a badge and /manage/users as a flag,
+    // and a test about which of those is right needs the fact itself.
+    public static bool IsAdministrator(this KosyncWebApplicationFactory factory, string username)
+    {
+        using var scope = factory.CreateSystemScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+
+        return db.Users.Single(u => u.Username == username).IsAdministrator;
+    }
+
+    // How many rows of a kind the database actually holds, across every User.
+    // For the assertions no User's own view can make: a Book left behind by a
+    // deleted User belongs to nobody, so it is invisible from every scope
+    // that has a tenant.
+    public static int CountOfEveryStoredRow<TEntity>(this KosyncWebApplicationFactory factory)
+        where TEntity : class
+    {
+        using var scope = factory.CreateSystemScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+
+        return db.Set<TEntity>().Count();
+    }
+
+    // Who a test is acting as, for the services that take the acting User's
+    // id rather than resolving one ambiently (ADR 0004) - UserAdminService
+    // being the first. Throws if the User does not exist, so a typo fails
+    // rather than quietly acting as nobody.
+    public static int UserIdOf(this KosyncWebApplicationFactory factory, string username)
+    {
+        using var scope = factory.CreateSystemScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+
+        return db.Users.Single(u => u.Username == username).Id;
+    }
+
     // Stands in for a User completing the forced password change, which has
     // no route of its own yet - the portal page that does it is issue #24.
     // Lets a test arrange a User who is past that point and assert on what

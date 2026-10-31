@@ -43,6 +43,28 @@ public static class PortalForms
         return await client.PostAsync(url, new FormUrlEncodedContent(values));
     }
 
+    // The same round trip against one named form on a page that has several
+    // - the Users page renders one per User (issue #28), so "the form on the
+    // page" is no longer a thing a test can mean. Each form carries its own
+    // antiforgery token, so the token has to come from inside the form being
+    // submitted rather than from the first one in the document.
+    public static async Task<HttpResponseMessage> SubmitNamedAsync(
+        HttpClient client, string url, string formName, Dictionary<string, string> values)
+    {
+        var html = await (await client.GetAsync(url)).Content.ReadAsStringAsync();
+
+        var form = Regex.Matches(html, "<form.*?</form>", RegexOptions.Singleline)
+            .SingleOrDefault(match => match.Value.Contains($"name=\"_handler\" value=\"{formName}\""));
+
+        Assert.NotNull(form);
+
+        values["_handler"] = formName;
+        values["__RequestVerificationToken"] =
+            Regex.Match(form.Value, "name=\"__RequestVerificationToken\" value=\"([^\"]*)\"").Groups[1].Value;
+
+        return await client.PostAsync(url, new FormUrlEncodedContent(values));
+    }
+
     public static async Task<(string Handler, string AntiforgeryToken)> FieldsOf(HttpClient client, string url)
     {
         var html = await (await client.GetAsync(url)).Content.ReadAsStringAsync();

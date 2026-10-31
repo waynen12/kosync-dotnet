@@ -80,14 +80,21 @@ public class ManagementControllerTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    // This used to succeed: the endpoint let a non-Administrator through for
+    // their own account. Issue #28 refuses self-deletion outright - an
+    // account is removed by an Administrator who is not the one being
+    // removed - so what is left of the old carve-out is a plain
+    // "you may not use this endpoint".
     [Fact]
-    public async Task DeleteUser_SelfDelete_Returns200()
+    public async Task DeleteUser_NonAdminDeletingThemselves_Returns401()
     {
         await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
 
         var response = await DeleteAsync("/manage/users?username=reader", "reader", "pw");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Contains("reader", (await BodyAsync(await GetAsync("/manage/users", "admin", "admin")))
+            .EnumerateArray().Select(u => u.GetProperty("username").GetString()));
     }
 
     [Fact]
@@ -101,12 +108,33 @@ public class ManagementControllerTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    // The blanket "cannot delete admin user" refusal is gone, and this is
+    // what replaced it: on a fresh install the admin is the only
+    // Administrator, so deleting that account would leave the server with
+    // nobody who can manage Users (issue #28, ADR 0006). Same status code,
+    // a different and much narrower reason.
     [Fact]
-    public async Task DeleteUser_CannotDeleteAdmin_Returns400()
+    public async Task DeleteUser_LastAdministrator_Returns400()
     {
         var response = await DeleteAsync("/manage/users?username=admin", "admin", "admin");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(
+            Constants.UserAdmin.LastAdministratorRefused,
+            (await BodyAsync(response)).GetProperty("message").GetString());
+    }
+
+    // What the blanket refusal used to prevent and the guards allow: another
+    // Administrator may be deleted, because one remains.
+    [Fact]
+    public async Task DeleteUser_AnotherAdministratorWhileOneRemains_Returns200()
+    {
+        await PostAsync("/manage/users", new UserCreateRequest { username = "second-admin", password = "pw" }, "admin", "admin");
+        Factory.MakeAdministrator("second-admin");
+
+        var response = await DeleteAsync("/manage/users?username=second-admin", "admin", "admin");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
@@ -241,12 +269,30 @@ public class ManagementControllerTests : IntegrationTestBase
         Assert.Equal("User marked as active", reactivateBody.GetProperty("message").GetString());
     }
 
+    // Also narrowed from "cannot update admin user" to the guard that was
+    // behind it: the admin here is deactivating the only active
+    // Administrator, which is themselves.
     [Fact]
-    public async Task UpdateUserActive_CannotToggleAdmin_Returns400()
+    public async Task UpdateUserActive_DeactivatingTheLastAdministrator_Returns400()
     {
         var response = await PutAsync<object?>("/manage/users/active?username=admin", null, "admin", "admin");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(
+            Constants.UserAdmin.LastAdministratorRefused,
+            (await BodyAsync(response)).GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public async Task UpdateUserActive_DeactivatingAnotherAdministrator_Returns200()
+    {
+        await PostAsync("/manage/users", new UserCreateRequest { username = "second-admin", password = "pw" }, "admin", "admin");
+        Factory.MakeAdministrator("second-admin");
+
+        var response = await PutAsync<object?>("/manage/users/active?username=second-admin", null, "admin", "admin");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(Constants.UserAdmin.MarkedInactive, (await BodyAsync(response)).GetProperty("message").GetString());
     }
 
     [Fact]

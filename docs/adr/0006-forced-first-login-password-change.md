@@ -170,3 +170,19 @@ this decision entirely, on a server intended to face the internet.
   `/manage/users/active` and `DELETE /manage/users` are untouched and still
   too broad — they are the self-demotion and last-admin guards' job, and
   they belong to the Users administration work.
+- That work is now in (issue #28). The blanket refusals are gone, replaced
+  by three guards in `UserAdminService`, which both the portal's Users page
+  and `/manage/*` go through: nobody may demote, deactivate or delete
+  themselves, and no operation may leave the server without an active
+  Administrator. The last-Administrator rule is checked *first*, because on
+  a server with one Administrator every way of removing them is that person
+  acting on themselves — so the self-rules alone would answer "ask another
+  Administrator" when there is nobody to ask.
+- Deactivation is guarded alongside demotion and deletion, which the ADR
+  above does not list: an Administrator who cannot log in is not one the
+  server can fall back on, so "the last remaining Administrator" is read as
+  the last *active* one throughout.
+- Self-deletion is refused for everybody, not only for an Administrator, so
+  `DELETE /manage/users` lost the carve-out that let a User delete their own
+  account. That is a breaking change to a documented endpoint and is said
+  plainly in the README.

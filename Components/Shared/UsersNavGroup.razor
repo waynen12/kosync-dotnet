@@ -1,0 +1,34 @@
+@* The sidebar's Administration group: one link, to the Users administration
+   page (issue #28). Shared by the dashboard and that page rather than
+   written twice, because the thing worth keeping in one place is not the
+   markup but who gets to see it.
+
+   Inside an AuthorizeView on the Administrator policy, so a User without the
+   capability is shown no link to a page that would refuse them - the policy
+   on the page itself is what actually refuses (AdministratorRequirement),
+   and this is the half that keeps the sidebar honest.
+
+   A plain <a href>, like the rest of the sidebar: changing section is a
+   navigation the browser performs, not a circuit message (ADR 0003). *@
+
+<AuthorizeView Policy="@Constants.Authorization.Administrator">
+    <Authorized>
+        <p class="hub-sidebar-group hub-section-label">@Constants.Users.NavGroupAdministration</p>
+
+        <a class="@NavItemClass" href="@AppRoutes.Users" aria-current="@AriaCurrent">
+            <HubIcon Name="@Constants.Icons.Users" Size="@Constants.Icons.SidebarSize" />
+            <span>@Constants.Users.NavUsersLabel</span>
+        </a>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    [Parameter]
+    public bool Current { get; set; }
+
+    private string NavItemClass => Current ? "hub-nav-item current" : "hub-nav-item";
+
+    // Null renders no attribute at all, which is what "not the current page"
+    // has to be: aria-current="false" is a value.
+    private string? AriaCurrent => Current ? "page" : null;
+}

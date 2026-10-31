@@ -19,7 +19,8 @@
      5. Layout containers     the page-level wrappers
      6. Login                 the one screen with its own shell
      7. App shell             the authenticated nav every other page wears
-     8. Dashboard             the sidebar shell and the dense table
+     8. Dashboard and Users   the sidebar shell, the dense table, and the
+                              Users page's slide-over panel
      9. Pre-hub rules         .ks-* detail-page chrome
     10. Breakpoints           every @media query in the system
    ========================================================================= */
@@ -533,10 +534,13 @@ a {
 }
 
 /* =========================================================================
-   8. DASHBOARD SHELL AND TABLE
+   8. DASHBOARD AND USERS SHELL, TABLE AND PANEL
 
    Components/Pages/Dashboard.razor - the sidebar beside a dense table of
-   Devices or Books. Ported out of the prototype's variant B with issue #18,
+   Devices or Books - and, at the end of the section,
+   Components/Pages/Users.razor, which wears the same shell and table plus
+   variant B's slide-over. Ported out of the prototype's variant B with
+   issue #18,
    for the same reason sections 6 and 7 moved: prototype.css is only ever
    linked by PrototypeSwitcher, so rules left there go unstyled the moment
    issue #19 deletes it.
@@ -642,6 +646,114 @@ a {
 [data-hidden="true"] { display: none; }
 .hub-list-none { display: none; color: var(--hub-muted-fg); font-size: 14px; padding: 32px 0; text-align: center; }
 [data-none="true"] > .hub-list-none { display: block; }
+
+/* -------------------------------------------------------------------------
+   Users administration (Components/Pages/Users.razor, issue #28)
+
+   The same shell and table as above, plus variant B's slide-over panel,
+   folded in from prototype.css for the reason the rest of this section was.
+
+   Everything here that looks like an interaction is CSS: the panel is shown
+   by the URL fragment, the create form and the delete confirmation are native
+   <details>. ADR 0003's amendment forbids round-tripping UI state, and this
+   page is Static SSR - it has no circuit to round-trip to.
+   ------------------------------------------------------------------------- */
+
+/* An inactive account's row. Dimmed rather than hidden: an Administrator
+   needs to see that the account exists. */
+.hub-table tbody tr.inactive { opacity: 0.55; }
+
+.hub-table-badges { display: flex; gap: 5px; flex-wrap: wrap; }
+
+/* The "(you)" after the signed-in Administrator's own username. */
+.hub-user-self { margin-left: 6px; font-size: 12px; color: var(--hub-muted-fg); font-weight: 400; }
+
+/* A rule or a caveat about what is above it - a guard that will refuse, or
+   "counts only". Deliberately quiet: it explains, it does not warn. */
+.hub-guard { font-size: 12px; color: var(--hub-muted-fg); font-style: italic; margin: 0; line-height: 1.45; }
+
+.hub-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.hub-form-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* The create form, as a disclosure whose summary is the page's primary
+   button. list-style on a <summary> is the triangle marker; the button has
+   its own icon. */
+.hub-create { margin-bottom: 16px; padding: 14px 16px; }
+.hub-create > summary { list-style: none; }
+.hub-create > summary::-webkit-details-marker { display: none; }
+.hub-create[open] { padding-bottom: 18px; }
+.hub-create[open] > summary { margin-bottom: 16px; }
+
+/* Closed, the card is a border around one button, which reads as an empty
+   row. The chrome belongs to the form, so it arrives with it. */
+.hub-create:not([open]) { border: none; background: none; padding: 0; }
+
+/* The whole of the slide-over's open/closed state: the panel on screen is
+   the one the URL fragment names, which every row links to and the backdrop
+   and close button link away from. No script, no request, one rule - and
+   because a fragment is browser state, the back button closes the panel.
+   (Users.razor, ADR 0003's "UI state must not round-trip".) */
+.hub-panel-wrap { display: none; }
+.hub-panel-wrap:target { display: block; }
+
+.hub-panel-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background: rgba(0, 0, 0, 0.4);
+    cursor: pointer;
+}
+
+.hub-panel {
+    position: fixed;
+    inset: 0 0 0 auto;
+    z-index: 91;
+    width: min(27rem, 100vw);
+    background: var(--hub-card);
+    color: var(--hub-card-fg);
+    border-left: 1px solid var(--hub-border);
+    box-shadow: -16px 0 40px rgba(0, 0, 0, 0.22);
+    padding: 22px 24px;
+    overflow-y: auto;
+}
+
+.hub-panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+
+/* .hub-icon-btn is written for the gradient top band, where the icon is
+   white. On the panel's card surface that is an invisible close button. */
+.hub-panel .hub-icon-btn { color: var(--hub-muted-fg); }
+.hub-panel .hub-icon-btn:hover { background: var(--hub-muted); color: var(--hub-fg); }
+.hub-panel-title { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
+.hub-panel-sub { font-size: 13px; color: var(--hub-muted-fg); margin: 4px 0 20px; }
+.hub-panel .hub-section-label { padding: 0; margin: 22px 0 6px; }
+
+.hub-kv {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--hub-border);
+    font-size: 14px;
+}
+
+.hub-kv:last-of-type { border-bottom: none; }
+.hub-kv-key { color: var(--hub-muted-fg); }
+
+/* One action per row, full width, so the panel reads as a list of things
+   you can do rather than a toolbar. */
+.hub-panel-actions { display: grid; gap: 8px; }
+.hub-panel-actions .hub-btn { width: 100%; justify-content: flex-start; height: 36px; }
+.hub-panel-actions .hub-field { margin-bottom: 4px; }
+
+/* The delete confirmation, which is the second <details> on the page. */
+.hub-panel-actions details > summary { list-style: none; }
+.hub-panel-actions details > summary::-webkit-details-marker { display: none; }
+.hub-panel-actions details > .hub-guard { margin: 8px 0; }
+
+/* .hub-btn's own padding and height are written for <button>; an <a>
+   wearing it needs the text centred the same way. */
+a.hub-btn { text-decoration: none; }
 
 /* =========================================================================
    9. PRE-HUB RULES
@@ -912,6 +1024,10 @@ a {
     }
 
     .hub-nav-actions { gap: 6px; }
+
+    /* Two fields side by side stop fitting well before this width; the
+       create form on the Users page is the only user of the pair. */
+    .hub-grid-2 { grid-template-columns: 1fr; }
     .ks-detail { padding-top: 20px; }
     .ks-detail-title { font-size: 19px; }
 

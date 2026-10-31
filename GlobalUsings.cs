@@ -7,6 +7,7 @@ global using Kosync.Models;
 global using Kosync.Services;
 global using LiteDB;
 global using Microsoft.AspNetCore.Authentication.Cookies;
+global using Microsoft.AspNetCore.Authorization;
 global using Microsoft.EntityFrameworkCore;
 global using System;
 global using System.Security.Cryptography;

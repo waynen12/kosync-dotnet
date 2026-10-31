@@ -24,6 +24,7 @@ builder.Services.AddScoped<TenantContext, TenantContext>();
 builder.Services.AddScoped<IPService, IPService>();
 builder.Services.AddScoped<UserService, UserService>();
 builder.Services.AddScoped<PortalTenantResolver, PortalTenantResolver>();
+builder.Services.AddScoped<UserAdminService, UserAdminService>();
 builder.Services.AddScoped<DeviceDashboardService, DeviceDashboardService>();
 builder.Services.AddScoped<BookDashboardService, BookDashboardService>();
 
@@ -47,7 +48,18 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
     });
 
-builder.Services.AddAuthorization();
+// The one named policy: the Users administration page (issue #28). The
+// requirement re-reads the User row on every request rather than trusting a
+// claim, which is why the capability can be revoked - see
+// AdministratorRequirement.
+builder.Services.AddAuthorization(options =>
+    options.AddPolicy(Constants.Authorization.Administrator, policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.AddRequirements(new AdministratorRequirement());
+    }));
+
+builder.Services.AddScoped<IAuthorizationHandler, AdministratorRequirementHandler>();
 
 
 if (Environment.GetEnvironmentVariable("SINGLE_LINE_LOGGING") == "true")

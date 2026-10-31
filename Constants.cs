@@ -145,6 +145,241 @@ public static class Constants
         public const string SignOutLinkText = "Sign out instead";
     }
 
+    // Named authorization policies. One so far: the Users administration page
+    // and the /manage/* endpoints are the only things in the app that ask
+    // "may this User manage other Users" (GLOSSARY.md: Administrator).
+    public static class Authorization
+    {
+        // Deliberately a policy rather than a role claim. The session cookie
+        // carries only the username (ADR 0002), which is why a password
+        // change does not invalidate it - and a capability baked into the
+        // cookie would survive a demotion for the life of that session. The
+        // policy re-reads the User row instead, so revoking the capability
+        // takes effect on the next request.
+        public const string Administrator = "Administrator";
+    }
+
+    // What the Users administration service refuses, and what it reports when
+    // it does (issue #28). These sentences are the wire messages of
+    // /manage/* as well as the portal's own, so the two cannot drift: one
+    // service answers both (ADR 0003).
+    public static class UserAdmin
+    {
+        // The three wire messages /manage/* already returned, kept to the
+        // letter: an existing script reading them is not a caller this work
+        // gets to break.
+        public const string UserCreated = "User created successfully";
+
+        public const string PasswordChanged = "Password changed successfully";
+
+        public const string Deleted = "Success";
+
+        public const string MarkedActive = "User marked as active";
+
+        public const string MarkedInactive = "User marked as inactive";
+
+        public const string UserDoesNotExist = "User does not exist";
+
+        public const string UserAlreadyExists = "User already exists";
+
+        // KOReader will not attempt to log in with a blank or whitespace-only
+        // password, so a credential like that cannot do the job it exists for.
+        public const string PasswordRequired = "Password cannot be empty or whitespace";
+
+        public const string UsernameRequired = "Username cannot be empty or whitespace";
+
+        public const string NotAnAdministrator = "Only an Administrator can manage Users";
+
+        public const string Promoted = "User is now an Administrator";
+
+        public const string Demoted = "User is no longer an Administrator";
+
+        // The guards, which are the substance of issue #28. They replace the
+        // blanket "cannot update admin user" refusals, which reached for
+        // exactly these and caught an Administrator changing their own
+        // password along with them (ADR 0006).
+        //
+        // Self-rules hold whoever else exists: an Administrator who demotes or
+        // deletes themselves has locked themselves out of the capability with
+        // no way back, and "there is another Administrator who could undo it"
+        // is not something the person clicking can see.
+        public const string SelfDemotionRefused =
+            "You cannot remove your own Administrator capability. Ask another Administrator.";
+
+        public const string SelfDeletionRefused =
+            "You cannot delete yourself. Ask another Administrator.";
+
+        public const string SelfDeactivationRefused =
+            "You cannot deactivate yourself. Ask another Administrator.";
+
+        // Phrased as what it protects rather than as which operation was
+        // refused, because one sentence covers all three ways of removing an
+        // Administrator - demotion, deactivation and deletion - and the thing
+        // that matters is the server being left with nobody who can manage
+        // Users.
+        public const string LastAdministratorRefused =
+            "This is the last active Administrator. Make another User an Administrator first.";
+    }
+
+    // The Users administration page (issue #28), folded in from the
+    // prototype's UsersVariantB: a dense table of Users with a slide-over
+    // detail panel. Copy moved here from PrototypeConstants rather than
+    // copied - the prototype folder goes with issue #19.
+    public static class Users
+    {
+        public const string PageTitle = "Manage Users";
+
+        // Says what an Administrator is for, on the one screen where the
+        // question comes up: tenancy is absolute, so this page shows counts
+        // and never a Book or a Device (ADR 0004).
+        public const string Subtitle =
+            "Users and nothing inside them — an Administrator never reads another User's library.";
+
+        public const string NavGroupAdministration = "Administration";
+
+        public const string NavUsersLabel = "Users";
+
+        public const string ColumnUsername = "Username";
+
+        public const string ColumnRole = "Role";
+
+        public const string ColumnStatus = "Status";
+
+        public const string ColumnDevices = "Devices";
+
+        public const string ColumnBooks = "Books";
+
+        public const string ColumnActions = "Actions";
+
+        public const string RoleLabel = "Role";
+
+        public const string RoleAdministrator = "Administrator";
+
+        // A User who is not an Administrator, named for what they do rather
+        // than for what they lack. GLOSSARY.md has no term for this because
+        // there is no such entity - it is a User without the capability.
+        public const string RoleUser = "User";
+
+        public const string StatusActive = "Active";
+
+        public const string StatusInactive = "Inactive";
+
+        public const string PasswordProvisional = "Provisional";
+
+        public const string PasswordSet = "Password set";
+
+        public const string PasswordLabel = "Password";
+
+        public const string ProvisionalHint =
+            "Inert until this User replaces the password — the portal and sync both refuse it (ADR 0006).";
+
+        // Marks the row of the Administrator doing the looking, which is the
+        // row whose actions are guarded.
+        public const string SelfSuffix = "(you)";
+
+        public const string SearchPlaceholder = "Search accounts...";
+
+        // What the filter input points at and the table answers to - the
+        // dashboard's mechanism exactly (Dashboard.TableId), because it is the
+        // same script over a second table.
+        public const string TableId = "users-table";
+
+        public const string UserNoun = "User";
+
+        public const string AdministratorNoun = "administrator";
+
+        public const string NewUserSummaryText = "New User";
+
+        public const string CreateUserSubmitText = "Create User";
+
+        public const string UsernamePlaceholder = "e.g. alice";
+
+        // Deliberately no minimum-length hint: this password exists to be
+        // replaced, and PasswordPolicy does not constrain a Provisional
+        // Password (ADR 0006).
+        public const string ProvisionalPasswordHint =
+            "Hand this password over. It identifies the new User and grants them nothing until they replace it.";
+
+        public const string PanelSectionUser = "User";
+
+        public const string PanelSectionLibrary = "Library";
+
+        public const string PanelSectionActions = "Actions";
+
+        public const string CountsOnlyNote =
+            "Counts only — ADR 0004 means an Administrator never opens another User's library.";
+
+        public const string CloseText = "Close";
+
+        // Every row's one control, the way the dashboard's rows have one
+        // "Open": it opens the slide-over where the actions live, so the
+        // table itself stays scannable.
+        public const string ManageAction = "Manage";
+
+        public const string ResetPasswordAction = "Reset password";
+
+        public const string ResetPasswordSubmitText = "Set provisional password";
+
+        public const string DeactivateAction = "Deactivate";
+
+        public const string ReactivateAction = "Reactivate";
+
+        public const string PromoteAction = "Make Administrator";
+
+        public const string DemoteAction = "Remove Administrator";
+
+        public const string DeleteAction = "Delete";
+
+        // Deleting a User takes their library with them (the cascade in
+        // KosyncDbContext), which is not what "delete account" sounds like -
+        // so the confirmation says it, and is a <details> rather than a
+        // dialog because a confirmation must not round-trip (ADR 0003).
+        public const string DeleteConfirmWarning =
+            "This also deletes their Books, Devices and sync history. It cannot be undone.";
+
+        public const string DeleteConfirmSubmitText = "Delete this User";
+
+        public const string NoUsersText = "No Users yet.";
+
+        public const string NoMatchesText = Dashboard.NoMatchesText;
+
+        // The two reasons an action is disabled, shown in the panel so a
+        // greyed-out button is not a mystery.
+        public const string SelfGuardReason =
+            "You cannot change your own role, deactivate yourself or delete yourself.";
+
+        public const string LastAdministratorGuardReason =
+            "The last active Administrator cannot be demoted, deactivated or deleted.";
+
+        // The slide-over is opened by linking to it: the panel is the URL
+        // fragment's target, shown by a `:target` rule in app.css. No
+        // JavaScript and no request - the browser changes the fragment
+        // itself - which is what ADR 0003's amendment asks of a disclosure.
+        //
+        // An <a> rather than the prototype's @@onclick or a label over a
+        // hidden radio, because an anchor is the one control that is all
+        // three things at once: focusable, activated by Enter, and able to
+        // close the panel again by pointing somewhere else.
+        // The ids the links point at live in AppRoutes, which is where the
+        // two hrefs are built (AppRoutes.UsersPanel) - they are URLs, not
+        // copy.
+        public const string PanelIdFormat = "users-panel-{0}";
+
+        // Blazor requires a unique form name per form on a page, and this
+        // page renders one form per User plus the create form. The User's id
+        // is what makes each unique, and it is also how the posted action
+        // finds its target without trusting a field.
+        public const string ActionFormNameFormat = "users-action-{0}";
+
+        // The panel's password field, which is also rendered once per User -
+        // so its id cannot be the literal its siblings on /login and
+        // /change-password are, or every <label> on the page would point at
+        // the first one.
+        public const string ResetFieldIdFormat = "users-reset-{0}";
+
+        public const string CreateFormName = "users-create";
+    }
+
     // The portal's sign-out screen (AppRoutes.Logout).
     public static class Logout
     {

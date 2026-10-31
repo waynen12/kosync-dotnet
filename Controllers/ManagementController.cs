@@ -11,18 +11,18 @@ public class ManagementController : ControllerBase
     private IPService _ipService;
     private KosyncDbContext _db;
     private UserService _userService;
-    private PasswordHasher _passwordHasher;
+    private UserAdminService _userAdminService;
     private TenantContext _tenant;
 
 
-    public ManagementController(ILogger<ManagementController> logger, ProxyService proxyService, IPService ipService, KosyncDbContext db, UserService userService, PasswordHasher passwordHasher, TenantContext tenant)
+    public ManagementController(ILogger<ManagementController> logger, ProxyService proxyService, IPService ipService, KosyncDbContext db, UserService userService, UserAdminService userAdminService, TenantContext tenant)
     {
         _logger = logger;
         _proxyService = proxyService;
         _ipService = ipService;
         _db = db;
         _userService = userService;
-        _passwordHasher = passwordHasher;
+        _userAdminService = userAdminService;
         _tenant = tenant;
     }
 
@@ -37,7 +37,7 @@ public class ManagementController : ControllerBase
     }
 
     [HttpGet("/manage/users")]
-    public ObjectResult GetUsers()
+    public async Task<ObjectResult> GetUsers()
     {
         if (!_userService.IsAuthenticated)
         {
@@ -77,19 +77,17 @@ public class ManagementController : ControllerBase
         }
 
 
-        // Account operations reach across Users by design - that is what an
-        // Administrator is (ADR 0004) - so the handful of queries in this
-        // controller that touch another User's rows say so with
-        // IgnoreQueryFilters and state the User they mean in their own
-        // predicate, rather than quietly inheriting the request's tenant.
-        // Here that is a per-User count, not any part of a library.
-        var users = _db.Users.IgnoreQueryFilters().Select(i => new
+        // Projected back down to the four fields this endpoint has always
+        // returned. UserAdminService answers with everything the portal's
+        // Users page shows - roles, counts, last sync - and widening a
+        // documented wire response is not this ticket's business.
+        var users = (await _userAdminService.GetUsersAsync()).Select(i => new
         {
             id = i.Id,
             username = i.Username,
             isAdministrator = i.IsAdministrator,
             isActive = i.IsActive,
-            documentCount = i.Documents.Count()
+            documentCount = i.DocumentCount
         }).ToList();
 
         LogInfo($"User [{_userService.Username}] requested /manage/users");
@@ -97,7 +95,7 @@ public class ManagementController : ControllerBase
     }
 
     [HttpPost("/manage/users")]
-    public ObjectResult CreateUser(UserCreateRequest payload)
+    public async Task<ObjectResult> CreateUser(UserCreateRequest payload)
     {
         if (!_userService.IsAuthenticated)
         {
@@ -136,42 +134,23 @@ public class ManagementController : ControllerBase
             });
         }
 
-        var existingUser = _db.Users.FirstOrDefault(i => i.Username == payload.username);
-        if (existingUser is not null)
+        // No role in the request, so this creates a plain User. The portal's
+        // Users page is where an Administrator is made (issue #28) - adding a
+        // field to a documented KOReader-adjacent request shape is a separate
+        // decision from building the page that needs it.
+        var result = await _userAdminService.CreateAsync(
+            _userService.UserId!.Value, payload.username, payload.password, isAdministrator: false);
+
+        if (result.Succeeded)
         {
-            return StatusCode(400, new
-            {
-                message = "User already exists"
-            });
+            LogInfo($"User [{payload.username}] created by user [{_userService.Username}]");
         }
 
-        var passwordHash = _passwordHasher.HashPlainText(payload.password);
-
-        var user = new User()
-        {
-            Username = payload.username,
-            PasswordHash = passwordHash,
-            IsAdministrator = false
-            // PasswordState is left at its default of Provisional, which is
-            // what this route wants: an Administrator picked this password
-            // and is about to hand it over, so it grants the new User nothing
-            // until they replace it (ADR 0006). The two routes where the
-            // password is the User's own choice are the ones that have to say
-            // so - this one is the default case.
-        };
-
-        _db.Users.Add(user);
-        _db.SaveChanges();
-
-        LogInfo($"User [{payload.username}] created by user [{_userService.Username}]");
-        return StatusCode(200, new
-        {
-            message = "User created successfully"
-        });
+        return Respond(result);
     }
 
     [HttpDelete("/manage/users")]
-    public ObjectResult DeleteUser(string username)
+    public async Task<ObjectResult> DeleteUser(string username)
     {
         if (!_userService.IsAuthenticated)
         {
@@ -190,10 +169,13 @@ public class ManagementController : ControllerBase
             });
         }
 
-
-        if (!_userService.IsAdmin &&
-            !username.Equals(_userService.Username, StringComparison.OrdinalIgnoreCase))
-        // allow a user to delete their own account
+        // This used to let a non-Administrator through for their own account,
+        // so that a User could delete themselves. Issue #28 refuses
+        // self-deletion outright - an account is removed by an Administrator
+        // who is not the one being removed - so the carve-out now only led to
+        // a refusal one step later, and reads as a capability that no longer
+        // exists.
+        if (!_userService.IsAdmin)
         {
             LogWarning($"Unauthorized DELETE request to /manage/users from user [{_userService.Username}].");
 
@@ -213,41 +195,20 @@ public class ManagementController : ControllerBase
             });
         }
 
-        var user = _db.Users.IgnoreQueryFilters().Include(u => u.Documents).FirstOrDefault(u => u.Username == username);
+        var result = await _userAdminService.DeleteAsync(_userService.UserId!.Value, username);
 
-        if (user is null)
+        if (result.Succeeded)
         {
-            LogInfo($"DELETE request to /manage/users received from [{_userService.Username}] but target username [{username}] does not exist.");
-
-            return StatusCode(404, new
-            {
-                message = "User does not exist"
-            });
+            LogInfo($"User [{username}] has been deleted by [{_userService.Username}]");
+        }
+        else
+        {
+            LogWarning($"DELETE request to /manage/users for [{username}] from [{_userService.Username}] refused: {result.Message}");
         }
 
-        if (user.IsAdministrator)
-        {
-            LogWarning($"Attempt to delete admin user [{username}] from user [{_userService.Username}].");
-
-            return StatusCode(400, new
-            {
-                message = "Cannot delete admin user"
-            });
-        }
-
-        var bookIds = user.Documents.Select(d => d.BookId).ToList();
-
-        _db.Users.Remove(user);
-        _db.SaveChanges();
-
-        RemoveOrphanedBooks(bookIds);
-
-        LogInfo($"User [{username}] has been deleted by [{_userService.Username}]");
-
-        return StatusCode(200, new
-        {
-            message = "Success"
-        });
+        // The one endpoint here that answers a missing target with 404 rather
+        // than 400. Kept as it was - its callers are scripts.
+        return Respond(result, notFoundStatus: 404);
     }
 
     [HttpGet("/manage/users/documents")]
@@ -398,7 +359,7 @@ public class ManagementController : ControllerBase
     }
 
     [HttpPut("/manage/users/active")]
-    public ObjectResult UpdateUserActive(string username)
+    public async Task<ObjectResult> UpdateUserActive(string username)
     {
         if (!_userService.IsAuthenticated)
         {
@@ -437,40 +398,30 @@ public class ManagementController : ControllerBase
             });
         }
 
-        var user = _db.Users.FirstOrDefault(i => i.Username == username);
-        if (user is null)
-        {
-            LogInfo($"PUT request to /manage/users/active received from [{_userService.Username}] but target username [{username}] does not exist.");
+        // Toggling, which is this endpoint's documented shape - the portal
+        // says which state it means instead (UserAdminService.SetActiveAsync).
+        //
+        // The blanket "cannot update admin user" refusal that used to sit here
+        // is gone. It was reaching for the self and last-Administrator guards
+        // and caught far more than them (ADR 0006); the service now applies
+        // exactly those two, so deactivating another Administrator while one
+        // remains is allowed and deactivating yourself is not.
+        var result = await _userAdminService.ToggleActiveAsync(_userService.UserId!.Value, username);
 
-            return StatusCode(400, new
-            {
-                message = "User does not exist"
-            });
+        if (result.Succeeded)
+        {
+            LogInfo($"User [{username}] updated by user [{_userService.Username}]: {result.Message}");
+        }
+        else
+        {
+            LogWarning($"PUT request to /manage/users/active for [{username}] from [{_userService.Username}] refused: {result.Message}");
         }
 
-        if (user.IsAdministrator)
-        {
-            LogWarning($"Attempt to toggle admin user active from user [{_userService.Username}].");
-
-            return StatusCode(400, new
-            {
-                message = "Cannot update admin user"
-            });
-        }
-
-        user.IsActive = !user.IsActive;
-        _db.SaveChanges();
-
-        LogInfo($"User [{username}] set to {(user.IsActive ? "active" : "inactive")} by user [{_userService.Username}]");
-
-        return StatusCode(200, new
-        {
-            message = user.IsActive ? "User marked as active" : "User marked as inactive"
-        });
+        return Respond(result);
     }
 
     [HttpPut("/manage/users/password")]
-    public ObjectResult UpdatePassword(string username, PasswordChangeRequest payload)
+    public async Task<ObjectResult> UpdatePassword(string username, PasswordChangeRequest payload)
     {
         if (!_userService.IsAuthenticated)
         {
@@ -509,55 +460,44 @@ public class ManagementController : ControllerBase
             });
         }
 
-        // KOReader will literally not attempt to log in with a blank password field or with just whitespace
-        if (string.IsNullOrWhiteSpace(payload.password))
-        {
-            return StatusCode(400, new
-            {
-                message = "Password cannot be empty or whitespace"
-            });
-        }
-
-        var user = _db.Users.FirstOrDefault(i => i.Username == username);
-        if (user is null)
-        {
-            LogWarning($"Password change request received from [{_userService.Username}] but target username [{username}] does not exist.");
-            return StatusCode(400, new
-            {
-                message = "User does not exist"
-            });
-        }
-
-        // No admin guard here. This endpoint used to refuse any admin target
-        // outright, which was reaching for the self-demotion and last-admin
-        // protections but applied far too broadly: it also stopped an
-        // Administrator from changing their own password, by this or any
-        // other route, while the seeded admin's password is Provisional and
-        // replacing it is the one thing that account must be able to do
-        // (ADR 0006). Neither of the real protections is in play here -
-        // setting a password demotes nobody and removes nobody.
+        // No admin guard here either, for the reason ADR 0006 gives: setting
+        // a password demotes nobody and removes nobody, and the refusal that
+        // used to sit here stopped an Administrator changing their own
+        // password at all - including the seeded admin, whose Provisional
+        // Password is the one thing that account must be able to replace.
         //
-        // Compared by id rather than by name: the caller is already resolved,
-        // so this cannot be thrown off by how the username was spelled in the
-        // query string.
-        var isOwnPassword = user.Id == _userService.UserId;
+        // Whose choice the new password counts as is the service's business:
+        // set for yourself it is yours, set for somebody else it is
+        // Provisional.
+        var result = await _userAdminService.ResetPasswordAsync(
+            _userService.UserId!.Value, username, payload.password);
 
-        user.PasswordHash = _passwordHasher.HashPlainText(payload.password);
-
-        // Whose choice this password was. Set for yourself it is yours; set
-        // for somebody else - by an Administrator who will now hand it over -
-        // it is Provisional and grants that User nothing until they replace
-        // it, whether or not they had replaced one before.
-        user.PasswordState = isOwnPassword ? PasswordState.UserChosen : PasswordState.Provisional;
-
-        _db.SaveChanges();
-
-        LogInfo(isOwnPassword
-            ? $"User [{_userService.Username}] changed their own password."
-            : $"User [{username}]'s password was set to a provisional one by [{_userService.Username}].");
-        return StatusCode(200, new
+        if (result.Succeeded)
         {
-            message = "Password changed successfully"
+            LogInfo(username == _userService.Username
+                ? $"User [{_userService.Username}] changed their own password."
+                : $"User [{username}]'s password was set to a provisional one by [{_userService.Username}].");
+        }
+
+        return Respond(result);
+    }
+
+    // One status code per refusal, so every endpoint above answers the same
+    // reason the same way. Only the missing-target case differs between them,
+    // and only because DELETE /manage/users has always answered it with a 404.
+    private ObjectResult Respond(UserAdminResult result, int notFoundStatus = 400)
+    {
+        var status = result.Outcome switch
+        {
+            UserAdminOutcome.Succeeded => 200,
+            UserAdminOutcome.NotAnAdministrator => 401,
+            UserAdminOutcome.UserNotFound => notFoundStatus,
+            _ => 400,
+        };
+
+        return StatusCode(status, new
+        {
+            message = result.Message
         });
     }
 

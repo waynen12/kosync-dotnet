@@ -108,7 +108,9 @@ The SQLite database is created under a `data/` folder relative to wherever you r
 
 There are some management API endpoints you can interact with using a tool like [Postman](https://www.postman.com/).
 
-Only the admin user can make requests to these API endpoints, with the exception of users being allowed to query and delete their own documents and delete their own account.
+Only the admin user can make requests to these API endpoints, with the exception of users being allowed to query and delete their own documents.
+
+**Breaking change:** a user can no longer delete their own account. `DELETE /manage/users` is now an administrator-only endpoint, and it refuses self-deletion whoever asks — along with removing the last remaining administrator. An account is removed by an administrator who is not the one being removed. See [ADR 0006](docs/adr/0006-forced-first-login-password-change.md).
 
 Reading a user's documents is the one thing being an admin does *not* unlock: `GET /manage/users/documents` only ever returns the caller's own documents, because an admin manages accounts but never reads another user's library. See [ADR 0004](docs/adr/0004-multi-tenant-portal.md).
 

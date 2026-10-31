@@ -25,10 +25,10 @@
        performs - no circuit message, no component state, and a back button
        that goes back (ADR 0003, "local UI state must not round-trip").
 
-       The prototype's Administration group is not here: it pointed at a
-       prototype-only Users route, and issues #28 and #24 build its two real
-       destinations. Same call MainLayout made with its nav buttons in #17 -
-       dead chrome is worse than a short sidebar. *@
+       The prototype's Administration group now has a real destination
+       (issue #28) and is below, as UsersNavGroup - which renders nothing at
+       all for a User without the capability, so the sidebar still has no
+       dead chrome in it. *@
     <nav class="hub-sidebar">
         <p class="hub-sidebar-group hub-section-label">@Constants.Dashboard.NavGroupLibrary</p>
 
@@ -51,6 +51,8 @@
                 <span class="hub-nav-count">@bookRows.Count</span>
             }
         </a>
+
+        <UsersNavGroup />
     </nav>
 
     <main class="hub-shell-main">
