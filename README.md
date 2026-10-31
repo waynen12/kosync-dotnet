@@ -110,7 +110,7 @@ There are some management API endpoints you can interact with using a tool like 
 
 Only the admin user can make requests to these API endpoints, with the exception of users being allowed to query and delete their own documents.
 
-**Breaking change:** a user can no longer delete their own account. `DELETE /manage/users` is now an administrator-only endpoint, and it refuses self-deletion whoever asks — along with removing the last remaining administrator. An account is removed by an administrator who is not the one being removed. See [ADR 0006](docs/adr/0006-forced-first-login-password-change.md).
+Deleting an account is an administrator's job, and not one they can do to themselves: `DELETE /manage/users` refuses self-deletion whoever asks, and refuses to remove the last remaining administrator. See [ADR 0006](docs/adr/0006-forced-first-login-password-change.md).
 
 Reading a user's documents is the one thing being an admin does *not* unlock: `GET /manage/users/documents` only ever returns the caller's own documents, because an admin manages accounts but never reads another user's library. See [ADR 0004](docs/adr/0004-multi-tenant-portal.md).
 
