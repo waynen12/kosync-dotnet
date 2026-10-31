@@ -39,13 +39,13 @@
             <div class="hub-stack-4">
                 <div class="hub-field">
                     <label class="hub-label" for="login-username">@Constants.LoginUsernameLabel</label>
-                    <InputText id="login-username" class="hub-input" @bind-Value="Input.Username"
+                    <InputText id="login-username" class="hub-input" @bind-Value="Input!.Username"
                                placeholder="@Constants.LoginUsernamePlaceholder" autocomplete="username" />
                 </div>
 
                 <div class="hub-field">
                     <label class="hub-label" for="login-password">@Constants.LoginPasswordLabel</label>
-                    <InputText id="login-password" type="password" class="hub-input" @bind-Value="Input.Password"
+                    <InputText id="login-password" type="password" class="hub-input" @bind-Value="Input!.Password"
                                placeholder="@Constants.LoginPasswordPlaceholder" autocomplete="current-password" />
                 </div>
 
@@ -60,23 +60,36 @@
 </div>
 
 @code {
+    @* No property initializer: one on a [SupplyParameterFromForm] property
+       is what raises BL0008 (issue #36). The form's model is restored from
+       the post, so the only time this needs an instance of its own is the
+       first GET - and a post carrying none of the form's fields binds it to
+       null, which on an unauthenticated endpoint would be a 500 for the
+       asking. *@
     [SupplyParameterFromForm]
-    private LoginModel Input { get; set; } = new();
+    private LoginModel? Input { get; set; }
 
     private bool showError;
 
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
 
+    protected override void OnInitialized()
+    {
+        Input ??= new LoginModel();
+    }
+
     private async Task HandleLogin()
     {
-        var user = Db.Users.FirstOrDefault(u => u.Username == Input.Username);
+        var input = Input ?? new LoginModel();
+
+        var user = Db.Users.FirstOrDefault(u => u.Username == input.Username);
 
         // The portal has plaintext, so it does the MD5 the sync client would
         // have done before verifying against the one stored credential
         // (ADR 0005).
         var passwordMatches = user is not null
-            && PasswordHasher.VerifyPlainText(Input.Password ?? string.Empty, user.PasswordHash);
+            && PasswordHasher.VerifyPlainText(input.Password ?? string.Empty, user.PasswordHash);
 
         // No IsAdministrator check, deliberately (ADR 0004): the portal is
         // where every User reads their own library, and Administrator is a
@@ -89,7 +102,7 @@
         // sign-in would leave them with no way to replace the password.
         if (user is null || !user.IsActive || !passwordMatches)
         {
-            Logger.LogWarning("[{ip}] Failed dashboard login attempt for [{username}].", IPService.ClientIP, Input.Username);
+            Logger.LogWarning("[{ip}] Failed dashboard login attempt for [{username}].", IPService.ClientIP, input.Username);
             showError = true;
             return;
         }
@@ -107,9 +120,13 @@
         Navigation.NavigateTo(AppRoutes.Dashboard, forceLoad: true);
     }
 
+    @* Nullable, like ChangePasswordModel: a post can carry the model without
+       carrying every field, so "" is a claim about the body that the binder
+       never made. It is what the ?? above is guarding. *@
     private class LoginModel
     {
-        public string Username { get; set; } = "";
-        public string Password { get; set; } = "";
+        public string? Username { get; set; }
+
+        public string? Password { get; set; }
     }
 }

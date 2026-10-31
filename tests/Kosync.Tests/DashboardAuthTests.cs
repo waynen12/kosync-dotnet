@@ -70,6 +70,25 @@ public class DashboardAuthTests : IntegrationTestBase
         Assert.Contains(Constants.LoginErrorText, html);
     }
 
+    // Issue #36: a post that carries the handler and the antiforgery token but
+    // none of the form's own fields. Blazor binds the form model to null for
+    // such a body - which is what BL0008 warns about - and /login is an
+    // unauthenticated endpoint, so an unhandled NullReferenceException there
+    // is a 500 anyone can ask for.
+    [Fact]
+    public async Task Login_WithNoFormFields_FailsTheLoginRatherThanThrowing()
+    {
+        using var client = Factory.NoRedirectClient();
+
+        var response = await PortalForms.SubmitAsync(client, AppRoutes.Login, new Dictionary<string, string>());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(response.Headers.Contains("Set-Cookie"));
+
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains(Constants.LoginErrorText, html);
+    }
+
     // A non-Administrator logging in used to be refused here. Issue #26
     // reversed that - every User logs into the portal with their sync
     // credentials (ADR 0004) - and PortalLoginForEveryUserTests owns the
