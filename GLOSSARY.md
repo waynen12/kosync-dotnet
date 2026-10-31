@@ -19,9 +19,10 @@ _Avoid_: account, reader, operator, sync user (all one thing — a User)
 **Administrator**:
 A User who can additionally manage other Users — creating them, resetting
 their passwords, deactivating or deleting them, and granting or revoking
-this capability itself. A handful exist at most. Being an Administrator is
-a capability a User holds, not a separate kind of account, and it confers
-no ability to read another User's reading.
+this capability itself. May also delete another User's Document, which is
+a diagnostic power rather than an account one. A handful exist at most.
+Being an Administrator is a capability a User holds, not a separate kind
+of account, and it confers no ability to *read* another User's reading.
 _Avoid_: admin as a distinct entity, operator, owner
 
 **Tenant**:

@@ -46,13 +46,28 @@ those are account operations rather than reading someone's library. That
 endpoint's cross-user reach was never a privacy decision anybody made; it
 was written when the server had one user.
 
-That list of kept powers is about accounts, and it does not settle
-`DELETE /manage/users/documents`, which still reaches across Users:
-deleting another User's Document is neither an account operation nor
-reading a library, so this ADR left it in a gap rather than in a
-carve-out it made. Raised as issue #35 for a deliberate decision, since
-the endpoint is also a slower read oracle for exactly what the GET above
-stopped disclosing.
+`DELETE /manage/users/documents` **keeps** its cross-user reach, as a
+deliberate carve-out rather than the gap this ADR originally left it in
+(issue #35). Deleting another User's Document is a diagnostic power: a
+Document whose hash went bad, or a Split Book that wants clearing, is
+exactly the kind of thing an Administrator gets asked to sort out, and
+the alternative — "delete the whole account, it cascades" — is wildly
+disproportionate to the problem.
+
+This is narrower than it first looks, and the asymmetry with the GET is
+the point. The GET returned a User's **entire** document list on request.
+The DELETE can only answer a question about a hash the Administrator
+already holds, and a Document hash is an MD5 over file content, so there
+is no space to iterate and nothing to enumerate. An Administrator can
+confirm that a named User has a file they already know about; they still
+cannot find out what else that User is reading. Reading a library stays
+banned, which is the rule the portal is actually built on.
+
+Two things follow and are not optional. The failure message must stop
+naming the User back — "not found for user X" is a confirmation the
+endpoint has no reason to volunteer — and a nonexistent `username` must
+return 404 rather than the `NullReferenceException` the `!` on its lookup
+currently produces.
 
 ## Consequences
 
