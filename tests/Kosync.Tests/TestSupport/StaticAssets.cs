@@ -5,14 +5,12 @@ namespace Kosync.Tests.TestSupport;
 // KosyncWebApplicationFactory deliberately points the content root at a
 // private temp directory, so UseStaticFiles() cannot serve wwwroot in tests.
 // Stylesheet-contract tests therefore read the file from the repository
-// instead of over HTTP.
+// instead of over HTTP - see RepositoryFiles for the walk up to it.
 public static class StaticAssets
 {
-    private const string ProjectFileName = "Kosync.csproj";
+    public static string ReadAppCss() => RepositoryFiles.ReadAllText(WwwRoot, "css", "app.css");
 
-    public static string ReadAppCss() => File.ReadAllText(Path.Combine(WwwRoot, "css", "app.css"));
-
-    public static string ReadThemeJs() => File.ReadAllText(Path.Combine(WwwRoot, "js", "theme.js"));
+    public static string ReadThemeJs() => RepositoryFiles.ReadAllText(WwwRoot, "js", "theme.js");
 
     // theme.js is half prose - the enhancedload hook and the toggle-contents
     // rule are both long comments naming the very things a scan looks for.
@@ -23,7 +21,7 @@ public static class StaticAssets
     // this time: the scripts here explain themselves in /* */ headers.
     public static string ReadJsWithoutComments(string fileName)
     {
-        var js = File.ReadAllText(Path.Combine(WwwRoot, "js", fileName));
+        var js = RepositoryFiles.ReadAllText(WwwRoot, "js", fileName);
 
         return Regex.Replace(
             Regex.Replace(js, @"/\*.*?\*/", "", RegexOptions.Singleline),
@@ -36,26 +34,5 @@ public static class StaticAssets
     public static string ReadAppCssWithoutComments() =>
         Regex.Replace(ReadAppCss(), @"/\*.*?\*/", "", RegexOptions.Singleline);
 
-    private static string WwwRoot => Path.Combine(RepositoryRoot, "wwwroot");
-
-    private static string RepositoryRoot
-    {
-        get
-        {
-            var directory = new DirectoryInfo(AppContext.BaseDirectory);
-
-            while (directory is not null)
-            {
-                if (File.Exists(Path.Combine(directory.FullName, ProjectFileName)))
-                {
-                    return directory.FullName;
-                }
-
-                directory = directory.Parent;
-            }
-
-            throw new InvalidOperationException(
-                $"Could not locate {ProjectFileName} above {AppContext.BaseDirectory}.");
-        }
-    }
+    private const string WwwRoot = "wwwroot";
 }

@@ -7,7 +7,7 @@ namespace Kosync.Tests;
 // The credential check and sign-in flow are DashboardAuthTests' subject and
 // are unchanged by the fold-in; what is asserted here is the rendering - that
 // the hub login card is what /login actually serves, and that it carries no
-// throwaway-prototype scaffolding, which issue #19 deletes out from under it.
+// throwaway-prototype scaffolding, which issue #19 deleted out from under it.
 public class LoginViewTests : IntegrationTestBase
 {
     [Fact]
@@ -70,7 +70,7 @@ public class LoginViewTests : IntegrationTestBase
             + await (await DashboardLogin.LogInAsync(client, "admin", "wrong-password")).Content.ReadAsStringAsync();
 
         // The hub login rules lived in prototype.css, which only
-        // PrototypeSwitcher ever linked - and /login no longer renders it.
+        // PrototypeSwitcher ever linked - and issue #19 deleted both.
         // A class the page asks for but app.css does not define is therefore
         // an unstyled login screen, which no markup assertion can see.
         var rendered = HubClasses.RenderedIn(html);

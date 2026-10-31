@@ -340,7 +340,7 @@ and where it goes:
 |---|---|---|
 | `LoginVariantA.razor` | `Components/Pages/Login.razor` | Strings move to `Constants.cs`, not `PrototypeConstants.cs` |
 | `DashboardVariantB.razor` + `HubSidebar.razor` | `Components/Pages/Dashboard.razor` | **Done (#18):** `CardGrid.razor` and `CardGridItem.cs` are deleted, and their rules are out of `app.css`. Section selection is a `?tab=` link, so it costs no circuit message; the table's search is `wwwroot/js/dashboard-filter.js`, client-only for the same reason the theme toggle is. The sidebar carries the Library group only — its Administration group pointed at the prototype Users route, and #28/#24 build the real destinations |
-| `UsersVariantB.razor` | a new Users page | **Blocked on Phase 2.5** — no account service, no tenancy |
+| `UsersVariantB.razor` | a new Users page | **Done (#28):** `Components/Pages/Users.razor`, over `UserAdminService`. Was blocked on Phase 2.5 for an account service and tenancy, which is why #19 waited on it — the variant was the design source and had to outlive the deletion |
 | `HubNav.razor` | `Components/Layout/MainLayout.razor` | **Done (#17):** replaced `.ks-shell-*` outright — those rules and the `--ks-shell-bg` alias are gone, and the nav rules are app.css section 7. The nav carries brand, Username and the theme toggle only; the prototype's "Manage accounts", "Change password" and "Sign out" buttons land with #28, #24 and a sign-out endpoint respectively, rather than shipping as dead chrome |
 | `prototype.css` token block + primitives | `wwwroot/css/app.css` | **Does not delete the `--ks-*` tokens** — see "the detail pages" below |
 | `HubIcon.razor` | keep as-is | Or take a real icon dependency — decide then |
@@ -397,6 +397,14 @@ Delete the rest: `PrototypeConstants.cs`, `PrototypeRoutes.cs`,
 `PrototypeEmptyLayout.razor`, `PrototypeDashboardItem.cs`, the losing
 variants, and `prototype.js`.
 
+**Done (#19).** `Components/Prototype/`, `prototype.css` and `prototype.js`
+are gone in full — `UsersVariantB.razor` with them, since #28 had already
+landed the real Users page it was the design source for. The variants are
+recoverable from this branch's history, as this section always intended.
+`PrototypeRemovalTests` is what notices them coming back: nothing references
+the folder any more, so a reinstated variant would otherwise sit there
+compiling and unread.
+
 **Four** files in main were touched for the prototype and must be reverted
 or made permanent:
 
@@ -415,10 +423,17 @@ or made permanent:
   It does not get its `<CardGrid>` calls back — the table replaced them, and
   `PrototypeDashboardItem` became `Components/Shared/DashboardRow.cs`.
 - `Components/_Imports.razor` — two `@using` lines marked as throwaway.
+  **Done (#19):** both removed. `Kosync.Components.Pages` went with the
+  prototype namespace — it was only ever there so the switcher could name
+  the real pages, and the solution builds without it.
 - `tests/Kosync.Tests/DashboardAuthTests.cs` — one assertion left
   re-pointed at prototype copy (`">admin<"`); it should assert against
   whatever the folded-in nav actually renders. The login-error assertion is
   already on `Constants.LoginErrorText` — see the ordering constraint.
+  **Done (#19):** the loose `">admin<"` is now
+  `<span class="hub-nav-user">admin</span>`, the element #17's nav actually
+  renders. It was loose because the copy around the Username was in flux
+  while the prototype ran; it has been settled since #17.
 
 **Ordering constraint on the deletions — discharged by #13.**
 `DashboardAuthTests.cs` used to reference `PrototypeConstants.LoginErrorText`

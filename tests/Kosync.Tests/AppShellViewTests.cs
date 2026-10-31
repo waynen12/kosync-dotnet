@@ -38,8 +38,8 @@ public class AppShellViewTests : IntegrationTestBase
     {
         var rendered = HubClasses.RenderedIn(await AuthenticatedPageAsync());
 
-        // The nav's rules lived in prototype.css, which issue #19 deletes
-        // along with the only page that links it. They have to be in app.css
+        // The nav's rules lived in prototype.css, which issue #19 deleted
+        // along with the only page that linked it. They had to be in app.css
         // for the shell to survive that.
         Assert.NotEmpty(rendered);
         Assert.Empty(rendered.Except(HubClasses.DefinedInAppCss()));

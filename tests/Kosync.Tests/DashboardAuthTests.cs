@@ -48,10 +48,17 @@ public class DashboardAuthTests : IntegrationTestBase
         var dashboardHtml = await dashboardResponse.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, dashboardResponse.StatusCode);
-        // The sentence around the username is in flux while the UI prototype
-        // runs (Components/Prototype/ - ai-hub's nav shows the bare username),
-        // so assert the username is rendered rather than the surrounding copy.
-        Assert.Contains(">admin<", dashboardHtml);
+        // The signed-in Username as the folded-in nav renders it: bare, in
+        // `hub-nav-user`, where the pre-hub shell wrote a "Logged in as ..."
+        // sentence. Asserted with its element, not as a bare ">admin<" - that
+        // was a deliberately loose assertion while the copy was in flux
+        // during the UI prototype, and the nav has been settled since #17.
+        //
+        // A literal class name, like every other `hub-` assertion in the
+        // suite: these names are markup structure rather than copy, so the
+        // stylesheet is the other half of the pair and HubClasses is what
+        // checks the two agree. Constants.cs carries the copy instead.
+        Assert.Contains(@"<span class=""hub-nav-user"">admin</span>", dashboardHtml);
     }
 
     [Fact]
@@ -66,7 +73,9 @@ public class DashboardAuthTests : IntegrationTestBase
 
         var html = await response.Content.ReadAsStringAsync();
         // Read from the same constant the login screen renders, so the
-        // assertion can't drift from the copy while the UI prototype runs.
+        // assertion can't drift from the copy (CLAUDE.md). The string lives
+        // in Constants.cs rather than the prototype's own constants, which
+        // is what unblocked deleting that folder (issue #13, then #19).
         Assert.Contains(Constants.LoginErrorText, html);
     }
 

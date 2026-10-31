@@ -401,8 +401,8 @@ a {
    The one screen with its own shell: a full-bleed gradient with a centred
    card, rather than the nav-plus-main shape every authenticated page takes
    (docs/ROADMAP.md, "/login layout"). Ported out of the prototype with
-   issue #16 - prototype.css is only linked by PrototypeSwitcher, so these
-   rules have to live here for /login to render once the switcher is gone.
+   issue #16 - prototype.css was only ever linked by PrototypeSwitcher, so
+   these rules had to live here for /login to survive issue #19 deleting it.
    ========================================================================= */
 .hub-login {
     min-height: 100vh;
@@ -467,9 +467,9 @@ a {
 
    Components/Layout/MainLayout.razor - the chrome every authenticated page
    wears. Ported out of the prototype's HubNav.razor with issue #17, for the
-   same reason the login rules moved in section 6: prototype.css is only ever
-   linked by PrototypeSwitcher, so rules left there go unstyled the moment
-   issue #19 deletes it.
+   same reason the login rules moved in section 6: prototype.css was only
+   ever linked by PrototypeSwitcher, so rules left there went unstyled when
+   issue #19 deleted it.
 
    This replaced the `.ks-shell-*` chrome wholesale, which is why no alias
    for it survives in section 2.
@@ -541,9 +541,9 @@ a {
    Components/Pages/Users.razor, which wears the same shell and table plus
    variant B's slide-over. Ported out of the prototype's variant B with
    issue #18,
-   for the same reason sections 6 and 7 moved: prototype.css is only ever
-   linked by PrototypeSwitcher, so rules left there go unstyled the moment
-   issue #19 deletes it.
+   for the same reason sections 6 and 7 moved: prototype.css was only ever
+   linked by PrototypeSwitcher, so rules left there went unstyled when
+   issue #19 deleted it.
 
    Why a table and not the card grid it replaced - a grid row is as tall as
    its tallest card, and these lists are scanned rather than browsed - is

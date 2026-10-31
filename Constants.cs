@@ -224,7 +224,7 @@ public static class Constants
     // The Users administration page (issue #28), folded in from the
     // prototype's UsersVariantB: a dense table of Users with a slide-over
     // detail panel. Copy moved here from PrototypeConstants rather than
-    // copied - the prototype folder goes with issue #19.
+    // copied - the prototype folder went with issue #19.
     public static class Users
     {
         public const string PageTitle = "Manage Users";
@@ -484,7 +484,7 @@ public static class Constants
     // The hub dashboard - a sidebar beside a dense table of Devices or Books
     // (issue #18, docs/ROADMAP.md "Screen layouts"). Moved here from
     // PrototypeConstants.cs when variant B won, rather than copied: the
-    // prototype folder goes with issue #19.
+    // prototype folder went with issue #19.
     public static class Dashboard
     {
         public const string PageTitle = "Dashboard";

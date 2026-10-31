@@ -106,8 +106,10 @@ public class DesignSystemTests
     {
         // The folder is the namespace, so referencing the type by its Shared
         // namespace is itself the compile-time proof; the assertion states
-        // the requirement issue #15 actually makes - that HubIcon is not
-        // under Components/Prototype/, which issue #19 deletes wholesale.
+        // the requirement issue #15 actually makes - that HubIcon was not
+        // under Components/Prototype/, which issue #19 deleted wholesale.
+        // PrototypeRemovalTests now guards the folder's absence outright;
+        // this one is still the record of where HubIcon had to end up.
         var location = typeof(Components.Shared.HubIcon).Namespace;
 
         Assert.DoesNotContain("Prototype", location);

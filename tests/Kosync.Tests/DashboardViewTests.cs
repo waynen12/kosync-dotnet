@@ -101,7 +101,7 @@ public class DashboardViewTests : IntegrationTestBase
 
     // The other half of a fold-in, and the half no markup assertion can see:
     // variant B's rules lived in prototype.css, which only PrototypeSwitcher
-    // ever linked and issue #19 deletes. A class whose rule did not come
+    // ever linked and issue #19 deleted. A class whose rule did not come
     // across is in the markup either way - it is simply unstyled.
     [Fact]
     public async Task Dashboard_RendersOnlyClassesThatAppCssDefines()
