@@ -113,6 +113,10 @@ public class KosyncDbContext : DbContext
             .Property(d => d.LastResetAt)
             .HasConversion(nullableUtcTimestamp);
 
+        modelBuilder.Entity<Document>()
+            .Property(d => d.MetadataObservedAt)
+            .HasConversion(nullableUtcTimestamp);
+
         ApplyTenantFilters(modelBuilder);
     }
 

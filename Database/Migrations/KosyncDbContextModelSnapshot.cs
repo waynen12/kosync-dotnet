@@ -74,6 +74,18 @@ namespace Kosync.Database.Migrations
                     b.Property<DateTime?>("LastResetAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("MetadataObservedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ObservedAuthors")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ObservedFilename")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ObservedTitle")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("UserId")
                         .HasColumnType("INTEGER");
 

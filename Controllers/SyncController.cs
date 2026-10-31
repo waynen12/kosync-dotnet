@@ -256,6 +256,12 @@ public class SyncController : ControllerBase
 
         var timestamp = DateTime.UtcNow;
 
+        // Observed Metadata, if this client sent any (ADR 0007, issue #29).
+        // Independent of the regression check below: metadata describes the
+        // file, so a push that was too far behind to become the current
+        // progress still reported a real observation about it.
+        ObservedMetadataRule.Record(document, payload.metadata, timestamp);
+
         // Regression protection: a SyncEvent only becomes the Document's
         // current progress if it's at least as far along as the existing
         // current SyncEvent. Comparison is scoped to this Document alone -

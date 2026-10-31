@@ -233,15 +233,18 @@ depend on `ADMIN_PASSWORD` being applied at boot. Forced password change
 breaks all of them; the shared test fixture needs to seed a non-Provisional
 admin.
 
-### Phase 3 — Book metadata — designed, not started
+### Phase 3 — Book metadata — started
 
 Source is now decided (ADR 0007): KOReader's own opt-in metadata push.
 
-- Extend `DocumentRequest` with an optional `metadata` object
+- **Done (#29):** `DocumentRequest` takes an optional `metadata` object
   (`filename`, `title`, `authors` — `authors` is a single string, not a
-  list). It is currently dropped silently at model binding. Requires
-  KOReader ≥ 2026.07 with "Send document metadata" enabled; absent
-  metadata must never clear previously stored metadata.
+  list), stored as Observed Metadata on the Document. Requires
+  KOReader ≥ 2026.07 with "Send document metadata" enabled. Absent
+  metadata never clears what is stored, and neither does a blank field —
+  an empty `title` is a Device reporting it found none, not a correction.
+  Each observation also records `MetadataObservedAt`, because the
+  most-recent-observation rule below cannot recover that afterwards.
 - Observed metadata on Document; curated title/author on Book; display
   resolves curated → most recent observation → `Book #N`.
 - Manual title/author editing on the Book detail page.
