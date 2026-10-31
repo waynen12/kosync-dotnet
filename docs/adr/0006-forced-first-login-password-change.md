@@ -192,3 +192,11 @@ this decision entirely, on a server intended to face the internet.
   on a server where registration is disabled. Anything other than `true`
   (case-insensitively) leaves it off, so a typo fails towards the account
   creation path this ADR chose rather than away from it.
+- It stays an environment variable rather than becoming a setting on the
+  Users page, against this project's general preference for things an
+  Administrator can configure. Whether this server faces the internet is a
+  deployment fact, and it belongs with the other deployment facts in the
+  compose file — `TRUSTED_PROXIES`, `Portal__BaseUrl`, `ADMIN_PASSWORD`. A
+  portal toggle would also mean the account-creation path could be reopened
+  by anyone who reaches the portal as an Administrator, which is the
+  opposite of what turning it off is for.

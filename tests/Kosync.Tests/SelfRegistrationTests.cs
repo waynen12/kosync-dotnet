@@ -18,11 +18,11 @@ public class SelfRegistrationTests : IntegrationTestBase
     private static EnvironmentVariableScope NotConfigured() =>
         new(Constants.EnvironmentVariables.SelfRegistrationEnabled, null);
 
-    private static EnvironmentVariableScope EnabledBy(string value) =>
+    private static EnvironmentVariableScope ConfiguredAs(string value) =>
         new(Constants.EnvironmentVariables.SelfRegistrationEnabled, value);
 
     private static EnvironmentVariableScope Enabled() =>
-        EnabledBy(Constants.EnvironmentVariables.Enabled);
+        ConfiguredAs(Constants.SelfRegistration.EnabledValue);
 
     [Fact]
     public async Task CreateUser_WithNoConfiguration_IsRefused()
@@ -86,6 +86,9 @@ public class SelfRegistrationTests : IntegrationTestBase
         Assert.Equal(PasswordState.UserChosen, Factory.StoredPasswordStateOf("newuser"));
     }
 
+    // Pinned to the same sentence /manage/users returns, because the two
+    // routes refuse a taken username for the same reason and a caller
+    // reading the message cannot tell which one it came from.
     [Fact]
     public async Task CreateUser_WhenEnabled_WithExistingUsername_Returns402()
     {
@@ -94,8 +97,10 @@ public class SelfRegistrationTests : IntegrationTestBase
         await PostAsync("/users/create", new UserCreateRequest { username = "dupe", password = "hash" });
 
         var response = await PostAsync("/users/create", new UserCreateRequest { username = "dupe", password = "hash2" });
+        var body = await BodyAsync(response);
 
         Assert.Equal((HttpStatusCode)402, response.StatusCode);
+        Assert.Equal(Constants.UserAdmin.UserAlreadyExists, body.GetProperty("message").GetString());
     }
 
     // The spelling an installer is likeliest to reach for, and the one the
@@ -103,7 +108,7 @@ public class SelfRegistrationTests : IntegrationTestBase
     [Fact]
     public async Task CreateUser_WhenExplicitlyFalse_IsRefused()
     {
-        using var scope = EnabledBy("false");
+        using var scope = ConfiguredAs("false");
 
         var response = await PostAsync("/users/create", new UserCreateRequest { username = "newuser", password = "hash" });
 
@@ -113,7 +118,7 @@ public class SelfRegistrationTests : IntegrationTestBase
     [Fact]
     public async Task CreateUser_WhenEnabledInAnyCasing_IsAllowed()
     {
-        using var scope = EnabledBy("True");
+        using var scope = ConfiguredAs("True");
 
         var response = await PostAsync("/users/create", new UserCreateRequest { username = "newuser", password = "hash" });
 

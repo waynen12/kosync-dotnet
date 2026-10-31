@@ -226,6 +226,12 @@ public static class Constants
     // SELF_REGISTRATION_ENABLED says otherwise (issue #23).
     public static class SelfRegistration
     {
+        // What SELF_REGISTRATION_ENABLED has to say for a device to be
+        // allowed to register. Compared case-insensitively, so =True opts in
+        // as the person writing it plainly meant; anything else leaves
+        // registration off, which is the safe way round.
+        public const string EnabledValue = "true";
+
         // What KOReader shows the person when registration is refused. It
         // names the way accounts are made instead, because "disabled" alone
         // tells a reader with no account nothing about what to do next.
@@ -430,12 +436,6 @@ public static class Constants
         // whose default had flipped to "disabled" would read as a double
         // negative in every compose file.
         public const string SelfRegistrationEnabled = "SELF_REGISTRATION_ENABLED";
-
-        // What any of these flags has to say to count as on. Compared
-        // case-insensitively, so SELF_REGISTRATION_ENABLED=True opts in as
-        // the person writing it plainly meant; anything else leaves the flag
-        // off, which for self-registration is the safe way round.
-        public const string Enabled = "true";
     }
 
     // The first account, created on a fresh install (ADR 0006).

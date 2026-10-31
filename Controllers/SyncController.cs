@@ -134,7 +134,7 @@ public class SyncController : ControllerBase
     private static bool SelfRegistrationEnabled =>
         string.Equals(
             Environment.GetEnvironmentVariable(Constants.EnvironmentVariables.SelfRegistrationEnabled),
-            Constants.EnvironmentVariables.Enabled,
+            Constants.SelfRegistration.EnabledValue,
             StringComparison.OrdinalIgnoreCase);
 
     [HttpPost("/users/create")]
@@ -155,7 +155,7 @@ public class SyncController : ControllerBase
             LogInfo($"Account creation attempted with existing username - [{payload.username}].");
             return StatusCode(402, new
             {
-                message = "User already exists"
+                message = Constants.UserAdmin.UserAlreadyExists
             });
         }
 

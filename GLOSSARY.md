@@ -63,6 +63,17 @@ so a Stored Credential that has just been verified against a given Auth Key
 is remembered briefly in memory and the KDF skipped on repeat sync pushes.
 _Avoid_: password hash when the distinction from the Auth Key matters
 
+**Self-Registration**:
+A Device creating its own User through KOReader's own "Register" button
+(`POST /users/create`), with no Administrator involved. The one route whose
+password is the person's own from the start rather than Provisional, which
+is why it is off unless the installer turns it on with
+`SELF_REGISTRATION_ENABLED` (ADR 0006): open, it is a second way an account
+can come into existence, and one the forced first password change never
+touches.
+_Avoid_: sign-up, registration unqualified (the Administrator route is also
+creating a User — the distinguishing part is *self*)
+
 **Server Setting**:
 A durable fact about this server, keyed by name — not configuration.
 Configuration arrives fresh on every boot from environment variables and

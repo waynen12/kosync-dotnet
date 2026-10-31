@@ -200,7 +200,11 @@ can't be designed until the credential story is settled.
 - Middleware redirects a Provisional-Password User to the change-password
   page from every authenticated route but that page and logout.
 - One-shot `ADMIN_PASSWORD_RESET` recovery, returning admin to Provisional.
-- `POST /users/create` disabled by default; invert the env var.
+- `POST /users/create` disabled by default; invert the env var. **Done
+  (#23):** the opt-in is `SELF_REGISTRATION_ENABLED`, a new name rather
+  than `REGISTRATION_DISABLED` with its default flipped — which would have
+  left compose files reading `REGISTRATION_DISABLED=false` on a server that
+  refuses registration.
 - The change-password page is built in the folded-in design language (hub
   primitives), matching `/login`. No styling decisions remain here — the
   UI fold-in lands before this phase and `/login` arrives already done,
