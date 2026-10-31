@@ -40,6 +40,17 @@ public static class TestDb
         return db.Users.Single(u => u.Username == username).PasswordState;
     }
 
+    // Whether the database holds a User by that name at all. What a refused
+    // account-creation route needs asserting about it (issue #23): that it
+    // left no row behind, which no User's own view could show.
+    public static bool StoredUserExists(this KosyncWebApplicationFactory factory, string username)
+    {
+        using var scope = factory.CreateSystemScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+
+        return db.Users.Any(u => u.Username == username);
+    }
+
     // Grants the Administrator capability directly. /manage/* has no route
     // that does this - creating an Administrator is the portal's job
     // (issue #28) - so a test about what an Administrator may do to *another*

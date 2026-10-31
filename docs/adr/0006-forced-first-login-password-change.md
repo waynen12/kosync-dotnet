@@ -186,3 +186,9 @@ this decision entirely, on a server intended to face the internet.
   `DELETE /manage/users` lost the carve-out that let a User delete their own
   account. That is a breaking change to a documented endpoint and is said
   plainly in the README.
+- The opt-in variable is `SELF_REGISTRATION_ENABLED` and `REGISTRATION_DISABLED`
+  is read by nothing (issue #23). Keeping the old name with its default
+  flipped would have left every compose file saying `REGISTRATION_DISABLED=false`
+  on a server where registration is disabled. Anything other than `true`
+  (case-insensitively) leaves it off, so a typo fails towards the account
+  creation path this ADR chose rather than away from it.

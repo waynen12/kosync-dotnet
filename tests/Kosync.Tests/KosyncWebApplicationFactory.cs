@@ -60,7 +60,7 @@ public class KosyncWebApplicationFactory : WebApplicationFactory<Program>
         // environment by the app, not from configuration.
         Environment.SetEnvironmentVariable(
             Constants.EnvironmentVariables.AdminPassword, Constants.Admin.DefaultPassword);
-        Environment.SetEnvironmentVariable(Constants.EnvironmentVariables.RegistrationDisabled, null);
+        Environment.SetEnvironmentVariable(Constants.EnvironmentVariables.SelfRegistrationEnabled, null);
 
         // Would otherwise reset the seeded admin to a Provisional password on
         // startup if it happened to be set in the shell or on CI.

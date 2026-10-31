@@ -42,7 +42,6 @@ services:
     environment:
       - ASPNETCORE_HTTP_PORTS=8080
       - ADMIN_PASSWORD=<super-strong-password>
-      - REGISTRATION_DISABLED=false
       - TRUSTED_PROXIES=1.2.3.4, ::1, 10.0.0.0/24, 2001:db8::/32
     user: 1000:1000
 ```
@@ -74,7 +73,16 @@ The sync refusal names the address to go and do that at, because KOReader shows 
 
 If you genuinely lose the admin password, set `ADMIN_PASSWORD_RESET` to any value and restart. On startup the admin's password goes back to `ADMIN_PASSWORD` (or `admin`), provisional again. It is acted on **once per value**, so the variable can stay in your compose file across later restarts without resetting anything again — which is the whole point, given that reset-on-every-boot is the behaviour removed above. To recover a second time, change it to a different value.
 
-If the `REGISTRATION_DISABLED` environment variable is set to `true`, the sync server will respond with an `User registration is disabled` error message when trying to create a new user. This is useful if you expose your sync server to the public internet, but don't want anyone to be able to register a user. This is a feature that is not available in the official sync server.
+KOReader's own "Register" button, `POST /users/create`, is **disabled unless you turn it on**. With no configuration the server answers it with `User registration is disabled. Ask an Administrator to create your account.`, and accounts come from an administrator instead. A password somebody types into their own device is never provisional, so leaving device registration open would be a second way in that skips the forced first password change entirely, on a server meant to face the internet. See [ADR 0006](docs/adr/0006-forced-first-login-password-change.md).
+
+To let devices register themselves anyway — a private server on your own network, say — set it explicitly:
+
+```yaml
+    environment:
+      - SELF_REGISTRATION_ENABLED=true
+```
+
+This replaces `REGISTRATION_DISABLED`, which did the opposite job and defaulted to allowing registration. If you had it set, delete it: it is read by nothing now, and leaving it in place quietly leaves registration off. Neither variable exists in the official sync server.
 
 The `TRUSTED_PROXIES` environment variable is an optional variable that defines one or more trusted proxies. It should be a comma delineated list of IPv4 or IPv6 addresses, or CIDR notation subnets (e.g. `10.0.0.0/24`, `10.1.2.3/32`, `2001:db8::/32`). If `TRUSTED_PROXIES` is set, when a request comes through a trusted proxy, the X-Forwarded-For header will be checked for the client's real IP address to use in logging. If `TRUSTED_PROXIES` is not set, or if a request does not come through a trusted proxy, the request's source IP address will be used for logging. Requests that do not come through a trusted proxy when `TRUSTED_PROXIES` is set will be marked with an asterisk (*) in the logs.
 
@@ -163,7 +171,7 @@ Returns a list of all users.
 
 ### POST /manage/users
 
-Creates a new user. This endpoint circumvents the `REGISTRATION_DISABLED` environment variable.
+Creates a new user. This is the provisioning route, so `SELF_REGISTRATION_ENABLED` does not apply to it — it works whether or not devices may register themselves.
 
 **Request Body**
 

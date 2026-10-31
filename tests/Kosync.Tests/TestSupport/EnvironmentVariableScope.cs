@@ -2,7 +2,7 @@ namespace Kosync.Tests.TestSupport;
 
 // Temporarily overrides a process environment variable, restoring the
 // previous value on dispose. The app reads several settings (ADMIN_PASSWORD,
-// REGISTRATION_DISABLED) directly from the process environment rather than
+// SELF_REGISTRATION_ENABLED) directly from the process environment rather than
 // configuration, so this is how tests exercise those paths deterministically.
 public sealed class EnvironmentVariableScope : IDisposable
 {

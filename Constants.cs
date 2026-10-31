@@ -221,6 +221,18 @@ public static class Constants
             "This is the last active Administrator. Make another User an Administrator first.";
     }
 
+    // KOReader's own account creation, `POST /users/create` - the one way a
+    // User can come into existence without an Administrator, and off unless
+    // SELF_REGISTRATION_ENABLED says otherwise (issue #23).
+    public static class SelfRegistration
+    {
+        // What KOReader shows the person when registration is refused. It
+        // names the way accounts are made instead, because "disabled" alone
+        // tells a reader with no account nothing about what to do next.
+        public const string Refused =
+            "User registration is disabled. Ask an Administrator to create your account.";
+    }
+
     // The Users administration page (issue #28), folded in from the
     // prototype's UsersVariantB: a dense table of Users with a slide-over
     // detail panel. Copy moved here from PrototypeConstants rather than
@@ -412,7 +424,18 @@ public static class Constants
         // ServerSettings, not something the variable's presence can answer.
         public const string AdminPasswordReset = "ADMIN_PASSWORD_RESET";
 
-        public const string RegistrationDisabled = "REGISTRATION_DISABLED";
+        // KOReader's own account creation, off unless this is set (ADR 0006,
+        // issue #23). Named for what setting it does rather than as the
+        // inverted REGISTRATION_DISABLED it replaces: an opt-out variable
+        // whose default had flipped to "disabled" would read as a double
+        // negative in every compose file.
+        public const string SelfRegistrationEnabled = "SELF_REGISTRATION_ENABLED";
+
+        // What any of these flags has to say to count as on. Compared
+        // case-insensitively, so SELF_REGISTRATION_ENABLED=True opts in as
+        // the person writing it plainly meant; anything else leaves the flag
+        // off, which for self-registration is the safe way round.
+        public const string Enabled = "true";
     }
 
     // The first account, created on a fresh install (ADR 0006).

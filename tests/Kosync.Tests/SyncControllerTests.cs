@@ -66,52 +66,9 @@ public class SyncControllerTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    [Fact]
-    public async Task CreateUser_WhenRegistrationDisabled_Returns402()
-    {
-        using var scope = new EnvironmentVariableScope(Constants.EnvironmentVariables.RegistrationDisabled, "true");
-
-        var response = await PostAsync("/users/create", new UserCreateRequest { username = "newuser", password = "hash" });
-
-        Assert.Equal((HttpStatusCode)402, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task CreateUser_Success_Returns201_AndCanAuthenticateWithRawKey()
-    {
-        var response = await PostAsync("/users/create", new UserCreateRequest { username = "newuser", password = "some-hashed-key" });
-        var body = await BodyAsync(response);
-
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        Assert.Equal("newuser", body.GetProperty("username").GetString());
-
-        var authRequest = new HttpRequestMessage(HttpMethod.Get, "/users/auth");
-        authRequest.SetCredentialsWithRawKey("newuser", "some-hashed-key");
-        var authResponse = await Client.SendAsync(authRequest);
-
-        Assert.Equal(HttpStatusCode.OK, authResponse.StatusCode);
-    }
-
-    // Nobody else picked this password - the person registering typed it into
-    // their own KOReader - so it is theirs from the start and there is
-    // nothing to force them to replace (ADR 0006).
-    [Fact]
-    public async Task CreateUser_SelfRegistration_LeavesThePasswordTheUsersOwn()
-    {
-        await PostAsync("/users/create", new UserCreateRequest { username = "newuser", password = "some-hashed-key" });
-
-        Assert.Equal(PasswordState.UserChosen, Factory.StoredPasswordStateOf("newuser"));
-    }
-
-    [Fact]
-    public async Task CreateUser_WithExistingUsername_Returns402()
-    {
-        await PostAsync("/users/create", new UserCreateRequest { username = "dupe", password = "hash" });
-
-        var response = await PostAsync("/users/create", new UserCreateRequest { username = "dupe", password = "hash2" });
-
-        Assert.Equal((HttpStatusCode)402, response.StatusCode);
-    }
+    // `POST /users/create` has its own file - SelfRegistrationTests - because
+    // every one of its cases now turns on whether the installer opted in
+    // (issue #23).
 
     [Fact]
     public async Task SyncProgress_Unauthenticated_Returns401()

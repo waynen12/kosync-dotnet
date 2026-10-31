@@ -126,15 +126,26 @@ public class SyncController : ControllerBase
         });
     }
 
+    // Off unless the installer said so, because an Administrator provisioning
+    // Users is how accounts are meant to come into existence and this is the
+    // one route whose passwords were never Provisional (ADR 0006, issue #23).
+    // Read per request rather than captured at startup so a test - and an
+    // installer restarting the container - gets the value they set.
+    private static bool SelfRegistrationEnabled =>
+        string.Equals(
+            Environment.GetEnvironmentVariable(Constants.EnvironmentVariables.SelfRegistrationEnabled),
+            Constants.EnvironmentVariables.Enabled,
+            StringComparison.OrdinalIgnoreCase);
+
     [HttpPost("/users/create")]
     public ObjectResult CreateUser(UserCreateRequest payload)
     {
-        if (Environment.GetEnvironmentVariable(Constants.EnvironmentVariables.RegistrationDisabled) == "true")
+        if (!SelfRegistrationEnabled)
         {
-            LogWarning("Account creation attempted but registration is disabled.");
+            LogWarning("Account creation attempted but self-registration is disabled.");
             return StatusCode(402, new
             {
-                message = "User registration is disabled"
+                message = Constants.SelfRegistration.Refused
             });
         }
 
