@@ -175,6 +175,30 @@
 
   .v-flags { display: inline-flex; gap: 6px; flex-wrap: wrap; vertical-align: middle; }
 
+  /* The identity header, and the strip of closed action disclosures under
+     it. Shared because variants A and C both use them: landing the page on
+     evidence rather than on open forms is a decision the two agreed on, and
+     only the thing *below* the strip differs. Keeping them here rather than
+     in A's block is what tells #39 these belong to the page, not to the
+     table. */
+  .v-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .v-sub { color: var(--hub-muted-fg); font-size: 14px; margin: 6px 0 0; }
+  .v-sub .sep { opacity: 0.5; margin: 0 7px; }
+
+  .v-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+  .v-actions > details { position: relative; }
+  .v-actions > details > summary { list-style: none; cursor: pointer; }
+  .v-actions > details > summary::-webkit-details-marker { display: none; }
+  .v-actions > details[open] { flex: 1 1 100%; }
+  .v-drawer {
+      margin-top: 10px;
+      padding: 16px;
+      border: 1px solid var(--hub-border);
+      border-radius: var(--hub-radius-xl);
+      background: var(--hub-card);
+      max-width: 40rem;
+  }
+
   /* A deliberate restart is not a detected fault, so it is neutral rather
      than amber or red - the reader chose it (issue #9). .hub-badge-muted
      already says exactly that, so there is no new rule for it. */
@@ -184,25 +208,6 @@
      ==================================================================== */
 
   .va-head { margin-bottom: 18px; }
-  .va-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .va-sub { color: var(--hub-muted-fg); font-size: 14px; margin: 6px 0 0; }
-  .va-sub .sep { opacity: 0.5; margin: 0 7px; }
-
-  /* The action strip. Every form on this variant is a closed disclosure, so
-     the page below it is evidence - which is the whole claim of variant A. */
-  .va-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
-  .va-actions > details { position: relative; }
-  .va-actions > details > summary { list-style: none; cursor: pointer; }
-  .va-actions > details > summary::-webkit-details-marker { display: none; }
-  .va-drawer {
-      margin-top: 10px;
-      padding: 16px;
-      border: 1px solid var(--hub-border);
-      border-radius: var(--hub-radius-xl);
-      background: var(--hub-card);
-      max-width: 40rem;
-  }
-  .va-actions > details[open] { flex: 1 1 100%; }
 
   .va-row-toggle {
       display: flex;
@@ -375,7 +380,7 @@
       gap: 12px;
       padding: 11px 2px;
       border-bottom: 1px solid var(--hub-border);
-      font-size: 13.5px;
+      font-size: 13px;
       flex-wrap: wrap;
   }
   .vc-stream-row:last-child { border-bottom: none; }
@@ -482,8 +487,18 @@
 
 <script>
 /* ======================================================================
-   COPY - lifted from Constants.cs, so the variants are judged on layout
-   rather than on wording. Wording is settled; these screens are not.
+   COPY
+
+   Everything in TEXT is lifted verbatim from Constants.cs, so the variants
+   are judged on layout rather than on wording. That copy is settled; these
+   screens are not.
+
+   TEXT_NEW below is the exception, and the implementer's checklist: strings
+   these layouts need that do not exist yet. CLAUDE.md's standard is that
+   nothing is hardcoded, and Dashboard.razor and Users.razor already put
+   every <th> in Constants.cs - so each of these has to land there, not in
+   the markup. Kept in a separate object precisely so the boundary is
+   legible rather than buried in the variants.
    ====================================================================== */
 const TEXT = {
   bookFallback: id => `Book #${id}`,
@@ -518,8 +533,48 @@ const TEXT = {
     reason: "Same title and author",
     action: "Merge into this Book"
   },
-  noDocuments: "No documents synced yet",
-  noHistory: "No sync history yet."
+  // Constants.NoDeviceDocumentsSyncedText (issue #13).
+  noDocuments: "No documents synced yet"
+};
+
+/* Not in Constants.cs yet - every one of these needs adding with #39.
+   Listed here rather than inlined so the implementer can diff the list
+   against Constants.cs instead of grepping the variants. */
+const TEXT_NEW = {
+  // The table's column headings. Dashboard.razor and Users.razor keep
+  // theirs in Constants.cs; these follow.
+  colDocument: "Document",
+  colDevice: "Device",
+  colProgress: "Progress",
+  colLastPush: "Last push",
+  colFlags: "Flags",
+  colDeviceProgress: "This device's progress",
+
+  // Beside the full hash in an expanded row.
+  hashLabel: "Hash",
+
+  // Marks the one SyncEvent holding the current-progress pointer. New
+  // because today's page shows the absence of a regression flag instead,
+  // which is not the same statement - see the annotate() note above.
+  currentFlag: "Current",
+
+  // The reset confirmation. The merge already asks twice through
+  // Constants.MergeConfirmWarning; a reset is equally irreversible and had
+  // no warning at all, so it gains the matching pair. Second person and no
+  // "reader", like every other user-facing literal in Constants.cs
+  // (GLOSSARY, "User": avoid "reader").
+  resetWarning: "This clears the progress on this Document only. You start it again from the beginning.",
+
+  // A Document whose current-progress pointer was cleared and never pushed
+  // to since: percentage 0 and an empty DeviceName, which needs saying
+  // rather than rendering as a blank cell.
+  noCurrentProgress: "not the current progress",
+
+  // Today BookDetail renders a hardcoded "No sync history yet." for a Book
+  // with no Documents - which talks about history where the Device page's
+  // equivalent talks about Documents (Constants.NoDeviceDocumentsSyncedText,
+  // issue #13). Same fix, same wording shape.
+  noBookDocuments: "No documents synced yet"
 };
 
 /* ======================================================================
@@ -648,7 +703,7 @@ const BOOKS = {
         hasCurrentProgress: true,
         history: [
           { deviceName: "KOReader Android", percentage: 0.34, timestamp: "2026-10-30T19:20:00Z", isCurrent: true },
-          { deviceName: "KOReader Android", percentage: 0.0, timestamp: "2026-10-28T07:00:00Z", isCurrent: false, isReset: true },
+          { deviceName: "", percentage: 0, timestamp: "2026-10-28T07:00:00Z", isCurrent: false, isReset: true },
           { deviceName: "KOReader Android", percentage: 0.29, timestamp: "2026-10-27T23:31:00Z", isCurrent: false }
         ]
       },
@@ -779,11 +834,16 @@ const DEVICES = {
     deviceName: "Kobo Libra 2",
     deviceId: "d41d8cd98f00b204e9800998ecf8427e",
     lastSyncedAt: "2026-11-01T12:05:00Z",
+    /* Ordered newest push first, because the service is: Summarize ends
+       `.OrderByDescending(s => s.Timestamp)`. The Device page has no sort
+       control, so this order IS the design - a variant that reads well on
+       an arbitrarily ordered list would be judged on data the page never
+       actually shows. */
     documents: [
       { hash: "6f1ed002ab5595859014ebf0951522d9", filename: "Dune - Frank Herbert.epub", percentage: 0.61, timestamp: "2026-11-01T12:05:00Z", isSplitBook: true },
-      { hash: "e4da3b7fbbce2345d7772b0674a318d5", filename: "left_hand_of_darkness.epub", percentage: 1.0, timestamp: "2026-10-24T18:30:00Z", isSplitBook: false },
-      { hash: "a87ff679a2f3e71d9181a67b7542122c", filename: null, percentage: 0.17, timestamp: "2026-10-27T09:12:00Z", isSplitBook: false },
       { hash: "1679091c5a880faf6fb5e6087eb1b2dc", filename: "Piranesi.epub", percentage: 0.45, timestamp: "2026-10-30T07:50:00Z", isSplitBook: false },
+      { hash: "a87ff679a2f3e71d9181a67b7542122c", filename: null, percentage: 0.17, timestamp: "2026-10-27T09:12:00Z", isSplitBook: false },
+      { hash: "e4da3b7fbbce2345d7772b0674a318d5", filename: "left_hand_of_darkness.epub", percentage: 1.0, timestamp: "2026-10-24T18:30:00Z", isSplitBook: false },
       { hash: "8f14e45fceea167a5a36dedd4bea2543", filename: "A Memory Called Empire - Arkady Martine.epub", percentage: 0.03, timestamp: "2026-10-19T21:15:00Z", isSplitBook: true },
       { hash: "c9f0f895fb98ab9159f51fd0297e236d", filename: null, percentage: 0.72, timestamp: "2026-09-28T16:40:00Z", isSplitBook: false },
       { hash: "45c48cce2e2d7fbdea1afc51c7c6ad26", filename: "Project Hail Mary.epub", percentage: 0.0, timestamp: "2026-09-12T19:05:00Z", isSplitBook: false }
@@ -925,14 +985,14 @@ const variantA = {
         ${backLink("?page=book", "Books")}
 
         <div class="va-head">
-          <div class="va-title-row">
+          <div class="v-title-row">
             <h1 class="hub-page-title" style="margin:0">${escapeHtml(book.title)}</h1>
             <span class="v-flags">
               ${book.isSplitBook ? splitBadge() : ""}
               ${book.mergeSuggestionBookIds.length ? suggestionBadge() : ""}
             </span>
           </div>
-          <p class="va-sub">
+          <p class="v-sub">
             ${book.author ? `${escapeHtml(book.author)}<span class="sep">&middot;</span>` : ""}
             ${TEXT.bookFallback(book.id)}<span class="sep">&middot;</span>
             ${pct(book.percentage)} progress<span class="sep">&middot;</span>
@@ -942,16 +1002,16 @@ const variantA = {
 
         ${book.needsMetadataHint ? `<p class="v-aside">${TEXT.missingMetadataHint}</p>` : ""}
 
-        <div class="va-actions">
+        <div class="v-actions">
           <details>
             <summary class="hub-btn hub-btn-outline hub-btn-sm">${TEXT.curate.sectionTitle}</summary>
-            <div class="va-drawer">${curateForm(book, "inline")}</div>
+            <div class="v-drawer">${curateForm(book, "inline")}</div>
           </details>
           <details>
             <summary class="hub-btn hub-btn-outline hub-btn-sm">
               Merge${book.mergeSuggestionBookIds.length ? ` (${book.mergeSuggestionBookIds.length} suggested)` : ""}
             </summary>
-            <div class="va-drawer">${mergeBlock(book)}</div>
+            <div class="v-drawer">${mergeBlock(book)}</div>
           </details>
         </div>
 
@@ -960,15 +1020,15 @@ const variantA = {
         </div>
 
         ${book.documents.length === 0
-          ? `<p class="hub-empty">${TEXT.noHistory}</p>`
+          ? `<p class="hub-empty">${TEXT_NEW.noBookDocuments}</p>`
           : `<div class="hub-table-wrap">
               <table class="hub-table">
                 <thead>
                   <tr>
-                    <th>Document</th>
-                    <th>Device</th>
-                    <th>Progress</th>
-                    <th class="hub-table-num">Last push</th>
+                    <th>${TEXT_NEW.colDocument}</th>
+                    <th>${TEXT_NEW.colDevice}</th>
+                    <th>${TEXT_NEW.colProgress}</th>
+                    <th class="hub-table-num">${TEXT_NEW.colLastPush}</th>
                     <th class="hub-table-actions"></th>
                   </tr>
                 </thead>
@@ -1003,11 +1063,11 @@ const variantA = {
       <tr hidden data-detail="${index}">
         <td class="va-detail-cell" colspan="5">
           <div class="va-detail">
-            <div><span class="hub-xs hub-muted">Hash </span><span class="v-hash">${doc.hash}</span></div>
+            <div><span class="hub-xs hub-muted">${TEXT_NEW.hashLabel} </span><span class="v-hash">${doc.hash}</span></div>
             <div class="va-events">${doc.history.map(event => this.event(event)).join("")}</div>
             <details class="v-confirm">
               <summary class="hub-btn hub-btn-outline hub-btn-sm" style="width:fit-content">${TEXT.resetButton}</summary>
-              <p class="hub-guard" style="margin:0">Clears this Document's progress. The reader starts it again from the beginning.</p>
+              <p class="hub-guard" style="margin:0">${TEXT_NEW.resetWarning}</p>
               <button type="button" class="hub-btn hub-btn-danger hub-btn-sm" data-stub="reset ${doc.documentId}">${TEXT.resetButton}</button>
             </details>
           </div>
@@ -1028,7 +1088,7 @@ const variantA = {
       <span class="va-event-pct">${pct(event.percentage)}</span>
       <span>${escapeHtml(event.deviceName)}</span>
       ${event.blockedRegression ? regressionBadge() : ""}
-      ${event.isCurrent ? `<span class="hub-badge hub-badge-ok">Current</span>` : ""}
+      ${event.isCurrent ? `<span class="hub-badge hub-badge-ok">${TEXT_NEW.currentFlag}</span>` : ""}
       <span class="va-event-when">${relativeTime(event.timestamp)}</span>
     </div>`;
   },
@@ -1039,10 +1099,10 @@ const variantA = {
         ${backLink("?page=device", "Devices")}
 
         <div class="va-head">
-          <div class="va-title-row">
+          <div class="v-title-row">
             <h1 class="hub-page-title" style="margin:0">${escapeHtml(device.deviceName)}</h1>
           </div>
-          <p class="va-sub">
+          <p class="v-sub">
             <span class="v-hash">${device.deviceId}</span><span class="sep">&middot;</span>
             last synced ${relativeTime(device.lastSyncedAt)}
           </p>
@@ -1057,10 +1117,10 @@ const variantA = {
               <table class="hub-table">
                 <thead>
                   <tr>
-                    <th>Document</th>
-                    <th>This device's progress</th>
-                    <th class="hub-table-num">Last push</th>
-                    <th class="hub-table-actions">Flags</th>
+                    <th>${TEXT_NEW.colDocument}</th>
+                    <th>${TEXT_NEW.colDeviceProgress}</th>
+                    <th class="hub-table-num">${TEXT_NEW.colLastPush}</th>
+                    <th class="hub-table-actions">${TEXT_NEW.colFlags}</th>
                   </tr>
                 </thead>
                 <tbody>${device.documents.map((doc, index) => `
@@ -1078,7 +1138,7 @@ const variantA = {
                   <tr hidden data-detail="${index}">
                     <td class="va-detail-cell" colspan="4">
                       <div class="va-detail">
-                        <div><span class="hub-xs hub-muted">Hash </span><span class="v-hash">${doc.hash}</span></div>
+                        <div><span class="hub-xs hub-muted">${TEXT_NEW.hashLabel} </span><span class="v-hash">${doc.hash}</span></div>
                         <p class="hub-guard" style="margin:0">A Device page carries no actions: a reset belongs to the Document on its Book, where the other Devices' pushes are visible too.</p>
                       </div>
                     </td>
@@ -1136,7 +1196,7 @@ const variantB = {
               ${pluralize(book.documents.length, "document")}
             </p>
             ${book.documents.length === 0
-              ? `<p class="hub-empty" style="padding:48px 0">${TEXT.noHistory}</p>`
+              ? `<p class="hub-empty" style="padding:48px 0">${TEXT_NEW.noBookDocuments}</p>`
               : book.documents.map((doc, index) => this.docCard(doc, index)).join("")}
           </div>
 
@@ -1192,11 +1252,11 @@ const variantB = {
           ${bar(doc.percentage)}<span class="hub-pct" style="width:auto">${pct(doc.percentage)}</span>
           ${doc.hasCurrentProgress
             ? `<span>&middot;</span><span>${escapeHtml(doc.deviceName)}</span>`
-            : `<span>&middot;</span><span>not the current progress</span>`}
+            : `<span>&middot;</span><span>${TEXT_NEW.noCurrentProgress}</span>`}
           <span style="margin-left:auto">
             <details class="v-confirm">
               <summary class="hub-btn hub-btn-ghost hub-btn-sm">${TEXT.resetButton}</summary>
-              <p class="hub-guard" style="margin:0">Clears this Document's progress. The reader starts it again from the beginning.</p>
+              <p class="hub-guard" style="margin:0">${TEXT_NEW.resetWarning}</p>
               <button type="button" class="hub-btn hub-btn-danger hub-btn-sm" data-stub="reset ${doc.documentId}">${TEXT.resetButton}</button>
             </details>
           </span>
@@ -1221,7 +1281,7 @@ const variantB = {
       <span class="vb-tl-pct">${pct(event.percentage)}</span>
       <span>${escapeHtml(event.deviceName)}</span>
       ${event.blockedRegression ? regressionBadge() : ""}
-      ${event.isCurrent ? `<span class="hub-badge hub-badge-ok">Current</span>` : ""}
+      ${event.isCurrent ? `<span class="hub-badge hub-badge-ok">${TEXT_NEW.currentFlag}</span>` : ""}
       <span class="vb-tl-when">${relativeTime(event.timestamp)}</span>
     </div>`;
   },
@@ -1308,14 +1368,14 @@ const variantC = {
         ${backLink("?page=book", "Books")}
 
         <div class="vc-head">
-          <div class="va-title-row">
+          <div class="v-title-row">
             <h1 class="hub-page-title" style="margin:0">${escapeHtml(book.title)}</h1>
             <span class="v-flags">
               ${book.isSplitBook ? splitBadge() : ""}
               ${book.mergeSuggestionBookIds.length ? suggestionBadge() : ""}
             </span>
           </div>
-          <p class="va-sub">
+          <p class="v-sub">
             ${book.author ? `${escapeHtml(book.author)}<span class="sep">&middot;</span>` : ""}
             ${TEXT.bookFallback(book.id)}<span class="sep">&middot;</span>
             ${pct(book.percentage)} progress<span class="sep">&middot;</span>
@@ -1325,21 +1385,21 @@ const variantC = {
 
         ${book.needsMetadataHint ? `<p class="v-aside">${TEXT.missingMetadataHint}</p>` : ""}
 
-        <div class="va-actions">
+        <div class="v-actions">
           <details>
             <summary class="hub-btn hub-btn-outline hub-btn-sm">${TEXT.curate.sectionTitle}</summary>
-            <div class="va-drawer">${curateForm(book, "inline")}</div>
+            <div class="v-drawer">${curateForm(book, "inline")}</div>
           </details>
           <details>
             <summary class="hub-btn hub-btn-outline hub-btn-sm">
               Merge${book.mergeSuggestionBookIds.length ? ` (${book.mergeSuggestionBookIds.length} suggested)` : ""}
             </summary>
-            <div class="va-drawer">${mergeBlock(book)}</div>
+            <div class="v-drawer">${mergeBlock(book)}</div>
           </details>
         </div>
 
         ${book.documents.length === 0
-          ? `<p class="hub-empty">${TEXT.noHistory}</p>`
+          ? `<p class="hub-empty">${TEXT_NEW.noBookDocuments}</p>`
           : `
             <p class="hub-section-label" style="padding:0;margin:0 0 10px">
               ${pluralize(book.documents.length, "document")} &middot; select one to filter the history
@@ -1382,7 +1442,7 @@ const variantC = {
       ${common}
       <span class="hub-xs hub-muted">${escapeHtml(event.deviceName)}</span>
       ${event.blockedRegression ? regressionBadge() : ""}
-      ${event.isCurrent ? `<span class="hub-badge hub-badge-ok">Current</span>` : ""}
+      ${event.isCurrent ? `<span class="hub-badge hub-badge-ok">${TEXT_NEW.currentFlag}</span>` : ""}
       <span class="vc-stream-when">${relativeTime(event.timestamp)}</span>
     </div>`;
   },
@@ -1409,10 +1469,10 @@ const variantC = {
           <span class="v-hash">${doc.hash}</span>
           ${doc.hasCurrentProgress
             ? `<span class="hub-xs hub-muted">${escapeHtml(doc.deviceName)}</span>`
-            : `<span class="hub-xs hub-muted">not the current progress</span>`}
+            : `<span class="hub-xs hub-muted">${TEXT_NEW.noCurrentProgress}</span>`}
           <details class="v-confirm">
             <summary class="hub-btn hub-btn-outline hub-btn-sm">${TEXT.resetButton}</summary>
-            <p class="hub-guard" style="margin:0">Clears this Document's progress. The reader starts it again from the beginning.</p>
+            <p class="hub-guard" style="margin:0">${TEXT_NEW.resetWarning}</p>
             <button type="button" class="hub-btn hub-btn-danger hub-btn-sm" data-stub="reset ${doc.documentId}">${TEXT.resetButton}</button>
           </details>
         </div>`;
@@ -1431,7 +1491,7 @@ const variantC = {
 
         <div class="vc-head">
           <h1 class="hub-page-title" style="margin:0">${escapeHtml(device.deviceName)}</h1>
-          <p class="va-sub">
+          <p class="v-sub">
             <span class="v-hash">${device.deviceId}</span><span class="sep">&middot;</span>
             last synced ${relativeTime(device.lastSyncedAt)}
           </p>

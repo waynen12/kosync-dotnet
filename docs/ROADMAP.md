@@ -391,7 +391,12 @@ and where it goes:
 | `HubIcon.razor` | keep as-is | Or take a real icon dependency — decide then |
 | `detail-pages-mockup.html` variant A | `Components/Pages/BookDetail.razor`, `DeviceDetail.razor` | **Prototyped by the third session (#33)** — variant A, "Ledger". See "The detail pages" below |
 
-#### The detail pages were never prototyped
+#### The detail pages were never prototyped — *superseded, see below*
+
+> Kept as written because it is the reasoning that produced the `--ks-*`
+> aliases, which are still in `app.css` until #39. The session it calls for
+> has since run; its outcome is the next section. The "21 `.ks-*` classes"
+> figure below is stale — #30, #31 and #32 have added to these pages since.
 
 Neither session produced a variant for `/dashboard/books/{id}` or
 `/dashboard/devices/{id}`, and they depend on 21 `.ks-*` classes
@@ -446,7 +451,11 @@ puts an irreversible merge control between the reader and the thing they
 came to look at.
 
 Measured content heights at 1440px, on the Split Book case (4 Documents, 12
-SyncEvents) and the busy Device (7 Documents):
+SyncEvents) and the busy Device (7 Documents). Measured by driving the
+mockup headlessly and reading the `.hub-main` box, excluding the prototype's
+own furniture (the switcher bar and the on-screen note); reproduce by
+loading `?variant=<A|B|C>&page=<book|device>&case=<split|busy>` at a 1440px
+viewport:
 
 | | Book detail | Device detail |
 |---|---|---|
@@ -491,9 +500,30 @@ Document, not four. B and C pay their full height whether you need it or not.
   column you scan past.
 - **The metadata hint and the Split Book flag** stay inline on the Book,
   as they are now — that part of ADR 0007 was right and is unchanged.
-- **The `--ks-*` aliases and all 21 `.ks-*` rules are now scheduled for
+- **Merge Suggestions move behind the same disclosure as the merge form**,
+  with the count on the summary (`Merge (1 suggested)`). This is a real
+  change from today, where the suggestion list renders unconditionally
+  above the Documents, and it is in tension with the "Issue surfacing UX —
+  inline flags on the thing they belong to" row above, so it is called out
+  rather than left to be discovered. The reconciliation: the *flag* stays
+  inline and unconditional — the Book still wears `Merge suggestion` in its
+  header and in the dashboard's Flags column — and only the *action* is one
+  press away. A suggestion is an offer to do something irreversible, which
+  is the thing the session decided should not sit permanently between the
+  reader and the evidence. Nothing about the flag's visibility changes.
+- **The regression flag rolls up to the Document row**, so a collapsed
+  table still shows which Document has something wrong in its history —
+  otherwise A's progressive disclosure would hide the one thing the page
+  exists to surface. There is deliberately **no** Progress Reset roll-up:
+  a reset is a deliberate restart, flagged neutrally precisely because
+  nothing went wrong (issue #9), so it has nothing to summon anybody into
+  a row for. It still shows in the history once opened.
+- **The `--ks-*` aliases and every `.ks-*` rule are now scheduled for
   deletion**, with [#39](https://github.com/waynen12/kosync-dotnet/issues/39)
-  — which is the last of the pre-hub styling. The candidate replacement
+  — which is the last of the pre-hub styling. Current count, since the "21
+  classes" above is stale (it was written before #30, #31 and #32 added to
+  these pages): **33** distinct `.ks-*` class names in `app.css`, of which
+  the two pages render **31**, over **11** `--ks-*` aliases. The candidate replacement
   rules in the mockup deliberately drop the pre-hub geometry the fold-in
   left behind (the ad-hoc 8px/12px radii and 12.5px/13.5px font sizes) for
   `--hub-radius-*` and the hub's type steps. That geometry is most of what
