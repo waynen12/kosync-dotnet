@@ -11,9 +11,12 @@ public static class ObservedMetadataRule
     {
         if (observed is null) { return; }
 
-        var filename = Observation(observed.filename);
-        var title = Observation(observed.title);
-        var authors = Observation(observed.authors);
+        // A field KOReader could not fill is as good as unsent: it reports
+        // that this device found nothing in the file, not that what another
+        // device found was wrong (MetadataText).
+        var filename = MetadataText.TrimmedOrNull(observed.filename);
+        var title = MetadataText.TrimmedOrNull(observed.title);
+        var authors = MetadataText.TrimmedOrNull(observed.authors);
 
         // A `metadata` object that turned out to carry nothing is no more an
         // observation than an absent one, so it does not become the
@@ -24,14 +27,5 @@ public static class ObservedMetadataRule
         document.ObservedTitle = title ?? document.ObservedTitle;
         document.ObservedAuthors = authors ?? document.ObservedAuthors;
         document.MetadataObservedAt = observedAt;
-    }
-
-    // A field KOReader could not fill is as good as unsent: it reports that
-    // this device found nothing in the file, not that what another device
-    // found was wrong. Trimmed because the surrounding whitespace is an
-    // artefact of the file's own metadata, not part of the title.
-    private static string? Observation(string? value)
-    {
-        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 }

@@ -878,6 +878,34 @@ a.hub-btn { text-decoration: none; }
     margin: 0 0 16px;
 }
 
+/* Curated Metadata editor (ADR 0007, issue #30) - the same shape as the
+   merge form above it, with inputs wide enough for a title rather than for a
+   Book id, and reusing that form's save button. */
+.ks-curate-form {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.ks-curate-input {
+    flex: 1 1 220px;
+    min-width: 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--ks-border);
+    background: var(--ks-card-bg);
+    color: var(--ks-fg);
+    font-size: 14px;
+}
+
+.ks-curate-hint {
+    color: var(--ks-muted);
+    font-size: 12.5px;
+    margin: 0 0 16px;
+}
+
 .ks-doc-card {
     background: var(--ks-card-bg);
     border: 1px solid var(--ks-border);

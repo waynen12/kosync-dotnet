@@ -50,6 +50,13 @@ no sense exists in which a title from a further-read file is more correct.
   rather than parsed into individual authors.
 - Merging two Books never has to destructively reconcile conflicting
   titles, because the observations stay attached to their own Documents.
+  Curated metadata is the exception, since it lives on the Book that the
+  merge removes and nothing can reproduce it - no Document observed it and
+  no push will bring it back. It therefore moves onto the surviving Book
+  where that Book has no curated value of its own, per field, and never
+  over one it has: two curated titles are two human answers about what is
+  now one Book, and nothing in the merge can tell which is better than the
+  answer on the Book its owner chose to keep.
 - Having real title and author signal is what the roadmap said automatic
   Book-matching was waiting for. Matching may now *suggest* merges, but
   must not perform them: a merge is transactional but not undoable, so a

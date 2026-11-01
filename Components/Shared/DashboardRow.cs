@@ -37,20 +37,24 @@ public record DashboardRow(
         IsFlagged: device.Documents.Any(d => d.IsSplitBook),
         SearchText: SearchIndex([device.DeviceName, device.DeviceId, .. device.Documents.Select(d => d.DocumentHash)]));
 
-    public static DashboardRow FromBook(BookSummary book)
-    {
-        var name = string.Format(Constants.Dashboard.BookNameFormat, book.Id);
-
-        return new(
-            Icon: Constants.Icons.BookOpen,
-            Href: AppRoutes.BookDetail(book.Id),
-            Name: name,
-            DocumentCount: book.Documents.Count,
-            Percentage: book.Percentage,
-            LastSyncedAt: book.LastSyncedAt,
-            IsFlagged: book.IsSplitBook,
-            SearchText: SearchIndex([name, .. book.Documents.Select(d => d.DocumentHash)]));
-    }
+    public static DashboardRow FromBook(BookSummary book) => new(
+        Icon: Constants.Icons.BookOpen,
+        Href: AppRoutes.BookDetail(book.Id),
+        // Already resolved through BookMetadataRule, including the `Book #N`
+        // fallback - the row shows whatever the Book is currently called
+        // rather than deciding that for itself.
+        Name: book.Title,
+        DocumentCount: book.Documents.Count,
+        Percentage: book.Percentage,
+        LastSyncedAt: book.LastSyncedAt,
+        IsFlagged: book.IsSplitBook,
+        // The author joins the index because the table has no column for it.
+        // The id does not: it is in the index exactly when it *is* the name,
+        // via the `Book #N` fallback Title already carries.
+        SearchText: SearchIndex([
+            book.Title,
+            book.Author ?? string.Empty,
+            .. book.Documents.Select(d => d.DocumentHash)]));
 
     public string RelativeTime => DashboardFormatting.RelativeTime(LastSyncedAt, DateTime.UtcNow);
 

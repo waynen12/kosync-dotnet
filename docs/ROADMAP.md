@@ -245,9 +245,18 @@ Source is now decided (ADR 0007): KOReader's own opt-in metadata push.
   an empty `title` is a Device reporting it found none, not a correction.
   Each observation also records `MetadataObservedAt`, because the
   most-recent-observation rule below cannot recover that afterwards.
-- Observed metadata on Document; curated title/author on Book; display
-  resolves curated → most recent observation → `Book #N`.
-- Manual title/author editing on the Book detail page.
+- **Done (#30):** curated title/author on the Book, set and cleared from
+  its detail page, with display resolving curated → most recent
+  observation → `Book #N` in `BookMetadataRule`. A push writes only to the
+  Document, so it can never overwrite a curated value. The edit form binds
+  to what was curated rather than to what is displayed: prefilling it with
+  an observation would curate a device's guess on the next save. Where
+  observations disagree the most recent wins (not the furthest-along
+  Document, which is the Book-progress rule), tie-broken by Document id so
+  a Book's title never depends on row order. A merge carries a curated
+  value onto the surviving Book only where that Book has none of its own —
+  the one piece of metadata a removed Book cannot leave behind on its
+  Documents (ADR 0007).
 - Observed filename replaces raw hashes as the Document label **on the
   detail pages**, hash still shown alongside. The dashboard table shows a
   Document count and labels no Documents, so nothing changes there.

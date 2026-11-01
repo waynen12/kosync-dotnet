@@ -5,7 +5,7 @@
 @inject PortalTenantResolver PortalTenant
 @inject BookDashboardService BookDashboardService
 
-<PageTitle>@(book is null ? "Book" : $"Book #{book.Id}")</PageTitle>
+<PageTitle>@(book is null ? "Book" : book.Title)</PageTitle>
 
 <div class="ks-detail">
     <a class="ks-back" href="@AppRoutes.DashboardBooksTab">&larr; Back</a>
@@ -16,14 +16,57 @@
     }
     else
     {
+        @* Curated, then the most recent observation, then `Book #N` - all
+           resolved in BookMetadataRule, never here (ADR 0007). *@
         <h1 class="ks-detail-title">
-            Book #@book.Id
+            @book.Title
             @if (book.IsSplitBook)
             {
                 <span class="ks-flag-split">@Constants.SplitBookFlag</span>
             }
         </h1>
-        <p class="ks-detail-sub">@DashboardFormatting.Percentage(book.Percentage) progress &middot; last synced @DashboardFormatting.RelativeTime(book.LastSyncedAt, DateTime.UtcNow)</p>
+        @* The id stays on the page even once the Book has a title: it is
+           what another Book gets merged into, and what KOReader's own
+           screens cannot tell you. *@
+        <p class="ks-detail-sub">
+            @if (book.Author is not null)
+            {
+                <span>@book.Author</span>
+                <span> &middot; </span>
+            }
+            <span>@string.Format(Constants.BookFallbackNameFormat, book.Id)</span>
+            <span> &middot; </span>
+            <span>@DashboardFormatting.Percentage(book.Percentage) progress</span>
+            <span> &middot; </span>
+            <span>last synced @DashboardFormatting.RelativeTime(book.LastSyncedAt, DateTime.UtcNow)</span>
+        </p>
+
+        <div class="ks-section-title">@Constants.CuratedMetadata.SectionTitle</div>
+        <form class="ks-curate-form" @onsubmit="SaveCuratedAsync" @onsubmit:preventDefault="true">
+            @* Bound to what was *curated*, not to what is displayed: an
+               observation showing through must leave these blank, or saving
+               would silently curate a device's guess. *@
+            <input type="text"
+                   class="ks-curate-input"
+                   placeholder="@Constants.CuratedMetadata.TitlePlaceholder"
+                   aria-label="@Constants.CuratedMetadata.TitleLabel"
+                   @bind="curatedTitleInput" />
+            <input type="text"
+                   class="ks-curate-input"
+                   placeholder="@Constants.CuratedMetadata.AuthorPlaceholder"
+                   aria-label="@Constants.CuratedMetadata.AuthorLabel"
+                   @bind="curatedAuthorInput" />
+            <button type="submit" class="ks-merge-button">@Constants.CuratedMetadata.SaveButton</button>
+            @if (book.CuratedTitle is not null || book.CuratedAuthor is not null)
+            {
+                <button type="button" class="ks-reset-button" @onclick="ClearCuratedAsync">@Constants.CuratedMetadata.ClearButton</button>
+            }
+        </form>
+        <p class="ks-curate-hint">@Constants.CuratedMetadata.Hint</p>
+        @if (curateError is not null)
+        {
+            <p class="ks-flag-regression ks-merge-error">@curateError</p>
+        }
 
         <div class="ks-section-title">Merge another Book into this one</div>
         <form class="ks-merge-form" @onsubmit="MergeAsync" @onsubmit:preventDefault="true">
@@ -96,6 +139,9 @@
     private string? mergeError;
     private string? resetError;
     private int? resetErrorDocumentId;
+    private string? curatedTitleInput;
+    private string? curatedAuthorInput;
+    private string? curateError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -105,7 +151,40 @@
         // path above already handles it.
         await PortalTenant.ScopeToSignedInUserAsync();
 
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
         book = await BookDashboardService.GetBookAsync(Id);
+
+        curatedTitleInput = book?.CuratedTitle;
+        curatedAuthorInput = book?.CuratedAuthor;
+    }
+
+    private async Task SaveCuratedAsync() =>
+        await CurateAsync(curatedTitleInput, curatedAuthorInput);
+
+    // Hands the action two blanks, which is how Curated Metadata is removed
+    // (ADR 0007): the Book drops back to whatever its Documents observed.
+    private async Task ClearCuratedAsync() => await CurateAsync(null, null);
+
+    private async Task CurateAsync(string? title, string? author)
+    {
+        curateError = null;
+
+        var result = await BookDashboardService.CurateBookAsync(Id, title, author);
+
+        if (result == CurateBookResult.BookNotFound)
+        {
+            curateError = Constants.CuratedMetadata.SaveFailedError;
+            return;
+        }
+
+        // Re-read rather than patching the summary in place: the title on
+        // screen is a resolution over several tiers, and only the service
+        // knows which one now wins.
+        await LoadAsync();
     }
 
     private async Task ResetProgressAsync(int documentId)
@@ -122,7 +201,7 @@
             return;
         }
 
-        book = await BookDashboardService.GetBookAsync(Id);
+        await LoadAsync();
     }
 
     private async Task MergeAsync()
@@ -148,7 +227,7 @@
         if (result == MergeBooksResult.Success)
         {
             mergeBookIdInput = null;
-            book = await BookDashboardService.GetBookAsync(Id);
+            await LoadAsync();
         }
     }
 }

@@ -579,10 +579,6 @@ public static class Constants
         public const string FlaggedBooksNoun = "split book";
 
         public const string FlaggedDevicesFormat = "{0} with a split Book";
-
-        // A Book has no title of its own until Phase 3 (ADR 0007) observes or
-        // curates one, so the dashboard names it by its id.
-        public const string BookNameFormat = "Book #{0}";
     }
 
     public const string NoDevicesSyncedText = "No devices have synced yet.";
@@ -607,6 +603,42 @@ public static class Constants
     public const string DeviceNotFoundText = "Device not found.";
 
     public const string BookNotFoundText = "Book not found.";
+
+    // What a Book is called when nobody curated a title and no Device ever
+    // observed one (ADR 0007). A permanent fallback, not a transitional one:
+    // KOReader's "send document metadata" setting is opt-in and recent, so
+    // Books with nothing to show are a case that stays. Not under Dashboard -
+    // the detail page and its page title name a Book this way too.
+    public const string BookFallbackNameFormat = "Book #{0}";
+
+    // The Book detail page's Curated Metadata editor (ADR 0007, issue #30):
+    // where a User types the title and author they know to be right.
+    public static class CuratedMetadata
+    {
+        public const string SectionTitle = "Title and author";
+
+        public const string TitleLabel = "Title";
+
+        public const string AuthorLabel = "Author";
+
+        public const string TitlePlaceholder = "e.g. Dune";
+
+        public const string AuthorPlaceholder = "e.g. Frank Herbert";
+
+        // Says which way the precedence runs, at the point where somebody is
+        // about to rely on it. Without this the editor looks like it might
+        // lose to the next sync.
+        public const string Hint =
+            "What you type here is kept, and no sync will overwrite it.";
+
+        public const string SaveButton = "Save";
+
+        // Only offered where there is something to clear - and it says what
+        // happens next, because "clear" alone reads like "lose the title".
+        public const string ClearButton = "Clear and use what devices report";
+
+        public const string SaveFailedError = "Save failed - Book not found.";
+    }
 
     public const string ProgressRegressionFlag = "Progress Regression";
 

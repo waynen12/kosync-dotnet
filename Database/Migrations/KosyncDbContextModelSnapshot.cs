@@ -23,6 +23,12 @@ namespace Kosync.Database.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("CuratedAuthor")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CuratedTitle")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("UserId")
                         .HasColumnType("INTEGER");
 

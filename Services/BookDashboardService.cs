@@ -4,7 +4,21 @@ public record SyncEventSummary(string DeviceName, decimal Percentage, DateTime T
 
 public record BookDocumentSummary(int DocumentId, string DocumentHash, string DeviceName, decimal Percentage, DateTime Timestamp, bool HasCurrentProgress, IReadOnlyList<SyncEventSummary> History);
 
-public record BookSummary(int Id, decimal Percentage, DateTime? LastSyncedAt, bool IsSplitBook, IReadOnlyList<BookDocumentSummary> Documents);
+// Title and Author are what to *show* for this Book, already resolved
+// through BookMetadataRule - curated, then observed, then `Book #N`. The
+// Curated* pair is what the owning User actually typed, which an edit form
+// needs separately: it has to come up blank where the displayed title is
+// only an observation showing through, or saving would silently curate it.
+public record BookSummary(
+    int Id,
+    string Title,
+    string? Author,
+    string? CuratedTitle,
+    string? CuratedAuthor,
+    decimal Percentage,
+    DateTime? LastSyncedAt,
+    bool IsSplitBook,
+    IReadOnlyList<BookDocumentSummary> Documents);
 
 public enum MergeBooksResult
 {
@@ -17,6 +31,12 @@ public enum ResetProgressResult
 {
     Success,
     DocumentNotFound
+}
+
+public enum CurateBookResult
+{
+    Success,
+    BookNotFound
 }
 
 // Backs the Books dashboard view (issue #6): a Book card grid and its
@@ -89,6 +109,17 @@ public class BookDashboardService
         {
             document.BookId = keepBook.Id;
         }
+
+        // Observations survive a merge by staying on their own Documents
+        // (ADR 0007), but a Curated title lives on the Book about to be
+        // removed and nothing can reproduce it - no Document observed it and
+        // no push will bring it back. So it moves where the surviving Book
+        // has no answer of its own, and never over one it has: two curated
+        // titles are two human answers, and nothing here can tell which is
+        // better than the Book its owner chose to keep.
+        keepBook.CuratedTitle ??= mergeBook.CuratedTitle;
+        keepBook.CuratedAuthor ??= mergeBook.CuratedAuthor;
+
         await _db.SaveChangesAsync();
 
         _db.Books.Remove(mergeBook);
@@ -128,6 +159,32 @@ public class BookDashboardService
         return ResetProgressResult.Success;
     }
 
+    // Sets a Book's Curated Metadata, or clears it (issue #30): a blank
+    // title or author is "I have nothing to say about this", which drops the
+    // Book back to whatever its Documents observed. One method for both,
+    // because the form that sets a title is the same form that empties it.
+    //
+    // Scoped by the caller's tenant like every other read here (ADR 0004):
+    // another User's Book id filters out and comes back BookNotFound, which
+    // is also this action's whole authorisation check.
+    public async Task<CurateBookResult> CurateBookAsync(int bookId, string? title, string? author)
+    {
+        var book = await _db.Books.FirstOrDefaultAsync(b => b.Id == bookId);
+
+        if (book is null)
+        {
+            return CurateBookResult.BookNotFound;
+        }
+
+        // Blank is stored as no value at all (MetadataText), so "   " clears
+        // rather than curating a Book whose title is three spaces.
+        book.CuratedTitle = MetadataText.TrimmedOrNull(title);
+        book.CuratedAuthor = MetadataText.TrimmedOrNull(author);
+        await _db.SaveChangesAsync();
+
+        return CurateBookResult.Success;
+    }
+
     private static BookSummary Summarize(Book book)
     {
         var documents = book.Documents
@@ -147,7 +204,16 @@ public class BookDashboardService
         var lastSyncedAt = documents.Count == 0 ? (DateTime?)null : documents.Max(d => d.Timestamp);
         var isSplitBook = SplitBookRule.IsSplit(book);
 
-        return new BookSummary(book.Id, percentage, lastSyncedAt, isSplitBook, documents);
+        return new BookSummary(
+            book.Id,
+            BookMetadataRule.ResolveTitle(book),
+            BookMetadataRule.ResolveAuthor(book),
+            book.CuratedTitle,
+            book.CuratedAuthor,
+            percentage,
+            lastSyncedAt,
+            isSplitBook,
+            documents);
     }
 
     // Merges a Document's push history with its reset marker (issue #9)
