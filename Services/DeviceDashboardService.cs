@@ -1,6 +1,9 @@
 namespace Kosync.Services;
 
-public record DeviceDocumentSummary(string DocumentHash, decimal Percentage, DateTime Timestamp, bool IsSplitBook);
+// Label and DocumentHash mean here exactly what they mean on a Book's
+// Documents (BookDocumentSummary): what to call the file, and the full hash
+// that stays beside it (ADR 0007).
+public record DeviceDocumentSummary(string DocumentHash, string Label, decimal Percentage, DateTime Timestamp, bool IsSplitBook);
 
 public record DeviceSummary(int Id, string DeviceName, string DeviceId, DateTime? LastSyncedAt, IReadOnlyList<DeviceDocumentSummary> Documents);
 
@@ -53,7 +56,12 @@ public class DeviceDashboardService
             .GroupBy(s => s.DocumentId)
             .Select(g => g.OrderByDescending(s => s.Timestamp).ThenByDescending(s => s.Id).First())
             .OrderByDescending(s => s.Timestamp)
-            .Select(s => new DeviceDocumentSummary(s.Document.DocumentHash, s.Percentage, s.Timestamp, SplitBookRule.IsSplit(s.Document.Book)))
+            .Select(s => new DeviceDocumentSummary(
+                s.Document.DocumentHash,
+                DocumentLabelRule.Resolve(s.Document),
+                s.Percentage,
+                s.Timestamp,
+                SplitBookRule.IsSplit(s.Document.Book)))
             .ToList();
 
         var lastSyncedAt = device.SyncEvents.Count == 0

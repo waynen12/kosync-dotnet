@@ -770,8 +770,23 @@ a.hub-btn { text-decoration: none; }
     color: var(--ks-muted);
 }
 
-.ks-doc-hash {
+/* A Document's label on the detail pages (issue #31) - the observed
+   filename, or a truncated hash. It takes the row's spare width; the full
+   hash beside it sizes to its content, because the label is the part worth
+   reading and the hash is the part worth having. */
+.ks-doc-label {
     flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ks-fg);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ks-doc-hash {
+    flex: 0 1 auto;
     min-width: 0;
     font-family: var(--hub-font-mono);
     font-size: 12px;
@@ -898,6 +913,16 @@ a.hub-btn { text-decoration: none; }
     background: var(--ks-card-bg);
     color: var(--ks-fg);
     font-size: 14px;
+}
+
+/* The missing-metadata hint (issue #31). Reads as an aside rather than as
+   an error: nothing is wrong, a setting is simply off. */
+.ks-metadata-hint {
+    color: var(--ks-muted);
+    font-size: 12.5px;
+    border-left: 2px solid var(--ks-warning);
+    padding-left: 10px;
+    margin: 0 0 18px;
 }
 
 .ks-curate-hint {

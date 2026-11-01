@@ -611,6 +611,31 @@ public static class Constants
     // the detail page and its page title name a Book this way too.
     public const string BookFallbackNameFormat = "Book #{0}";
 
+    // What a Book says when it has no title and no Device has ever reported
+    // anything about its files (BookMetadataRule.NeedsMetadataHint).
+    // KOReader's setting is off by default, so a Book with nothing to show is
+    // the normal first experience - and without this it reads as a broken
+    // feature rather than a switched-off one (ADR 0007, issue #31). Names the
+    // setting exactly as KOReader does, because the reader has to find it in
+    // that list.
+    //
+    // Carried inline on the Book, the way a Split Book is flagged inline,
+    // rather than collected into an inbox of things to fix.
+    public const string MissingMetadataHint =
+        "No title yet — enable Send document metadata in KOReader's sync settings.";
+
+    // How a Document is named on the two detail pages (ADR 0007, issue #31).
+    public static class DocumentLabel
+    {
+        // How much of a hash stands in for a filename nobody observed.
+        // Enough leading characters of an md5 to recognise the one KOReader
+        // just showed you, short enough to read as a label rather than as a
+        // hash - which is also why the full hash stays on the page beside it.
+        public const int TruncatedHashLength = 8;
+
+        public const string TruncationSuffix = "...";
+    }
+
     // The Book detail page's Curated Metadata editor (ADR 0007, issue #30):
     // where a User types the title and author they know to be right.
     public static class CuratedMetadata

@@ -2,7 +2,11 @@ namespace Kosync.Services;
 
 public record SyncEventSummary(string DeviceName, decimal Percentage, DateTime Timestamp, bool IsCurrent, bool IsReset = false);
 
-public record BookDocumentSummary(int DocumentId, string DocumentHash, string DeviceName, decimal Percentage, DateTime Timestamp, bool HasCurrentProgress, IReadOnlyList<SyncEventSummary> History);
+// Label is what to *call* this Document, resolved through DocumentLabelRule -
+// the filename a Device observed, or a truncated hash. DocumentHash is the
+// full hash regardless: it is what you need to diagnose a Split Book, so the
+// label never replaces it (ADR 0007).
+public record BookDocumentSummary(int DocumentId, string DocumentHash, string Label, string DeviceName, decimal Percentage, DateTime Timestamp, bool HasCurrentProgress, IReadOnlyList<SyncEventSummary> History);
 
 // Title and Author are what to *show* for this Book, already resolved
 // through BookMetadataRule - curated, then observed, then `Book #N`. The
@@ -18,6 +22,7 @@ public record BookSummary(
     decimal Percentage,
     DateTime? LastSyncedAt,
     bool IsSplitBook,
+    bool NeedsMetadataHint,
     IReadOnlyList<BookDocumentSummary> Documents);
 
 public enum MergeBooksResult
@@ -188,15 +193,15 @@ public class BookDashboardService
     private static BookSummary Summarize(Book book)
     {
         var documents = book.Documents
-            .Select(d => new { d.Id, d.DocumentHash, History = BuildHistory(d) })
+            .Select(d => new { d.Id, d.DocumentHash, Label = DocumentLabelRule.Resolve(d), History = BuildHistory(d) })
             .Where(x => x.History.Count > 0)
-            .Select(x => new { x.Id, x.DocumentHash, x.History, Current = x.History.FirstOrDefault(h => h.IsCurrent) })
+            .Select(x => new { x.Id, x.DocumentHash, x.Label, x.History, Current = x.History.FirstOrDefault(h => h.IsCurrent) })
             .Select(x => x.Current is not null
-                ? new BookDocumentSummary(x.Id, x.DocumentHash, x.Current.DeviceName, x.Current.Percentage, x.Current.Timestamp, HasCurrentProgress: true, x.History)
+                ? new BookDocumentSummary(x.Id, x.DocumentHash, x.Label, x.Current.DeviceName, x.Current.Percentage, x.Current.Timestamp, HasCurrentProgress: true, x.History)
                 // No current push - either freshly reset, or (in principle)
                 // never synced. Stays visible in its Book at 0% (rather than
                 // being hidden entirely) until the next push lands.
-                : new BookDocumentSummary(x.Id, x.DocumentHash, string.Empty, 0m, x.History[0].Timestamp, HasCurrentProgress: false, x.History))
+                : new BookDocumentSummary(x.Id, x.DocumentHash, x.Label, string.Empty, 0m, x.History[0].Timestamp, HasCurrentProgress: false, x.History))
             .OrderByDescending(d => d.Percentage)
             .ToList();
 
@@ -213,6 +218,7 @@ public class BookDashboardService
             percentage,
             lastSyncedAt,
             isSplitBook,
+            BookMetadataRule.NeedsMetadataHint(book),
             documents);
     }
 

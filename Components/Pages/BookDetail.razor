@@ -41,6 +41,15 @@
             <span>last synced @DashboardFormatting.RelativeTime(book.LastSyncedAt, DateTime.UtcNow)</span>
         </p>
 
+        @* Inline on the Book, like the Split Book flag above it: a Book
+           nobody has ever reported a title for, with the KOReader setting
+           that would have reported one named where the reader is already
+           looking for the missing title (ADR 0007). *@
+        @if (book.NeedsMetadataHint)
+        {
+            <p class="ks-metadata-hint">@Constants.MissingMetadataHint</p>
+        }
+
         <div class="ks-section-title">@Constants.CuratedMetadata.SectionTitle</div>
         <form class="ks-curate-form" @onsubmit="SaveCuratedAsync" @onsubmit:preventDefault="true">
             @* Bound to what was *curated*, not to what is displayed: an
@@ -89,6 +98,12 @@
             @foreach (var doc in book.Documents)
             {
                 <div class="ks-doc-card">
+                    @* The filename a Device observed, or a truncated hash -
+                       resolved in DocumentLabelRule, never here. The full
+                       hash stays beside it either way: it is what you take
+                       to KOReader to tell a Split Book's files apart
+                       (ADR 0007). *@
+                    <span class="ks-doc-label">@doc.Label</span>
                     <span class="ks-doc-hash">@doc.DocumentHash</span>
                     @if (doc.HasCurrentProgress)
                     {

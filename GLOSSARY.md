@@ -146,6 +146,16 @@ person who typed a title is asserting they know the correct answer, while
 a push only reports what one device happened to extract from one file.
 _Avoid_: metadata (unqualified), override, manual title
 
+**Document Label**:
+What a Document is called on the two detail pages — the filename a Device
+observed for it, or the first characters of its hash where none was
+observed. A Document *is* a file, so its filename is the most honest name
+for it. Never replaces the hash: both are on the page, because the hash is
+what tells a Split Book's files apart. A Document has no curated tier and
+no `Book #N`-style fallback; its hash is always there to name it with.
+_Avoid_: title (that is the Book's), filename (the observation, not the
+resolved label), name
+
 **Progress Reset**:
 A deliberate action that clears a Document's current-progress pointer so
 a reader can restart a book. Recorded as a timestamp on the Document

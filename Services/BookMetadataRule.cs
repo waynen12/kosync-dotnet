@@ -18,6 +18,24 @@ public static class BookMetadataRule
         MetadataText.TrimmedOrNull(book.CuratedAuthor)
         ?? MostRecentObservation(book, d => d.ObservedAuthors);
 
+    // Whether this Book should carry the "enable Send document metadata"
+    // hint (ADR 0007, issue #31). Two conditions, and each one is the hint's
+    // own wording held to: it says "no title yet", so a Book with a curated
+    // title has nothing to be hinted about - a curated *author* does not
+    // count, because it leaves the Book still called `Book #N`. And it says
+    // to enable a setting, so it is wrong the moment any Document observed
+    // anything: that reader's devices are already sending metadata, and a
+    // file that carried no title is not a setting they can switch on.
+    //
+    // MetadataObservedAt is the test for "observed anything", because
+    // ObservedMetadataRule only stamps it where a push actually carried a
+    // value - so a Book that saw nothing but empty `metadata` objects still
+    // gets the hint, which is right: that reader's devices are sending
+    // nothing either.
+    public static bool NeedsMetadataHint(Book book) =>
+        MetadataText.TrimmedOrNull(book.CuratedTitle) is null
+        && book.Documents.All(d => d.MetadataObservedAt is null);
+
     // The most recent observation wins, deliberately *not* the
     // furthest-along Document that decides the Book's progress: progress is
     // a quantity where further is better, while there is no sense in which a

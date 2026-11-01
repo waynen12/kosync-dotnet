@@ -257,11 +257,20 @@ Source is now decided (ADR 0007): KOReader's own opt-in metadata push.
   value onto the surviving Book only where that Book has none of its own —
   the one piece of metadata a removed Book cannot leave behind on its
   Documents (ADR 0007).
-- Observed filename replaces raw hashes as the Document label **on the
-  detail pages**, hash still shown alongside. The dashboard table shows a
-  Document count and labels no Documents, so nothing changes there.
-- Inline hint on metadata-less Books telling the reader to enable the
-  KOReader setting.
+- **Done (#31):** observed filename is the Document's label on the two
+  detail pages, resolved in `DocumentLabelRule`, falling back to the
+  hash's first 8 characters where no Device reported one. The full hash
+  stays beside it — it is what tells a Split Book's files apart. The
+  dashboard is untouched: its table shows a Document count and labels no
+  Documents, so a filename has nothing to replace there. The same change
+  carries the inline hint on a Book nothing has ever reported a title for,
+  naming KOReader's "Send document metadata" setting, since that setting
+  is off by default and the Book otherwise looks broken rather than
+  switched off. `BookMetadataRule.NeedsMetadataHint` holds the hint to its
+  own wording: withheld from a Book whose Documents observed anything (that
+  reader's setting is already on, so there is nothing to enable) and from
+  one with a curated title (there *is* a title), but shown on a Book with
+  only a curated author, which is still called `Book #N`.
 - Exact title+author merge *suggestions*, scoped within one User.
 - Later, not now: fill metadata from an entered title or ISBN.
 

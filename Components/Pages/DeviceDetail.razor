@@ -33,6 +33,10 @@
             @foreach (var doc in device.Documents)
             {
                 <div class="ks-doc-card">
+                    @* Same pair as the Book detail page, for the same
+                       reasons: a label to read, and the full hash to
+                       diagnose a Split Book with (ADR 0007). *@
+                    <span class="ks-doc-label">@doc.Label</span>
                     <span class="ks-doc-hash">@doc.DocumentHash</span>
                     <span class="ks-doc-pct">@DashboardFormatting.Percentage(doc.Percentage)</span>
                     @if (doc.IsSplitBook)
