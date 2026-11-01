@@ -389,7 +389,7 @@ and where it goes:
 | `HubNav.razor` | `Components/Layout/MainLayout.razor` | **Done (#17):** replaced `.ks-shell-*` outright — those rules and the `--ks-shell-bg` alias are gone, and the nav rules are app.css section 7. The nav carries brand, Username and the theme toggle only; the prototype's "Manage accounts", "Change password" and "Sign out" buttons land with #28, #24 and a sign-out endpoint respectively, rather than shipping as dead chrome |
 | `prototype.css` token block + primitives | `wwwroot/css/app.css` | **Does not delete the `--ks-*` tokens** — see "the detail pages" below |
 | `HubIcon.razor` | keep as-is | Or take a real icon dependency — decide then |
-| *(nothing)* | `Components/Pages/BookDetail.razor`, `DeviceDetail.razor` | **No prototype exists for these** — see below |
+| `detail-pages-mockup.html` variant A | `Components/Pages/BookDetail.razor`, `DeviceDetail.razor` | **Prototyped by the third session (#33)** — variant A, "Ledger". See "The detail pages" below |
 
 #### The detail pages were never prototyped
 
@@ -415,6 +415,103 @@ prototyping sessions existed to avoid.
 The detail pages are therefore **the next UI pass** (a third prototyping
 session), not part of the fold-in. They will look slightly off-brand
 until then: new colours, old radii and spacing.
+
+#### The detail pages — decided (2026-11-01, issue [#33](https://github.com/waynen12/kosync-dotnet/issues/33))
+
+The third prototyping session ran. Three structurally different variants are
+in [prototype/detail-pages-mockup.html](prototype/detail-pages-mockup.html)
+(`?variant=A|B|C`, with Book/Device and data-case switchers), built over the
+real `app.css` so they were judged in the actual design language rather than
+against a hand-rolled palette — which is what `dashboard-mockup.html` could
+not do, predating app.css having hub tokens.
+
+Implementation is [#39](https://github.com/waynen12/kosync-dotnet/issues/39),
+which also deletes the `--ks-*` aliases. The bug the session found is
+[#38](https://github.com/waynen12/kosync-dotnet/issues/38), and should land
+first.
+
+**Decision: variant A, "Ledger".** Documents become a `hub-table`; a row
+expands into its full hash, its SyncEvent history and the reset action. The
+metadata editor and the merge controls are closed `<details>` disclosures in
+a strip under the header.
+
+**Why.** The deciding argument is the same one that chose the dashboard's
+table over the card grid, one level down: *the drill-in should not be a
+different design language from the page that links to it.* A Book's
+Documents are the same kind of list as the dashboard's Books — scanned for
+the one that went wrong — and a table aligns every progress bar and every
+flag into one column. Variant A also lands the page on evidence rather than
+on inputs: today both forms are permanently open above the Documents, which
+puts an irreversible merge control between the reader and the thing they
+came to look at.
+
+Measured content heights at 1440px, on the Split Book case (4 Documents, 12
+SyncEvents) and the busy Device (7 Documents):
+
+| | Book detail | Device detail |
+|---|---|---|
+| A — Ledger | **677px** (945px with one row open, 1484px with all four) | **673px** |
+| B — Workbench | 1289px | 1074px |
+| C — Stream | 1096px | 824px |
+
+A is the shortest closed and the tallest fully open, which is the point:
+it is progressive disclosure, and diagnosing a Split Book means opening one
+Document, not four. B and C pay their full height whether you need it or not.
+
+**What the losers were right about, and what to keep from them.**
+
+- **B's sticky identity rail.** Scrolling a long Document list means
+  checking each row against a Book whose title has scrolled away. Worth
+  revisiting if the Document count on real data runs long; A keeps the
+  identity in a header that scrolls off.
+- **C's interleaved timeline is the better diagnosis and the worse page.**
+  A Split Book *is* a disagreement between Documents over time, and
+  interleaving makes the fork visible as a fork — A's per-row drawers keep
+  the two histories apart, which is exactly the comparison you want. It
+  lost on generality: `DeviceDocumentSummary` carries no SyncEvent history
+  at all, so the Device page can only imitate C, and a layout that only
+  works on one of the two pages reintroduces the split this session existed
+  to close. If a Split Book turns out to be hard to read in A, C's stream
+  is the thing to bring back — as a view on the Book, not as the page.
+- **Documents are keyed `D1`/`D2`/`D3` rather than by colour** in all three
+  variants, and that survives into A. The hub ramp is achromatic with one
+  brand orange; a per-Document colour key would be the first chromatic
+  thing in the system.
+
+**Also settled by the session:**
+
+- **A Document's label.** Observed filename (or truncated hash) in the
+  Document column; the **full** hash inside the expanded row, not on it.
+  The hash is reference material you fetch when diagnosing, and keeping it
+  out of the collapsed row is what lets the table stay a table — it was
+  ~32 monospace characters per row competing with the filename.
+- **The reset action** moves inside the expanded row, behind the same
+  two-press `<details>` confirmation the merge uses. It was a button on
+  every Document row, one press from an irreversible action, sitting in a
+  column you scan past.
+- **The metadata hint and the Split Book flag** stay inline on the Book,
+  as they are now — that part of ADR 0007 was right and is unchanged.
+- **The `--ks-*` aliases and all 21 `.ks-*` rules are now scheduled for
+  deletion**, with [#39](https://github.com/waynen12/kosync-dotnet/issues/39)
+  — which is the last of the pre-hub styling. The candidate replacement
+  rules in the mockup deliberately drop the pre-hub geometry the fold-in
+  left behind (the ad-hoc 8px/12px radii and 12.5px/13.5px font sizes) for
+  `--hub-radius-*` and the hub's type steps. That geometry is most of what
+  "off-brand" currently means on these two pages.
+
+**One bug found, and it is not a styling one.** `BookDetail.razor` flags
+every SyncEvent with `!IsCurrent` as a Progress Regression. `IsCurrent` is
+the Document's single current-progress *pointer*, not a verdict on a push:
+`SyncController` promotes each qualifying push and clears the previous
+one's flag, so every superseded-but-ordinary push ends up `!IsCurrent` too.
+A Document with five pushes of which one regressed renders **four** flags —
+verified against the running app, not only read off the code. The existing
+test uses two pushes, where "not current" and "was blocked" coincide, which
+is why it never caught this. The fix needs no schema change: replaying the
+promotion rule over the history the service already returns recovers which
+pushes were actually blocked, and the mockup does exactly that. Filed as
+[#38](https://github.com/waynen12/kosync-dotnet/issues/38) so it can land on
+its own schedule — ahead of #39, which re-renders that flag.
 
 #### The dashboard stops listing documents
 
@@ -551,11 +648,6 @@ other people's reading history, not just the operator's own.
 
 ## Open questions
 
-- **Detail-page design.** `BookDetail`/`DeviceDetail` were never
-  prototyped and keep the old `.ks-*` styling via token aliases after the
-  fold-in. A third prototyping session is the next UI pass — and it is the
-  one that should settle how the merge form, reset action and SyncEvent
-  history timeline look in the hub language.
 - Filling book metadata from an entered title or ISBN — wanted, shape not
   designed (ADR 0007 covers only the push and manual curation).
 - Password expiry — anticipated but not designed. ADR 0006 notes that
@@ -573,3 +665,7 @@ first-login flow (ADR 0006).
 language (above), and the UI framework question — Blazor stays, ADR 0003
 amended rather than superseded, Tailwind CLI rejected
 ([ui-tech-review.md](ui-tech-review.md#resolved-2026-10-13)).
+
+*Resolved by the third prototyping session:* detail-page design — variant
+A, "Ledger", with the `--ks-*` aliases scheduled for deletion alongside it
+(above, "The detail pages — decided").

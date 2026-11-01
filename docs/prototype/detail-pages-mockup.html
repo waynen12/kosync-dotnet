@@ -1,0 +1,1586 @@
+<!doctype html>
+<!--
+  PROTOTYPE - throwaway, not production code.
+
+  Question: what should the Book and Device detail pages
+  (/dashboard/books/{id}, /dashboard/devices/{id}) look like in the hub
+  design language? These are the two screens neither earlier prototyping
+  session produced a variant for, so they still render the pre-hub `.ks-*`
+  rules over `--ks-*` token aliases (docs/ROADMAP.md, "The detail pages were
+  never prototyped"). Issue #33.
+
+  Run: open this file directly in a browser. No build step, no server.
+
+      xdg-open docs/prototype/detail-pages-mockup.html
+
+  It links the REAL stylesheet and the REAL theme script
+  (../../wwwroot/css/app.css, ../../wwwroot/js/theme.js) and sits inside the
+  real app chrome, so a variant is judged in the actual design language at
+  the actual density rather than against a hand-rolled palette. That is the
+  one thing dashboard-mockup.html could not do - it predates app.css having
+  hub tokens in it. Geist is not bundled, so the font falls back here exactly
+  as it does in the running app.
+
+  ANSWER (2026-11-01): variant A, "Ledger". The drill-in should not be a
+  different design language from the dashboard that links to it, and the
+  same argument that chose a table there holds one level down. Full
+  reasoning, the measured heights, and what B and C were right about:
+  docs/ROADMAP.md -> "The detail pages - decided". Implementation is #39;
+  the bug this session turned up is #38.
+
+  This file stays as the primary source. It is the design record, and it is
+  where #39's implementer looks - not the bin.
+
+  Variants (?variant=A|B|C):
+    A - "Ledger"     the dashboard's own table, one level down. Documents are
+                     rows; a row expands into its SyncEvent history. Every
+                     form is a closed disclosure, so the page lands on
+                     evidence rather than on inputs.
+    B - "Workbench"  two columns. Documents and their timelines take the
+                     width; identity, metadata editing and merge live in a
+                     sticky right rail. Reading the evidence and taking the
+                     action are different places.
+    C - "Stream"     one chronological SyncEvent timeline for the whole Book,
+                     every Document interleaved. Documents become a chip
+                     strip that doubles as the filter. A Split Book is a
+                     disagreement over time, so show time.
+
+  Also switchable: ?page=book|device and ?case=<key> (the switcher bar has
+  controls for both). The cases exist because these pages only get hard at
+  density - a 3-Document Split Book with a regression and a reset in its
+  history is the screen worth judging, not a clean one-Document Book.
+
+  Data is fake and in-memory, and deliberately faithful to the real view
+  models - BookSummary / BookDocumentSummary / SyncEventSummary in
+  Services/BookDashboardService.cs, DeviceSummary / DeviceDocumentSummary in
+  Services/DeviceDashboardService.cs. No field is invented. Where a variant
+  wants something the service does not expose, it says so on screen rather
+  than faking it (see the Device page under variant C). Copy is lifted from
+  Constants.cs so the variants are judged on layout, not on wording.
+
+  Nothing here talks to the real API; every action is a stub that logs.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kosync detail pages - UI prototype</title>
+
+<!-- The real stylesheet. Everything below reuses its primitives (.hub-table,
+     .hub-card, .hub-badge-*, .hub-btn-*, .hub-bar, .hub-kv, .hub-notice)
+     rather than reinventing them - a variant that needs a new primitive is a
+     variant with a cost, and that should be visible while judging. -->
+<link rel="stylesheet" href="../../wwwroot/css/app.css" />
+<script src="../../wwwroot/js/theme.js"></script>
+
+<style>
+  /* ====================================================================
+     CANDIDATE RULES
+
+     Only what the hub stylesheet does not already have. These are the rules
+     that would be written into app.css section 9 (replacing the `.ks-*`
+     block) if the variant they belong to wins, so they are namespaced per
+     variant - `.va-*`, `.vb-*`, `.vc-*` - plus a small shared group for the
+     things all three need.
+
+     Deliberately NOT carried over from the `.ks-*` rules: the 8px and 12px
+     radii and the ad-hoc 12.5px/13.5px font sizes. Those are the "old
+     geometry" the fold-in knowingly left behind; the candidates below use
+     --hub-radius-* and the hub's 12/13/14px steps instead. That is most of
+     what "off-brand" currently means on these two pages.
+     ==================================================================== */
+
+  /* ---- shared: things every variant needs ---- */
+
+  .v-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--hub-muted-fg);
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 14px;
+  }
+  .v-back:hover { color: var(--hub-fg); }
+
+  /* A Document's label - the observed filename, or a truncated hash
+     (DocumentLabelRule). Takes the row's spare width and truncates, because
+     real filenames are long and the start is the recognisable part. */
+  .v-doc-label {
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+  }
+
+  /* The full hash. Never replaced by the label (ADR 0007) - it is what you
+     take to KOReader to tell a Split Book's files apart - but it is
+     reference material, so it is mono, muted and small in every variant.
+     The variants disagree about *where*, which is the interesting part. */
+  .v-hash {
+      font-family: var(--hub-font-mono);
+      font-size: 12px;
+      color: var(--hub-muted-fg);
+      overflow-wrap: anywhere;
+  }
+
+  /* A Document identified by position rather than by colour. The hub ramp is
+     achromatic with one brand orange, so a per-Document colour key would be
+     the first chromatic thing in the system; a mono D1/D2/D3 badge keys the
+     same thing without spending a colour. */
+  .v-doc-key {
+      font-family: var(--hub-font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--hub-muted-fg);
+      background: var(--hub-muted);
+      border-radius: var(--hub-radius-sm);
+      padding: 2px 6px;
+      flex: 0 0 auto;
+  }
+
+  /* An aside, not an error: the missing-metadata hint and the merge warning
+     are both "nothing is broken, there is something to know". The hub has
+     .hub-notice for the strong case and .hub-guard for the quiet one; this
+     is the middle one both pages need. */
+  .v-aside {
+      color: var(--hub-muted-fg);
+      font-size: 13px;
+      line-height: 1.5;
+      border-left: 2px solid var(--hub-amber-strong);
+      padding-left: 12px;
+      margin: 0 0 16px;
+      max-width: 60ch;
+  }
+  .v-aside-danger { border-left-color: var(--hub-destructive); color: var(--hub-destructive); }
+
+  /* Both merge entry points ask twice, as a <details> rather than as
+     round-tripped state (ADR 0003). Shared because the confirmation's shape
+     is settled - issue #32 decided it - and is not what is being prototyped. */
+  .v-confirm > summary { list-style: none; cursor: pointer; }
+  .v-confirm > summary::-webkit-details-marker { display: none; }
+  .v-confirm[open] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px;
+      margin-top: 8px;
+      border: 1px solid var(--hub-border);
+      border-radius: var(--hub-radius-lg);
+      background: var(--hub-muted);
+  }
+  .v-confirm[open] > summary { margin-bottom: 2px; }
+
+  .v-flags { display: inline-flex; gap: 6px; flex-wrap: wrap; vertical-align: middle; }
+
+  /* A deliberate restart is not a detected fault, so it is neutral rather
+     than amber or red - the reader chose it (issue #9). .hub-badge-muted
+     already says exactly that, so there is no new rule for it. */
+
+  /* ====================================================================
+     VARIANT A - "Ledger"
+     ==================================================================== */
+
+  .va-head { margin-bottom: 18px; }
+  .va-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .va-sub { color: var(--hub-muted-fg); font-size: 14px; margin: 6px 0 0; }
+  .va-sub .sep { opacity: 0.5; margin: 0 7px; }
+
+  /* The action strip. Every form on this variant is a closed disclosure, so
+     the page below it is evidence - which is the whole claim of variant A. */
+  .va-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+  .va-actions > details { position: relative; }
+  .va-actions > details > summary { list-style: none; cursor: pointer; }
+  .va-actions > details > summary::-webkit-details-marker { display: none; }
+  .va-drawer {
+      margin-top: 10px;
+      padding: 16px;
+      border: 1px solid var(--hub-border);
+      border-radius: var(--hub-radius-xl);
+      background: var(--hub-card);
+      max-width: 40rem;
+  }
+  .va-actions > details[open] { flex: 1 1 100%; }
+
+  .va-row-toggle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      background: none;
+      border: none;
+      padding: 0;
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+      text-align: left;
+  }
+  .va-chevron {
+      flex: 0 0 auto;
+      color: var(--hub-muted-fg);
+      font-size: 10px;
+      transition: transform 120ms ease;
+  }
+  .va-row-toggle[aria-expanded="true"] .va-chevron { transform: rotate(90deg); }
+
+  /* The expanded row: the full hash, and this Document's SyncEvents. Inset
+     and on the muted surface so it reads as belonging to the row above
+     rather than as more rows. */
+  .va-detail-cell { padding: 0 !important; background: var(--hub-muted); }
+  .va-detail { padding: 14px 16px 16px 42px; display: grid; gap: 12px; }
+  .va-events { display: grid; gap: 0; font-size: 13px; }
+  .va-event {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--hub-border);
+  }
+  .va-event:last-child { border-bottom: none; }
+  .va-event-pct { font-variant-numeric: tabular-nums; font-weight: 600; width: 40px; }
+  .va-event-when { color: var(--hub-muted-fg); margin-left: auto; white-space: nowrap; }
+
+  /* ====================================================================
+     VARIANT B - "Workbench"
+     ==================================================================== */
+
+  .vb-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 20rem;
+      gap: 24px;
+      align-items: start;
+  }
+  .vb-rail { position: sticky; top: 16px; display: grid; gap: 14px; }
+  .vb-rail .hub-card { padding: 16px; }
+  .vb-rail-title { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 2px; }
+  .vb-rail-sub { font-size: 13px; color: var(--hub-muted-fg); margin: 0 0 12px; }
+  .vb-progress { display: flex; align-items: center; gap: 10px; margin: 14px 0 4px; }
+  .vb-progress .hub-bar { width: auto; flex: 1; height: 7px; }
+  .vb-progress .hub-pct { font-size: 13px; width: auto; }
+
+  .vb-doc { padding: 16px; margin-bottom: 14px; }
+  .vb-doc-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .vb-doc-head .v-doc-label { font-size: 15px; flex: 1; }
+  .vb-doc-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 10px 0 0;
+      font-size: 13px;
+      color: var(--hub-muted-fg);
+  }
+
+  /* The per-Document timeline. A real rail with dots, because on this
+     variant the timeline is the card's content rather than a disclosure -
+     it has the room to be drawn properly. */
+  .vb-timeline { margin: 14px 0 0; padding-left: 18px; position: relative; }
+  .vb-timeline::before {
+      content: "";
+      position: absolute;
+      left: 3px;
+      top: 6px;
+      bottom: 6px;
+      width: 2px;
+      background: var(--hub-border);
+  }
+  .vb-tl-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 0;
+      font-size: 13px;
+      position: relative;
+      flex-wrap: wrap;
+  }
+  .vb-tl-row::before {
+      content: "";
+      position: absolute;
+      left: -18px;
+      top: 13px;
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--hub-border);
+      box-shadow: 0 0 0 3px var(--hub-card);
+  }
+  .vb-tl-row.current::before { background: var(--hub-brand); }
+  .vb-tl-pct { font-variant-numeric: tabular-nums; font-weight: 600; width: 40px; }
+  .vb-tl-when { color: var(--hub-muted-fg); margin-left: auto; white-space: nowrap; }
+
+  @media (max-width: 1024px) {
+      .vb-grid { grid-template-columns: 1fr; }
+      /* The rail goes first when it stacks: it is the identity of the thing
+         being looked at, and reading the documents before knowing which Book
+         they belong to is backwards. */
+      .vb-rail { position: static; order: -1; }
+  }
+
+  /* ====================================================================
+     VARIANT C - "Stream"
+     ==================================================================== */
+
+  .vc-head { margin-bottom: 16px; }
+
+  /* The Document list, as a chip strip that doubles as the stream's filter.
+     Compact because on this variant a Document is a lens on the timeline
+     rather than a container for it. */
+  .vc-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 4px; }
+  .vc-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      max-width: 22rem;
+      padding: 7px 12px;
+      border: 1px solid var(--hub-border);
+      border-radius: 999px;
+      background: var(--hub-card);
+      font: inherit;
+      font-size: 13px;
+      color: var(--hub-fg);
+      cursor: pointer;
+  }
+  .vc-chip:hover { background: var(--hub-muted); }
+  .vc-chip[aria-pressed="true"] {
+      border-color: var(--hub-brand);
+      background: color-mix(in srgb, var(--hub-brand) 10%, transparent);
+      color: var(--hub-brand);
+  }
+  .vc-chip[aria-pressed="true"] .v-doc-key { background: var(--hub-on-brand-wash); color: inherit; }
+  .vc-chip .v-doc-label { max-width: 13rem; }
+  .vc-chip-pct { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+  /* The selected chip's detail line: the full hash, and the per-Document
+     action. Scoping reset to the selected Document is what lets this variant
+     have one reset button instead of one per row. */
+  .vc-selected {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      padding: 12px 14px;
+      margin: 12px 0 0;
+      border: 1px solid var(--hub-border);
+      border-radius: var(--hub-radius-xl);
+      background: var(--hub-card);
+  }
+  .vc-selected .v-hash { flex: 1; min-width: 12rem; }
+
+  .vc-stream { margin: 6px 0 0; }
+  .vc-stream-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 2px;
+      border-bottom: 1px solid var(--hub-border);
+      font-size: 13.5px;
+      flex-wrap: wrap;
+  }
+  .vc-stream-row:last-child { border-bottom: none; }
+  .vc-stream-row.dimmed { opacity: 0.32; }
+  .vc-stream-pct { font-variant-numeric: tabular-nums; font-weight: 700; width: 44px; }
+  .vc-stream-doc {
+      color: var(--hub-muted-fg);
+      max-width: 16rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+  }
+  .vc-stream-when { color: var(--hub-muted-fg); margin-left: auto; white-space: nowrap; }
+
+  /* Where a variant wants data the service does not expose. On screen rather
+     than faked, because "this layout needs a service change" is a finding. */
+  .v-gap {
+      border: 1px dashed var(--hub-border);
+      border-radius: var(--hub-radius-xl);
+      padding: 16px;
+      color: var(--hub-muted-fg);
+      font-size: 13px;
+      line-height: 1.55;
+      max-width: 54ch;
+  }
+  .v-gap strong { color: var(--hub-fg); font-weight: 600; }
+
+  /* ====================================================================
+     THE SWITCHER - not part of any variant's design
+     ==================================================================== */
+  #proto-switcher {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 9px;
+      border-radius: 999px;
+      background: #111318;
+      color: #f4f5f7;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      font-family: var(--hub-font-sans);
+      font-size: 12px;
+      font-weight: 600;
+      max-width: calc(100vw - 24px);
+      flex-wrap: wrap;
+      justify-content: center;
+  }
+  #proto-switcher button {
+      border: none;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.1);
+      color: inherit;
+      font: inherit;
+      padding: 5px 10px;
+      cursor: pointer;
+  }
+  #proto-switcher button:hover { background: rgba(255, 255, 255, 0.2); }
+  #proto-switcher button[aria-pressed="true"] { background: #f57c00; color: #fff; }
+  #proto-switcher .ps-label { min-width: 150px; text-align: center; padding: 0 4px; }
+  #proto-switcher .ps-div { width: 1px; height: 18px; background: rgba(255, 255, 255, 0.18); margin: 0 3px; }
+  #proto-switcher .ps-hint { font-weight: 400; opacity: 0.6; }
+</style>
+</head>
+<body>
+
+<!-- The real app chrome, copied from Components/Layout/MainLayout.razor, so
+     a variant is judged inside the shell it will actually live in. Static
+     markup: there is no circuit here, and the theme toggle calls the real
+     theme.js the same way the real nav does. -->
+<div class="hub-root">
+  <header class="hub-topband">
+    <nav class="hub-nav">
+      <a class="hub-nav-brand" href="#">kosync</a>
+      <div class="hub-nav-actions">
+        <span class="hub-nav-user">admin</span>
+        <button type="button" class="hub-icon-btn" onclick="window.kosyncTheme.toggle()"
+                title="Toggle theme" aria-label="Toggle theme">
+          <span class="hub-theme-moon">&#9789;</span>
+          <span class="hub-theme-sun">&#9788;</span>
+        </button>
+      </div>
+    </nav>
+  </header>
+
+  <main class="hub-app-main">
+    <div id="app"></div>
+  </main>
+</div>
+
+<div id="proto-switcher">
+  <button id="ps-prev" aria-label="Previous variant">&lsaquo;</button>
+  <span class="ps-label" id="ps-label">A</span>
+  <button id="ps-next" aria-label="Next variant">&rsaquo;</button>
+  <span class="ps-div"></span>
+  <span id="ps-pages"></span>
+  <span class="ps-div"></span>
+  <span id="ps-cases"></span>
+  <span class="ps-hint">&larr; &rarr;</span>
+</div>
+
+<script>
+/* ======================================================================
+   COPY - lifted from Constants.cs, so the variants are judged on layout
+   rather than on wording. Wording is settled; these screens are not.
+   ====================================================================== */
+const TEXT = {
+  bookFallback: id => `Book #${id}`,
+  splitBookFlag: "Split Book",
+  regressionFlag: "Progress Regression",
+  resetFlag: "Progress Reset",
+  resetLabel: "Progress reset",
+  resetButton: "Reset progress",
+  mergeSuggestionFlag: "Merge suggestion",
+  missingMetadataHint:
+    "No title yet — enable Send document metadata in KOReader's sync settings.",
+  curate: {
+    sectionTitle: "Title and author",
+    titlePlaceholder: "e.g. Dune",
+    authorPlaceholder: "e.g. Frank Herbert",
+    hint: "What you type here is kept, and no sync will overwrite it.",
+    save: "Save",
+    clear: "Clear and use what devices report"
+  },
+  merge: {
+    sectionTitle: "Merge another Book into this one",
+    placeholder: "Book #",
+    submit: "Merge",
+    warning:
+      "This moves every Document from that Book onto this one and removes it. A merge cannot be undone.",
+    confirm: "Merge these Books"
+  },
+  suggestions: {
+    sectionTitle: "Books that look like this one",
+    hint:
+      "Matched on an identical title and author. Nothing is merged until you choose it, and a merge cannot be undone.",
+    reason: "Same title and author",
+    action: "Merge into this Book"
+  },
+  noDocuments: "No documents synced yet",
+  noHistory: "No sync history yet."
+};
+
+/* ======================================================================
+   FORMATTING - Services/DashboardFormatting.cs, verbatim behaviour
+   ====================================================================== */
+const NOW = new Date("2026-11-01T14:00:00Z");
+
+function pct(p) { return Math.round(p * 100) + "%"; }
+
+function relativeTime(iso) {
+  if (!iso) return "Never synced";
+  const delta = NOW - new Date(iso);
+  const mins = delta / 60000;
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${Math.floor(mins)}m ago`;
+  const hours = mins / 60;
+  if (hours < 24) return `${Math.floor(hours)}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+function pluralize(n, singular) { return `${n} ${singular}${n === 1 ? "" : "s"}`; }
+
+/* ----------------------------------------------------------------------
+   WHICH PUSHES WERE ACTUALLY BLOCKED - a finding, not a styling choice.
+
+   The live page flags every event with `!IsCurrent` as a Progress
+   Regression (BookDetail.razor). But `IsCurrent` is a *pointer*, not a
+   verdict: SyncController promotes each qualifying push and clears the
+   previous one's flag, so exactly one SyncEvent per Document ends up
+   current and EVERY earlier push reads as `!IsCurrent` - including the
+   ordinary forward pushes that were promoted at the time and merely
+   superseded later.
+
+   With two pushes (one promoted, one blocked) the two notions coincide,
+   which is why BooksViewTests's two-push case passes. At the density these
+   screens actually see, D1 below has five pushes of which one was blocked,
+   and the live page flags four.
+
+   Re-derived here by replaying the promotion rule over the history the
+   service already returns - no schema change, no new field. A push was
+   blocked iff it was lower than the Document's current progress at the
+   moment it arrived, and a reset clears that ceiling exactly as it clears
+   the pointer (ResetProgressAsync, so the next push is promoted whatever
+   its percentage).
+
+   Variants render the derived flag. Filed as #38, which should land before
+   #39 re-renders this timeline.
+   ---------------------------------------------------------------------- */
+function annotate(history) {
+  let ceiling = 0;
+  let hasCurrent = false;
+
+  // The service returns history newest-first; promotion ran oldest-first.
+  [...history].reverse().forEach(event => {
+    if (event.isReset) {
+      ceiling = 0;
+      hasCurrent = false;
+      event.blockedRegression = false;
+      return;
+    }
+    const promoted = !hasCurrent || event.percentage >= ceiling;
+    event.blockedRegression = !promoted;
+    if (promoted) { ceiling = event.percentage; hasCurrent = true; }
+  });
+
+  return history;
+}
+
+/* DocumentLabelRule: the observed filename, or the hash's first 8 characters
+   with an ellipsis. Reproduced rather than hand-written into the data, so a
+   variant cannot accidentally be judged on a label the real rule would not
+   produce. */
+function label(doc) {
+  return doc.filename || doc.hash.slice(0, 8) + "...";
+}
+
+/* ======================================================================
+   FAKE DATA
+
+   Shapes match BookSummary / BookDocumentSummary / SyncEventSummary and
+   DeviceSummary / DeviceDocumentSummary exactly. `filename` stands in for
+   the observed metadata DocumentLabelRule reads; `label` is derived above.
+
+   Three Book cases and two Device cases, because these pages are easy at
+   one Document and hard at three with a fork in the history.
+   ====================================================================== */
+
+const BOOKS = {
+  split: {
+    key: "split",
+    name: "Split Book",
+    id: 14,
+    title: "Dune",
+    author: "Frank Herbert",
+    curatedTitle: null,
+    curatedAuthor: null,
+    percentage: 0.61,
+    lastSyncedAt: "2026-11-01T12:05:00Z",
+    isSplitBook: true,
+    needsMetadataHint: false,
+    mergeSuggestionBookIds: [27],
+    documents: [
+      {
+        documentId: 101,
+        hash: "6f1ed002ab5595859014ebf0951522d9",
+        filename: "Dune - Frank Herbert.epub",
+        deviceName: "Kobo Libra 2",
+        percentage: 0.61,
+        timestamp: "2026-11-01T12:05:00Z",
+        hasCurrentProgress: true,
+        history: [
+          { deviceName: "Kobo Libra 2", percentage: 0.61, timestamp: "2026-11-01T12:05:00Z", isCurrent: true },
+          { deviceName: "Kobo Libra 2", percentage: 0.58, timestamp: "2026-10-31T21:40:00Z", isCurrent: false },
+          { deviceName: "KOReader Android", percentage: 0.12, timestamp: "2026-10-30T08:15:00Z", isCurrent: false },
+          { deviceName: "Kobo Libra 2", percentage: 0.52, timestamp: "2026-10-29T22:10:00Z", isCurrent: false },
+          { deviceName: "Kobo Libra 2", percentage: 0.47, timestamp: "2026-10-28T20:02:00Z", isCurrent: false }
+        ]
+      },
+      {
+        documentId: 102,
+        hash: "0cc175b9c0f1b6a831c399e269772661",
+        filename: "dune.epub",
+        deviceName: "KOReader Android",
+        percentage: 0.34,
+        timestamp: "2026-10-30T19:20:00Z",
+        hasCurrentProgress: true,
+        history: [
+          { deviceName: "KOReader Android", percentage: 0.34, timestamp: "2026-10-30T19:20:00Z", isCurrent: true },
+          { deviceName: "KOReader Android", percentage: 0.0, timestamp: "2026-10-28T07:00:00Z", isCurrent: false, isReset: true },
+          { deviceName: "KOReader Android", percentage: 0.29, timestamp: "2026-10-27T23:31:00Z", isCurrent: false }
+        ]
+      },
+      /* No Device ever reported a filename for this one, so DocumentLabelRule
+         falls back to the truncated hash - the case that makes a variant
+         prove it still has somewhere to put the full hash. */
+      {
+        documentId: 103,
+        hash: "92eb5ffee6ae2fec3ad71c777531578f",
+        filename: null,
+        deviceName: "Kindle Paperwhite",
+        percentage: 0.08,
+        timestamp: "2026-10-21T11:00:00Z",
+        hasCurrentProgress: true,
+        history: [
+          { deviceName: "Kindle Paperwhite", percentage: 0.08, timestamp: "2026-10-21T11:00:00Z", isCurrent: true }
+        ]
+      },
+      /* A Document somebody reset and has not opened since. Faithful to what
+         the service actually produces for one: ResetProgressAsync clears the
+         current pointer without adding a push, so Summarize finds no current
+         event and emits percentage 0, an empty DeviceName and
+         HasCurrentProgress false - while BuildHistory appends the reset
+         itself to the history. Every variant has to render a row with no
+         device name and no progress on it. */
+      {
+        documentId: 104,
+        hash: "8277e0910d750195b448797616e091ad",
+        filename: "Dune (retail).epub",
+        deviceName: "",
+        percentage: 0,
+        timestamp: "2026-10-26T06:30:00Z",
+        hasCurrentProgress: false,
+        history: [
+          { deviceName: "", percentage: 0, timestamp: "2026-10-26T06:30:00Z", isCurrent: false, isReset: true },
+          { deviceName: "Kindle Paperwhite", percentage: 0.44, timestamp: "2026-10-25T20:12:00Z", isCurrent: false },
+          { deviceName: "Kindle Paperwhite", percentage: 0.41, timestamp: "2026-10-24T19:55:00Z", isCurrent: false }
+        ]
+      }
+    ]
+  },
+
+  bare: {
+    key: "bare",
+    name: "No metadata",
+    id: 41,
+    title: "Book #41",
+    author: null,
+    curatedTitle: null,
+    curatedAuthor: null,
+    percentage: 0.17,
+    lastSyncedAt: "2026-10-27T09:12:00Z",
+    isSplitBook: false,
+    needsMetadataHint: true,
+    mergeSuggestionBookIds: [],
+    documents: [
+      {
+        documentId: 140,
+        hash: "a87ff679a2f3e71d9181a67b7542122c",
+        filename: null,
+        deviceName: "Kobo Libra 2",
+        percentage: 0.17,
+        timestamp: "2026-10-27T09:12:00Z",
+        hasCurrentProgress: true,
+        history: [
+          { deviceName: "Kobo Libra 2", percentage: 0.17, timestamp: "2026-10-27T09:12:00Z", isCurrent: true },
+          { deviceName: "Kobo Libra 2", percentage: 0.09, timestamp: "2026-10-26T20:44:00Z", isCurrent: false }
+        ]
+      }
+    ]
+  },
+
+  curated: {
+    key: "curated",
+    name: "Curated, clean",
+    id: 9,
+    title: "The Left Hand of Darkness",
+    author: "Ursula K. Le Guin",
+    curatedTitle: "The Left Hand of Darkness",
+    curatedAuthor: "Ursula K. Le Guin",
+    percentage: 1.0,
+    lastSyncedAt: "2026-10-24T18:30:00Z",
+    isSplitBook: false,
+    needsMetadataHint: false,
+    mergeSuggestionBookIds: [],
+    documents: [
+      {
+        documentId: 90,
+        hash: "e4da3b7fbbce2345d7772b0674a318d5",
+        filename: "left_hand_of_darkness.epub",
+        deviceName: "Kobo Libra 2",
+        percentage: 1.0,
+        timestamp: "2026-10-24T18:30:00Z",
+        hasCurrentProgress: true,
+        history: [
+          { deviceName: "Kobo Libra 2", percentage: 1.0, timestamp: "2026-10-24T18:30:00Z", isCurrent: true },
+          { deviceName: "Kobo Libra 2", percentage: 0.88, timestamp: "2026-10-23T22:05:00Z", isCurrent: false }
+        ]
+      }
+    ]
+  },
+
+  /* The empty Book. Reachable in the real app - a Book whose Documents were
+     all merged away, or one created by an import. Its own case because every
+     variant has to say something sensible with no rows at all. */
+  empty: {
+    key: "empty",
+    name: "Book, no documents",
+    id: 58,
+    title: "Book #58",
+    author: null,
+    curatedTitle: null,
+    curatedAuthor: null,
+    percentage: 0,
+    lastSyncedAt: null,
+    isSplitBook: false,
+    needsMetadataHint: true,
+    mergeSuggestionBookIds: [],
+    documents: []
+  }
+};
+
+const DEVICES = {
+  busy: {
+    key: "busy",
+    name: "Busy device",
+    id: 3,
+    deviceName: "Kobo Libra 2",
+    deviceId: "d41d8cd98f00b204e9800998ecf8427e",
+    lastSyncedAt: "2026-11-01T12:05:00Z",
+    documents: [
+      { hash: "6f1ed002ab5595859014ebf0951522d9", filename: "Dune - Frank Herbert.epub", percentage: 0.61, timestamp: "2026-11-01T12:05:00Z", isSplitBook: true },
+      { hash: "e4da3b7fbbce2345d7772b0674a318d5", filename: "left_hand_of_darkness.epub", percentage: 1.0, timestamp: "2026-10-24T18:30:00Z", isSplitBook: false },
+      { hash: "a87ff679a2f3e71d9181a67b7542122c", filename: null, percentage: 0.17, timestamp: "2026-10-27T09:12:00Z", isSplitBook: false },
+      { hash: "1679091c5a880faf6fb5e6087eb1b2dc", filename: "Piranesi.epub", percentage: 0.45, timestamp: "2026-10-30T07:50:00Z", isSplitBook: false },
+      { hash: "8f14e45fceea167a5a36dedd4bea2543", filename: "A Memory Called Empire - Arkady Martine.epub", percentage: 0.03, timestamp: "2026-10-19T21:15:00Z", isSplitBook: true },
+      { hash: "c9f0f895fb98ab9159f51fd0297e236d", filename: null, percentage: 0.72, timestamp: "2026-09-28T16:40:00Z", isSplitBook: false },
+      { hash: "45c48cce2e2d7fbdea1afc51c7c6ad26", filename: "Project Hail Mary.epub", percentage: 0.0, timestamp: "2026-09-12T19:05:00Z", isSplitBook: false }
+    ]
+  },
+  empty: {
+    key: "empty",
+    name: "Empty device",
+    id: 8,
+    deviceName: "Boox Page",
+    deviceId: "3c59dc048e8850243be8079a5c74d079",
+    lastSyncedAt: null,
+    documents: []
+  }
+};
+
+/* ======================================================================
+   SMALL HELPERS
+   ====================================================================== */
+
+function el(tag, className, html) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (html !== undefined) node.innerHTML = html;
+  return node;
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* Every action is a stub. The question is what this should look like, not
+   whether the backend works. */
+function stub(what) {
+  console.log("[prototype] stub action:", what);
+}
+
+function bar(percentage) {
+  return `<span class="hub-bar"><span style="width:${Math.round(percentage * 100)}%"></span></span>`;
+}
+
+function splitBadge() { return `<span class="hub-badge hub-badge-warn">${TEXT.splitBookFlag}</span>`; }
+function regressionBadge() { return `<span class="hub-badge hub-badge-danger">${TEXT.regressionFlag}</span>`; }
+function resetBadge() { return `<span class="hub-badge hub-badge-muted">${TEXT.resetFlag}</span>`; }
+function suggestionBadge() { return `<span class="hub-badge hub-badge-outline">${TEXT.mergeSuggestionFlag}</span>`; }
+
+function backLink(href, text) {
+  return `<a class="v-back" href="${href}">&larr; ${text}</a>`;
+}
+
+/* The curated title/author editor. Identical in all three variants on
+   purpose: issue #30 settled its behaviour (it binds to what was *curated*,
+   so it comes up blank where an observation is showing through), and what is
+   being prototyped is where it sits, not what it does. */
+function curateForm(book, layout) {
+  const hasCurated = book.curatedTitle !== null || book.curatedAuthor !== null;
+  const stacked = layout === "stacked";
+  return `
+    <div class="hub-stack-3">
+      <div class="${stacked ? "hub-stack-3" : "hub-grid-2"}">
+        <div class="hub-field">
+          <label class="hub-label">Title</label>
+          <input class="hub-input hub-input-sm" type="text"
+                 placeholder="${TEXT.curate.titlePlaceholder}"
+                 value="${book.curatedTitle === null ? "" : escapeHtml(book.curatedTitle)}" />
+        </div>
+        <div class="hub-field">
+          <label class="hub-label">Author</label>
+          <input class="hub-input hub-input-sm" type="text"
+                 placeholder="${TEXT.curate.authorPlaceholder}"
+                 value="${book.curatedAuthor === null ? "" : escapeHtml(book.curatedAuthor)}" />
+        </div>
+      </div>
+      <p class="hub-guard">${TEXT.curate.hint}</p>
+      <div class="${stacked ? "hub-stack-2" : "hub-form-actions"}">
+        ${hasCurated ? `<button type="button" class="hub-btn hub-btn-outline hub-btn-sm" data-stub="clear curated">${TEXT.curate.clear}</button>` : ""}
+        <button type="button" class="hub-btn hub-btn-brand hub-btn-sm" data-stub="save curated">${TEXT.curate.save}</button>
+      </div>
+    </div>`;
+}
+
+/* The merge block: the suggestions the rule produced, then the typed form
+   that is still the only way to merge two Books nothing suggested. Both ask
+   twice, through the same <details> (issue #32). */
+function mergeBlock(book) {
+  const suggestions = book.mergeSuggestionBookIds.map(suggestedId => `
+    <div class="hub-kv">
+      <span><a class="hub-table-link" href="?page=book">${TEXT.bookFallback(suggestedId)}</a>
+        <span class="hub-xs hub-muted"> &middot; ${TEXT.suggestions.reason}</span></span>
+    </div>
+    <details class="v-confirm">
+      <summary class="hub-btn hub-btn-outline hub-btn-sm">${TEXT.suggestions.action}</summary>
+      <p class="v-aside v-aside-danger" style="margin:0">${TEXT.merge.warning}</p>
+      <button type="button" class="hub-btn hub-btn-danger hub-btn-sm" data-stub="merge ${suggestedId}">${TEXT.merge.confirm}</button>
+    </details>`).join("");
+
+  return `
+    ${book.mergeSuggestionBookIds.length ? `
+      <p class="hub-section-label" style="padding:0;margin:0 0 6px">${TEXT.suggestions.sectionTitle}</p>
+      <p class="hub-guard" style="margin:0 0 10px">${TEXT.suggestions.hint}</p>
+      ${suggestions}
+      <hr class="hub-divider" style="margin:16px 0" />` : ""}
+
+    <p class="hub-section-label" style="padding:0;margin:0 0 8px">${TEXT.merge.sectionTitle}</p>
+    <div class="hub-stack-2">
+      <input class="hub-input hub-input-sm" type="number" min="1" style="max-width:9rem"
+             placeholder="${TEXT.merge.placeholder}" aria-label="${TEXT.merge.placeholder}" />
+      <details class="v-confirm">
+        <summary class="hub-btn hub-btn-outline hub-btn-sm" style="width:fit-content">${TEXT.merge.submit}</summary>
+        <p class="v-aside v-aside-danger" style="margin:0">${TEXT.merge.warning}</p>
+        <button type="button" class="hub-btn hub-btn-danger hub-btn-sm" data-stub="merge typed">${TEXT.merge.confirm}</button>
+      </details>
+    </div>`;
+}
+
+/* ======================================================================
+   VARIANT A - "Ledger"
+
+   The dashboard's winning table, one level down. Documents are rows; a row
+   expands into the full hash and that Document's SyncEvents. Every form is a
+   closed disclosure in a strip under the header, so the page lands on
+   evidence.
+
+   The claim: issue #18 chose a table for the dashboard because these lists
+   are scanned for the one thing that went wrong, and a table aligns every
+   progress bar and every flag into one column. A Book's Documents are the
+   same kind of list, so they get the same treatment - and the detail page
+   stops being a different design language from the page that links to it.
+   ====================================================================== */
+
+const variantA = {
+  key: "A",
+  name: "Ledger",
+
+  renderBook(root, book) {
+    root.innerHTML = `
+      <div class="hub-main" style="padding-top:24px">
+        ${backLink("?page=book", "Books")}
+
+        <div class="va-head">
+          <div class="va-title-row">
+            <h1 class="hub-page-title" style="margin:0">${escapeHtml(book.title)}</h1>
+            <span class="v-flags">
+              ${book.isSplitBook ? splitBadge() : ""}
+              ${book.mergeSuggestionBookIds.length ? suggestionBadge() : ""}
+            </span>
+          </div>
+          <p class="va-sub">
+            ${book.author ? `${escapeHtml(book.author)}<span class="sep">&middot;</span>` : ""}
+            ${TEXT.bookFallback(book.id)}<span class="sep">&middot;</span>
+            ${pct(book.percentage)} progress<span class="sep">&middot;</span>
+            last synced ${relativeTime(book.lastSyncedAt)}
+          </p>
+        </div>
+
+        ${book.needsMetadataHint ? `<p class="v-aside">${TEXT.missingMetadataHint}</p>` : ""}
+
+        <div class="va-actions">
+          <details>
+            <summary class="hub-btn hub-btn-outline hub-btn-sm">${TEXT.curate.sectionTitle}</summary>
+            <div class="va-drawer">${curateForm(book, "inline")}</div>
+          </details>
+          <details>
+            <summary class="hub-btn hub-btn-outline hub-btn-sm">
+              Merge${book.mergeSuggestionBookIds.length ? ` (${book.mergeSuggestionBookIds.length} suggested)` : ""}
+            </summary>
+            <div class="va-drawer">${mergeBlock(book)}</div>
+          </details>
+        </div>
+
+        <div class="hub-toolbar" style="padding:0;max-width:none">
+          <span class="hub-sm hub-muted">${pluralize(book.documents.length, "document")}</span>
+        </div>
+
+        ${book.documents.length === 0
+          ? `<p class="hub-empty">${TEXT.noHistory}</p>`
+          : `<div class="hub-table-wrap">
+              <table class="hub-table">
+                <thead>
+                  <tr>
+                    <th>Document</th>
+                    <th>Device</th>
+                    <th>Progress</th>
+                    <th class="hub-table-num">Last push</th>
+                    <th class="hub-table-actions"></th>
+                  </tr>
+                </thead>
+                <tbody>${book.documents.map((doc, index) => this.bookRow(doc, index)).join("")}</tbody>
+              </table>
+            </div>`}
+      </div>`;
+
+    wireRowToggles(root);
+  },
+
+  bookRow(doc, index) {
+    const flagged = annotate(doc.history).some(event => event.blockedRegression);
+    return `
+      <tr>
+        <td class="hub-table-name">
+          <button type="button" class="va-row-toggle" aria-expanded="false" data-row="${index}">
+            <span class="va-chevron">&#9654;</span>
+            <span class="v-doc-key">D${index + 1}</span>
+            <span class="v-doc-label">${escapeHtml(label(doc))}</span>
+          </button>
+        </td>
+        <td class="hub-muted">${doc.hasCurrentProgress ? escapeHtml(doc.deviceName) : "&mdash;"}</td>
+        <td>
+          <span class="hub-table-progress">${bar(doc.percentage)}<span class="hub-pct">${pct(doc.percentage)}</span></span>
+        </td>
+        <td class="hub-table-num hub-muted">${relativeTime(doc.timestamp)}</td>
+        <td class="hub-table-actions">
+          <span class="v-flags">${flagged ? regressionBadge() : ""}</span>
+        </td>
+      </tr>
+      <tr hidden data-detail="${index}">
+        <td class="va-detail-cell" colspan="5">
+          <div class="va-detail">
+            <div><span class="hub-xs hub-muted">Hash </span><span class="v-hash">${doc.hash}</span></div>
+            <div class="va-events">${doc.history.map(event => this.event(event)).join("")}</div>
+            <details class="v-confirm">
+              <summary class="hub-btn hub-btn-outline hub-btn-sm" style="width:fit-content">${TEXT.resetButton}</summary>
+              <p class="hub-guard" style="margin:0">Clears this Document's progress. The reader starts it again from the beginning.</p>
+              <button type="button" class="hub-btn hub-btn-danger hub-btn-sm" data-stub="reset ${doc.documentId}">${TEXT.resetButton}</button>
+            </details>
+          </div>
+        </td>
+      </tr>`;
+  },
+
+  event(event) {
+    if (event.isReset) {
+      return `<div class="va-event">
+        <span class="va-event-pct hub-muted">&mdash;</span>
+        <span class="hub-muted">${TEXT.resetLabel}</span>
+        ${resetBadge()}
+        <span class="va-event-when">${relativeTime(event.timestamp)}</span>
+      </div>`;
+    }
+    return `<div class="va-event">
+      <span class="va-event-pct">${pct(event.percentage)}</span>
+      <span>${escapeHtml(event.deviceName)}</span>
+      ${event.blockedRegression ? regressionBadge() : ""}
+      ${event.isCurrent ? `<span class="hub-badge hub-badge-ok">Current</span>` : ""}
+      <span class="va-event-when">${relativeTime(event.timestamp)}</span>
+    </div>`;
+  },
+
+  renderDevice(root, device) {
+    root.innerHTML = `
+      <div class="hub-main" style="padding-top:24px">
+        ${backLink("?page=device", "Devices")}
+
+        <div class="va-head">
+          <div class="va-title-row">
+            <h1 class="hub-page-title" style="margin:0">${escapeHtml(device.deviceName)}</h1>
+          </div>
+          <p class="va-sub">
+            <span class="v-hash">${device.deviceId}</span><span class="sep">&middot;</span>
+            last synced ${relativeTime(device.lastSyncedAt)}
+          </p>
+        </div>
+
+        ${device.documents.length === 0
+          ? `<p class="hub-empty">${TEXT.noDocuments}</p>`
+          : `<div class="hub-toolbar" style="padding:0;max-width:none">
+              <span class="hub-sm hub-muted">${pluralize(device.documents.length, "document")}</span>
+            </div>
+            <div class="hub-table-wrap">
+              <table class="hub-table">
+                <thead>
+                  <tr>
+                    <th>Document</th>
+                    <th>This device's progress</th>
+                    <th class="hub-table-num">Last push</th>
+                    <th class="hub-table-actions">Flags</th>
+                  </tr>
+                </thead>
+                <tbody>${device.documents.map((doc, index) => `
+                  <tr>
+                    <td class="hub-table-name">
+                      <button type="button" class="va-row-toggle" aria-expanded="false" data-row="${index}">
+                        <span class="va-chevron">&#9654;</span>
+                        <span class="v-doc-label">${escapeHtml(label(doc))}</span>
+                      </button>
+                    </td>
+                    <td><span class="hub-table-progress">${bar(doc.percentage)}<span class="hub-pct">${pct(doc.percentage)}</span></span></td>
+                    <td class="hub-table-num hub-muted">${relativeTime(doc.timestamp)}</td>
+                    <td class="hub-table-actions"><span class="v-flags">${doc.isSplitBook ? splitBadge() : ""}</span></td>
+                  </tr>
+                  <tr hidden data-detail="${index}">
+                    <td class="va-detail-cell" colspan="4">
+                      <div class="va-detail">
+                        <div><span class="hub-xs hub-muted">Hash </span><span class="v-hash">${doc.hash}</span></div>
+                        <p class="hub-guard" style="margin:0">A Device page carries no actions: a reset belongs to the Document on its Book, where the other Devices' pushes are visible too.</p>
+                      </div>
+                    </td>
+                  </tr>`).join("")}
+                </tbody>
+              </table>
+            </div>`}
+      </div>`;
+
+    wireRowToggles(root);
+  }
+};
+
+/* The row expander. Plain JS and no server round-trip, which is ADR 0003's
+   amendment: local UI state (disclosure) must not round-trip. A <details>
+   cannot wrap two <tr>s, which is the only reason this is not native. */
+function wireRowToggles(root) {
+  root.querySelectorAll("[data-row]").forEach(toggle => {
+    toggle.addEventListener("click", () => {
+      const open = toggle.getAttribute("aria-expanded") === "true";
+      toggle.setAttribute("aria-expanded", String(!open));
+      const detail = toggle.closest("tbody").querySelector(`[data-detail="${toggle.dataset.row}"]`);
+      detail.hidden = open;
+    });
+  });
+}
+
+/* ======================================================================
+   VARIANT B - "Workbench"
+
+   Two columns. The Documents and their timelines take the width; identity,
+   the metadata editor and the merge controls live in a sticky right rail.
+
+   The claim: reading the evidence and taking the action are different jobs,
+   and the actions here are a destructive merge and a destructive reset. Put
+   them somewhere you reach for deliberately, and the diagnostic content gets
+   to be drawn properly - a real timeline with a rail and dots, rather than a
+   disclosure. The rail also means the Book's identity stays on screen while
+   scrolling a long document list, which is the thing you are checking each
+   row against.
+   ====================================================================== */
+
+const variantB = {
+  key: "B",
+  name: "Workbench",
+
+  renderBook(root, book) {
+    root.innerHTML = `
+      <div class="hub-main" style="padding-top:24px">
+        ${backLink("?page=book", "Books")}
+
+        <div class="vb-grid">
+          <div>
+            <p class="hub-section-label" style="padding:0;margin:0 0 10px">
+              ${pluralize(book.documents.length, "document")}
+            </p>
+            ${book.documents.length === 0
+              ? `<p class="hub-empty" style="padding:48px 0">${TEXT.noHistory}</p>`
+              : book.documents.map((doc, index) => this.docCard(doc, index)).join("")}
+          </div>
+
+          <aside class="vb-rail">
+            <div class="hub-card">
+              <h1 class="vb-rail-title">${escapeHtml(book.title)}</h1>
+              <p class="vb-rail-sub">
+                ${book.author ? `${escapeHtml(book.author)}<br />` : ""}
+                ${TEXT.bookFallback(book.id)}
+              </p>
+
+              <div class="v-flags">
+                ${book.isSplitBook ? splitBadge() : ""}
+                ${book.mergeSuggestionBookIds.length ? suggestionBadge() : ""}
+              </div>
+
+              <div class="vb-progress">
+                ${bar(book.percentage)}<span class="hub-pct">${pct(book.percentage)}</span>
+              </div>
+              <p class="hub-xs hub-muted" style="margin:0">
+                Last synced ${relativeTime(book.lastSyncedAt)}
+              </p>
+
+              ${book.needsMetadataHint
+                ? `<p class="v-aside" style="margin:14px 0 0;font-size:12px">${TEXT.missingMetadataHint}</p>`
+                : ""}
+            </div>
+
+            <div class="hub-card">
+              <p class="hub-section-label" style="padding:0;margin:0 0 10px">${TEXT.curate.sectionTitle}</p>
+              ${curateForm(book, "stacked")}
+            </div>
+
+            <div class="hub-card">${mergeBlock(book)}</div>
+          </aside>
+        </div>
+      </div>`;
+  },
+
+  docCard(doc, index) {
+    const flagged = annotate(doc.history).some(event => event.blockedRegression);
+    return `
+      <div class="hub-card vb-doc">
+        <div class="vb-doc-head">
+          <span class="v-doc-key">D${index + 1}</span>
+          <span class="v-doc-label">${escapeHtml(label(doc))}</span>
+          <span class="v-flags">${flagged ? regressionBadge() : ""}</span>
+        </div>
+
+        <div class="v-hash" style="margin-top:6px">${doc.hash}</div>
+
+        <div class="vb-doc-meta">
+          ${bar(doc.percentage)}<span class="hub-pct" style="width:auto">${pct(doc.percentage)}</span>
+          ${doc.hasCurrentProgress
+            ? `<span>&middot;</span><span>${escapeHtml(doc.deviceName)}</span>`
+            : `<span>&middot;</span><span>not the current progress</span>`}
+          <span style="margin-left:auto">
+            <details class="v-confirm">
+              <summary class="hub-btn hub-btn-ghost hub-btn-sm">${TEXT.resetButton}</summary>
+              <p class="hub-guard" style="margin:0">Clears this Document's progress. The reader starts it again from the beginning.</p>
+              <button type="button" class="hub-btn hub-btn-danger hub-btn-sm" data-stub="reset ${doc.documentId}">${TEXT.resetButton}</button>
+            </details>
+          </span>
+        </div>
+
+        <div class="vb-timeline">
+          ${doc.history.map(event => this.event(event)).join("")}
+        </div>
+      </div>`;
+  },
+
+  event(event) {
+    if (event.isReset) {
+      return `<div class="vb-tl-row">
+        <span class="vb-tl-pct hub-muted">&mdash;</span>
+        <span class="hub-muted">${TEXT.resetLabel}</span>
+        ${resetBadge()}
+        <span class="vb-tl-when">${relativeTime(event.timestamp)}</span>
+      </div>`;
+    }
+    return `<div class="vb-tl-row${event.isCurrent ? " current" : ""}">
+      <span class="vb-tl-pct">${pct(event.percentage)}</span>
+      <span>${escapeHtml(event.deviceName)}</span>
+      ${event.blockedRegression ? regressionBadge() : ""}
+      ${event.isCurrent ? `<span class="hub-badge hub-badge-ok">Current</span>` : ""}
+      <span class="vb-tl-when">${relativeTime(event.timestamp)}</span>
+    </div>`;
+  },
+
+  renderDevice(root, device) {
+    root.innerHTML = `
+      <div class="hub-main" style="padding-top:24px">
+        ${backLink("?page=device", "Devices")}
+
+        <div class="vb-grid">
+          <div>
+            <p class="hub-section-label" style="padding:0;margin:0 0 10px">
+              ${pluralize(device.documents.length, "document")}
+            </p>
+            ${device.documents.length === 0
+              ? `<p class="hub-empty" style="padding:48px 0">${TEXT.noDocuments}</p>`
+              : device.documents.map(doc => `
+                <div class="hub-card vb-doc">
+                  <div class="vb-doc-head">
+                    <span class="v-doc-label">${escapeHtml(label(doc))}</span>
+                    <span class="v-flags">${doc.isSplitBook ? splitBadge() : ""}</span>
+                  </div>
+                  <div class="v-hash" style="margin-top:6px">${doc.hash}</div>
+                  <div class="vb-doc-meta">
+                    ${bar(doc.percentage)}<span class="hub-pct" style="width:auto">${pct(doc.percentage)}</span>
+                    <span>&middot;</span><span>pushed ${relativeTime(doc.timestamp)}</span>
+                  </div>
+                </div>`).join("")}
+          </div>
+
+          <aside class="vb-rail">
+            <div class="hub-card">
+              <h1 class="vb-rail-title">${escapeHtml(device.deviceName)}</h1>
+              <p class="vb-rail-sub">Device</p>
+              <div class="hub-kv">
+                <span class="hub-kv-key">Device ID</span>
+              </div>
+              <div class="v-hash">${device.deviceId}</div>
+              <div class="hub-kv" style="margin-top:10px">
+                <span class="hub-kv-key">Last synced</span>
+                <span>${relativeTime(device.lastSyncedAt)}</span>
+              </div>
+              <div class="hub-kv">
+                <span class="hub-kv-key">Documents</span>
+                <span>${device.documents.length}</span>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>`;
+  }
+};
+
+/* ======================================================================
+   VARIANT C - "Stream"
+
+   One chronological SyncEvent timeline for the whole Book, every Document
+   interleaved. The Documents become a chip strip above it, and the chips
+   double as the stream's filter.
+
+   The claim: a Split Book *is* a disagreement between Documents over time.
+   Nesting each Document's history under that Document hides the interleaving
+   that is the actual symptom - two devices pushing alternately against two
+   different hashes of the same book. Interleave them and the fork is
+   visible as a fork.
+
+   The cost, visible on the Device page below: a Device has no SyncEvent
+   history in DeviceDocumentSummary, so this layout does not generalise
+   across both pages without a service change.
+   ====================================================================== */
+
+const variantC = {
+  key: "C",
+  name: "Stream",
+
+  renderBook(root, book) {
+    /* One stream, newest first, every Document's events interleaved. */
+    const stream = book.documents
+      .flatMap((doc, index) => annotate(doc.history).map(event => ({ ...event, docIndex: index, doc })))
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    root.innerHTML = `
+      <div class="hub-main" style="padding-top:24px;max-width:var(--hub-maxw-narrow)">
+        ${backLink("?page=book", "Books")}
+
+        <div class="vc-head">
+          <div class="va-title-row">
+            <h1 class="hub-page-title" style="margin:0">${escapeHtml(book.title)}</h1>
+            <span class="v-flags">
+              ${book.isSplitBook ? splitBadge() : ""}
+              ${book.mergeSuggestionBookIds.length ? suggestionBadge() : ""}
+            </span>
+          </div>
+          <p class="va-sub">
+            ${book.author ? `${escapeHtml(book.author)}<span class="sep">&middot;</span>` : ""}
+            ${TEXT.bookFallback(book.id)}<span class="sep">&middot;</span>
+            ${pct(book.percentage)} progress<span class="sep">&middot;</span>
+            last synced ${relativeTime(book.lastSyncedAt)}
+          </p>
+        </div>
+
+        ${book.needsMetadataHint ? `<p class="v-aside">${TEXT.missingMetadataHint}</p>` : ""}
+
+        <div class="va-actions">
+          <details>
+            <summary class="hub-btn hub-btn-outline hub-btn-sm">${TEXT.curate.sectionTitle}</summary>
+            <div class="va-drawer">${curateForm(book, "inline")}</div>
+          </details>
+          <details>
+            <summary class="hub-btn hub-btn-outline hub-btn-sm">
+              Merge${book.mergeSuggestionBookIds.length ? ` (${book.mergeSuggestionBookIds.length} suggested)` : ""}
+            </summary>
+            <div class="va-drawer">${mergeBlock(book)}</div>
+          </details>
+        </div>
+
+        ${book.documents.length === 0
+          ? `<p class="hub-empty">${TEXT.noHistory}</p>`
+          : `
+            <p class="hub-section-label" style="padding:0;margin:0 0 10px">
+              ${pluralize(book.documents.length, "document")} &middot; select one to filter the history
+            </p>
+            <div class="vc-chips">
+              ${book.documents.map((doc, index) => `
+                <button type="button" class="vc-chip" aria-pressed="false" data-chip="${index}">
+                  <span class="v-doc-key">D${index + 1}</span>
+                  <span class="v-doc-label">${escapeHtml(label(doc))}</span>
+                  <span class="vc-chip-pct">${pct(doc.percentage)}</span>
+                </button>`).join("")}
+            </div>
+            <div id="vc-selected"></div>
+
+            <p class="hub-section-label" style="padding:0;margin:24px 0 2px">History</p>
+            <div class="vc-stream">
+              ${stream.map(event => this.streamRow(event)).join("")}
+            </div>`}
+      </div>`;
+
+    this.wireChips(root, book);
+  },
+
+  streamRow(event) {
+    const common = `
+      <span class="v-doc-key">D${event.docIndex + 1}</span>
+      <span class="vc-stream-doc">${escapeHtml(label(event.doc))}</span>`;
+
+    if (event.isReset) {
+      return `<div class="vc-stream-row" data-event-doc="${event.docIndex}">
+        <span class="vc-stream-pct hub-muted">&mdash;</span>
+        ${common}
+        ${resetBadge()}
+        <span class="vc-stream-when">${relativeTime(event.timestamp)}</span>
+      </div>`;
+    }
+
+    return `<div class="vc-stream-row" data-event-doc="${event.docIndex}">
+      <span class="vc-stream-pct">${pct(event.percentage)}</span>
+      ${common}
+      <span class="hub-xs hub-muted">${escapeHtml(event.deviceName)}</span>
+      ${event.blockedRegression ? regressionBadge() : ""}
+      ${event.isCurrent ? `<span class="hub-badge hub-badge-ok">Current</span>` : ""}
+      <span class="vc-stream-when">${relativeTime(event.timestamp)}</span>
+    </div>`;
+  },
+
+  /* Selecting a chip dims the other Documents' events and reveals that
+     Document's hash and its reset action. Client-only, no round-trip: the
+     selection is local UI state (ADR 0003's amendment), and the rows are
+     already in the page - the same reasoning as the dashboard's filter. */
+  wireChips(root, book) {
+    const selected = root.querySelector("#vc-selected");
+    const chips = [...root.querySelectorAll("[data-chip]")];
+
+    const show = index => {
+      chips.forEach(chip => chip.setAttribute("aria-pressed", String(+chip.dataset.chip === index)));
+      root.querySelectorAll("[data-event-doc]").forEach(row => {
+        row.classList.toggle("dimmed", index !== null && +row.dataset.eventDoc !== index);
+      });
+
+      if (index === null) { selected.innerHTML = ""; return; }
+
+      const doc = book.documents[index];
+      selected.innerHTML = `
+        <div class="vc-selected">
+          <span class="v-hash">${doc.hash}</span>
+          ${doc.hasCurrentProgress
+            ? `<span class="hub-xs hub-muted">${escapeHtml(doc.deviceName)}</span>`
+            : `<span class="hub-xs hub-muted">not the current progress</span>`}
+          <details class="v-confirm">
+            <summary class="hub-btn hub-btn-outline hub-btn-sm">${TEXT.resetButton}</summary>
+            <p class="hub-guard" style="margin:0">Clears this Document's progress. The reader starts it again from the beginning.</p>
+            <button type="button" class="hub-btn hub-btn-danger hub-btn-sm" data-stub="reset ${doc.documentId}">${TEXT.resetButton}</button>
+          </details>
+        </div>`;
+    };
+
+    chips.forEach(chip => chip.addEventListener("click", () => {
+      const index = +chip.dataset.chip;
+      show(chip.getAttribute("aria-pressed") === "true" ? null : index);
+    }));
+  },
+
+  renderDevice(root, device) {
+    root.innerHTML = `
+      <div class="hub-main" style="padding-top:24px;max-width:var(--hub-maxw-narrow)">
+        ${backLink("?page=device", "Devices")}
+
+        <div class="vc-head">
+          <h1 class="hub-page-title" style="margin:0">${escapeHtml(device.deviceName)}</h1>
+          <p class="va-sub">
+            <span class="v-hash">${device.deviceId}</span><span class="sep">&middot;</span>
+            last synced ${relativeTime(device.lastSyncedAt)}
+          </p>
+        </div>
+
+        ${device.documents.length === 0
+          ? `<p class="hub-empty">${TEXT.noDocuments}</p>`
+          : `
+            <p class="hub-section-label" style="padding:0;margin:0 0 10px">
+              ${pluralize(device.documents.length, "document")} &middot; most recent push first
+            </p>
+            <div class="vc-stream">
+              ${[...device.documents]
+                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+                .map(doc => `
+                  <div class="vc-stream-row">
+                    <span class="vc-stream-pct">${pct(doc.percentage)}</span>
+                    <span class="v-doc-label" style="flex:1;min-width:10rem">${escapeHtml(label(doc))}</span>
+                    ${doc.isSplitBook ? splitBadge() : ""}
+                    <span class="vc-stream-when">${relativeTime(doc.timestamp)}</span>
+                    <span class="v-hash" style="flex:1 0 100%">${doc.hash}</span>
+                  </div>`).join("")}
+            </div>
+
+            <p class="v-gap" style="margin-top:22px">
+              <strong>What this variant cannot do here.</strong>
+              The stream above is one row per Document, not one row per push:
+              <code>DeviceDocumentSummary</code> carries only this Device's
+              latest percentage and timestamp, with no SyncEvent history and
+              no way to tell a regression from a normal push. A real
+              per-Device timeline needs
+              <code>DeviceDashboardService</code> to project history the way
+              <code>BookDashboardService</code> already does. That is a
+              service change, not a styling one - so variant C is a Book-page
+              layout that the Device page can only imitate.
+            </p>`}
+      </div>`;
+  }
+};
+
+/* ======================================================================
+   SWITCHER
+   ====================================================================== */
+
+const VARIANTS = [variantA, variantB, variantC];
+const PAGES = ["book", "device"];
+
+const app = document.getElementById("app");
+const psLabel = document.getElementById("ps-label");
+
+function params() { return new URLSearchParams(location.search); }
+
+function currentVariant() {
+  const key = params().get("variant");
+  const index = VARIANTS.findIndex(variant => variant.key === key);
+  return index === -1 ? 0 : index;
+}
+
+function currentPage() {
+  const page = params().get("page");
+  return PAGES.includes(page) ? page : "book";
+}
+
+function cases() { return currentPage() === "book" ? BOOKS : DEVICES; }
+
+function currentCase() {
+  const key = params().get("case");
+  return cases()[key] ? key : Object.keys(cases())[0];
+}
+
+function setParams(next) {
+  const search = params();
+  Object.entries(next).forEach(([key, value]) => search.set(key, value));
+  history.replaceState(null, "", "?" + search.toString());
+  render();
+}
+
+function render() {
+  const variant = VARIANTS[currentVariant()];
+  const page = currentPage();
+  const data = cases()[currentCase()];
+
+  app.innerHTML = "";
+  if (page === "book") variant.renderBook(app, data);
+  else variant.renderDevice(app, data);
+
+  /* Said on screen rather than only in a comment: the flags below differ
+     from the ones the live page draws, and a reader comparing the two
+     should know that is deliberate before concluding a variant invented
+     something. */
+  if (page === "book" && data.documents.length > 0) {
+    const blocked = data.documents
+      .reduce((total, doc) => total + annotate(doc.history).filter(e => e.blockedRegression).length, 0);
+    const live = data.documents
+      .reduce((total, doc) => total + doc.history.filter(e => !e.isCurrent && !e.isReset).length, 0);
+
+    const note = el("div", "v-gap");
+    note.style.margin = "28px auto 90px";
+    note.innerHTML = `
+      <strong>Prototype note — the Progress Regression flag.</strong>
+      These variants flag <strong>${blocked}</strong> push${blocked === 1 ? "" : "es"} on this Book;
+      the live page would flag <strong>${live}</strong>.
+      <code>IsCurrent</code> marks the one surviving current-progress pointer, so every
+      superseded-but-ordinary push reads as <code>!IsCurrent</code> too. The variants replay
+      the promotion rule over the same history instead. Layout question unaffected — but the
+      flag is wrong today, and at this density it is wrong loudly.`;
+    app.querySelector(".hub-main").appendChild(note);
+  }
+
+  psLabel.textContent = `${variant.key} — ${variant.name}`;
+  renderSegment("ps-pages", PAGES.map(key => ({ key, name: key === "book" ? "Book" : "Device" })), page, key => setParams({ page: key, case: Object.keys(key === "book" ? BOOKS : DEVICES)[0] }));
+  renderSegment("ps-cases", Object.values(cases()).map(item => ({ key: item.key, name: item.name })), currentCase(), key => setParams({ case: key }));
+
+  /* Every action in every variant is a stub; wiring them here keeps each
+     variant's markup free of the fact. */
+  app.querySelectorAll("[data-stub]").forEach(node =>
+    node.addEventListener("click", () => stub(node.dataset.stub)));
+}
+
+function renderSegment(hostId, items, current, onPick) {
+  const host = document.getElementById(hostId);
+  host.innerHTML = "";
+  items.forEach(item => {
+    const button = el("button", null, item.name);
+    button.setAttribute("aria-pressed", String(item.key === current));
+    button.addEventListener("click", () => onPick(item.key));
+    host.appendChild(button);
+  });
+}
+
+function cycleVariant(delta) {
+  const next = VARIANTS[(currentVariant() + delta + VARIANTS.length) % VARIANTS.length];
+  setParams({ variant: next.key });
+}
+
+document.getElementById("ps-prev").addEventListener("click", () => cycleVariant(-1));
+document.getElementById("ps-next").addEventListener("click", () => cycleVariant(1));
+
+document.addEventListener("keydown", event => {
+  const active = document.activeElement;
+  if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) return;
+  if (event.key === "ArrowLeft") cycleVariant(-1);
+  if (event.key === "ArrowRight") cycleVariant(1);
+});
+
+window.addEventListener("popstate", render);
+
+render();
+</script>
+</body>
+</html>
+</content>
