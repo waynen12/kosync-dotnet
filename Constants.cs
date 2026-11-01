@@ -677,6 +677,15 @@ public static class Constants
 
     public const string ResetProgressFailedError = "Reset failed - document not found.";
 
+    // The manual merge form (issue #8), still the only way to merge two Books
+    // that nothing suggested - which the narrow suggestion rule leaves as the
+    // common case (ADR 0007).
+    public const string MergeFormSectionTitle = "Merge another Book into this one";
+
+    public const string MergeFormPlaceholder = "Book #";
+
+    public const string MergeFormSubmitText = "Merge";
+
     public const string MergeBookIdRequiredError = "Enter a Book # to merge.";
 
     public const string MergeSameBookError = "Can't merge a Book into itself.";
@@ -684,6 +693,35 @@ public static class Constants
     public const string MergeBookNotFoundErrorFormat = "Book #{0} was not found.";
 
     public const string MergeFailedError = "Merge failed.";
+
+    // Merge Suggestions (GLOSSARY.md, ADR 0007, issue #32): the Books that
+    // report an identical title and author to the one on screen. Suggested,
+    // never merged - which is why every string here is about a choice the
+    // reader is being offered rather than one already taken.
+    public static class MergeSuggestions
+    {
+        public const string SectionTitle = "Books that look like this one";
+
+        // Says what matched and what will not happen. A merge is
+        // transactional but not undoable, so the reader deciding has to know
+        // both halves before pressing anything (ADR 0007).
+        public const string Hint =
+            "Matched on an identical title and author. Nothing is merged until you choose it, and a merge cannot be undone.";
+
+        // Why this Book is in the list, beside the Book it is about. Short
+        // because the hint above has already explained the rule.
+        public const string Reason = "Same title and author";
+
+        // Names the direction of the merge, because it is not symmetric: the
+        // Book on screen is the one that survives, and a reader who wanted
+        // the other id to survive has to open that Book instead.
+        public const string MergeAction = "Merge into this Book";
+
+        // The dashboard's Flags column, where a Book row has no room for the
+        // prose above - it says only that there is something to look at, and
+        // the drill-in says what (issue #18's table).
+        public const string Flag = "Merge suggestion";
+    }
 
     // The product name, rendered as the login card's title and the app
     // shell's brand.

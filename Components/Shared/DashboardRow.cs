@@ -15,6 +15,11 @@ namespace Kosync.Components.Shared;
 // things in the two sections and only one of them is a Split Book. A Book
 // row is flagged when it is one (GLOSSARY.md); a Device row is flagged when
 // it holds a Document that belongs to one. The column says which.
+//
+// HasMergeSuggestion is a second, independent flag rather than a wider
+// IsFlagged: a Book can be both, and the two mean opposite things to the
+// reader - a Split Book is a Book already gone wrong, a Merge Suggestion is
+// a Book that might be two (ADR 0007). Only a Book row ever carries one.
 public record DashboardRow(
     string Icon,
     string Href,
@@ -23,6 +28,7 @@ public record DashboardRow(
     decimal Percentage,
     DateTime? LastSyncedAt,
     bool IsFlagged,
+    bool HasMergeSuggestion,
     string SearchText)
 {
     public static DashboardRow FromDevice(DeviceSummary device) => new(
@@ -35,6 +41,7 @@ public record DashboardRow(
         Percentage: device.Documents.Count == 0 ? 0m : device.Documents.Max(d => d.Percentage),
         LastSyncedAt: device.LastSyncedAt,
         IsFlagged: device.Documents.Any(d => d.IsSplitBook),
+        HasMergeSuggestion: false,
         SearchText: SearchIndex([device.DeviceName, device.DeviceId, .. device.Documents.Select(d => d.DocumentHash)]));
 
     public static DashboardRow FromBook(BookSummary book) => new(
@@ -48,6 +55,7 @@ public record DashboardRow(
         Percentage: book.Percentage,
         LastSyncedAt: book.LastSyncedAt,
         IsFlagged: book.IsSplitBook,
+        HasMergeSuggestion: book.MergeSuggestionBookIds.Count > 0,
         // The author joins the index because the table has no column for it.
         // The id does not: it is in the index exactly when it *is* the name,
         // via the `Book #N` fallback Title already carries.
@@ -55,6 +63,11 @@ public record DashboardRow(
             book.Title,
             book.Author ?? string.Empty,
             .. book.Documents.Select(d => d.DocumentHash)]));
+
+    // Whether the Flags column has nothing to put in this row, which is a
+    // question about the row rather than about either flag - so the markup
+    // asks it here instead of re-deriving it from both.
+    public bool HasNoFlags => !IsFlagged && !HasMergeSuggestion;
 
     public string RelativeTime => DashboardFormatting.RelativeTime(LastSyncedAt, DateTime.UtcNow);
 

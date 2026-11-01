@@ -858,8 +858,9 @@ a.hub-btn { text-decoration: none; }
     font-weight: 700;
 }
 
-/* Manual Book merge action (issue #8) - discovery of merge candidates is
-   fully manual, so this is just a plain "merge into Book #" form. */
+/* Manual Book merge action (issue #8) - a plain "merge into Book #" form,
+   for the two Books nothing suggested, which the narrow suggestion rule
+   leaves as the common case (issue #32). */
 .ks-merge-form {
     display: flex;
     gap: 8px;
@@ -925,23 +926,52 @@ a.hub-btn { text-decoration: none; }
     margin: 0 0 18px;
 }
 
+.ks-suggestion-link {
+    color: var(--ks-fg);
+    font-weight: 600;
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.ks-suggestion-link:hover {
+    color: var(--ks-accent);
+}
+
+/* The suggestion rule and what it will not do on its own. An aside, like
+   the missing-metadata hint: nothing is wrong, there is a choice to make. */
+.ks-suggestion-hint {
+    color: var(--ks-muted);
+    font-size: 12.5px;
+    margin: 0 0 12px;
+}
+
 .ks-curate-hint {
     color: var(--ks-muted);
     font-size: 12.5px;
     margin: 0 0 16px;
 }
 
-.ks-doc-card {
+/* One card shape for the two things a detail page lists on a Book: its
+   Documents, and the Books suggested as the same Book (issue #32). Each is a
+   thing with actions on it, which is the shape's whole job - a second
+   near-identical block would only drift from this one. */
+.ks-doc-card,
+.ks-suggestion-card {
     background: var(--ks-card-bg);
     border: 1px solid var(--ks-border);
     border-radius: 12px;
     padding: 13px 16px;
     margin-bottom: 10px;
     display: flex;
-    justify-content: space-between;
     align-items: center;
     gap: 16px;
     flex-wrap: wrap;
+}
+
+/* A Document card's progress and its reset button belong at the far edge; a
+   suggestion's three items read as one sentence and stay together. */
+.ks-doc-card {
+    justify-content: space-between;
 }
 
 /* SyncEvent history under each Document, with regressed pushes flagged

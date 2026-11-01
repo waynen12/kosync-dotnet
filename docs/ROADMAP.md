@@ -233,7 +233,7 @@ depend on `ADMIN_PASSWORD` being applied at boot. Forced password change
 breaks all of them; the shared test fixture needs to seed a non-Provisional
 admin.
 
-### Phase 3 — Book metadata — started
+### Phase 3 — Book metadata — ✅ Done ([#29](https://github.com/waynen12/kosync-dotnet/issues/29), [#30](https://github.com/waynen12/kosync-dotnet/issues/30), [#31](https://github.com/waynen12/kosync-dotnet/issues/31), [#32](https://github.com/waynen12/kosync-dotnet/issues/32))
 
 Source is now decided (ADR 0007): KOReader's own opt-in metadata push.
 
@@ -271,7 +271,21 @@ Source is now decided (ADR 0007): KOReader's own opt-in metadata push.
   reader's setting is already on, so there is nothing to enable) and from
   one with a curated title (there *is* a title), but shown on a Book with
   only a curated author, which is still called `Book #N`.
-- Exact title+author merge *suggestions*, scoped within one User.
+- **Done (#32):** exact title+author merge *suggestions*, scoped within
+  one User, in `BookMergeSuggestionRule`. Case-insensitive and trimmed, on
+  both fields, among Books that have metadata at all — matched on what a
+  Book is *called*, so a curated title participates and a `Book #N` label
+  never does. Surfaced inline on both Books it concerns, with the
+  suggested Book named by id (both have the same title, so the id is all
+  that tells them apart) and one button that runs the merge action that
+  already existed. Nothing merges on a match: `MergeBooksAsync` is
+  transactional but not undoable, so a false positive would be manual
+  cleanup (ADR 0007). The Books table carries a `Merge suggestion` flag
+  beside the Split Book one — independent flags, because a Book can be
+  both and they mean opposite things: one is a Book already gone wrong,
+  the other a Book that might be two. The typed "merge Book #" form stays:
+  the rule is narrow enough that most real Split Books (no metadata, or a
+  title only one device read) will never be suggested at all.
 - Later, not now: fill metadata from an entered title or ISBN.
 
 ### Phase 4 — AI integration

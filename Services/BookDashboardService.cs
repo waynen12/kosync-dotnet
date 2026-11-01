@@ -13,6 +13,11 @@ public record BookDocumentSummary(int DocumentId, string DocumentHash, string La
 // Curated* pair is what the owning User actually typed, which an edit form
 // needs separately: it has to come up blank where the displayed title is
 // only an observation showing through, or saving would silently curate it.
+//
+// MergeSuggestionBookIds is ids and nothing else, because a suggested Book
+// has the same title and author as this one by construction (ADR 0007) -
+// naming it by its title would say "Dune looks like Dune", and its id is the
+// only thing that tells the two apart on screen.
 public record BookSummary(
     int Id,
     string Title,
@@ -23,6 +28,7 @@ public record BookSummary(
     DateTime? LastSyncedAt,
     bool IsSplitBook,
     bool NeedsMetadataHint,
+    IReadOnlyList<int> MergeSuggestionBookIds,
     IReadOnlyList<BookDocumentSummary> Documents);
 
 public enum MergeBooksResult
@@ -67,7 +73,10 @@ public class BookDashboardService
             .ToListAsync();
 
         return books
-            .Select(Summarize)
+            // Each Book is suggested against the same list it came from: it
+            // already holds every Book of this User's, so the rule needs
+            // nothing fetched for it here.
+            .Select(book => Summarize(book, books))
             .OrderByDescending(b => b.LastSyncedAt)
             .ToList();
     }
@@ -80,13 +89,31 @@ public class BookDashboardService
                     .ThenInclude(s => s.Device)
             .FirstOrDefaultAsync(b => b.Id == id);
 
-        return book is null ? null : Summarize(book);
+        if (book is null)
+        {
+            return null;
+        }
+
+        // Merge suggestions compare this Book against the User's others, so
+        // the others have to be loaded too - with their Documents, which is
+        // where an Observed title lives, but not their SyncEvents, which
+        // say nothing about what a Book is called.
+        var otherBooks = await _db.Books
+            .Include(b => b.Documents)
+            .ToListAsync();
+
+        return Summarize(book, otherBooks);
     }
 
     // Manual Split Book merge action (issue #8): repoints every Document
     // from mergeBookId onto keepBookId - the resulting Book's Documents are
-    // the union of both - then removes the now-orphaned Book. Discovery of
-    // merge candidates is fully manual; there is no auto-suggestion here.
+    // the union of both - then removes the now-orphaned Book.
+    //
+    // Still the only thing that merges anything. A Merge Suggestion can now
+    // point two Books out to the reader (BookMergeSuggestionRule), but it
+    // reaches here only when the reader presses the button: this is
+    // transactional and not undoable, so a false positive would be manual
+    // cleanup (ADR 0007).
     public async Task<MergeBooksResult> MergeBooksAsync(int keepBookId, int mergeBookId)
     {
         if (keepBookId == mergeBookId)
@@ -190,7 +217,10 @@ public class BookDashboardService
         return CurateBookResult.Success;
     }
 
-    private static BookSummary Summarize(Book book)
+    // otherBooks is every Book the caller's tenant can see, this one
+    // included: a Merge Suggestion *is* another Book, so summarizing one
+    // needs the rest (BookMergeSuggestionRule).
+    private static BookSummary Summarize(Book book, IReadOnlyCollection<Book> otherBooks)
     {
         var documents = book.Documents
             .Select(d => new { d.Id, d.DocumentHash, Label = DocumentLabelRule.Resolve(d), History = BuildHistory(d) })
@@ -219,6 +249,7 @@ public class BookDashboardService
             lastSyncedAt,
             isSplitBook,
             BookMetadataRule.NeedsMetadataHint(book),
+            BookMergeSuggestionRule.Suggest(book, otherBooks),
             documents);
     }
 

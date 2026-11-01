@@ -146,6 +146,17 @@ person who typed a title is asserting they know the correct answer, while
 a push only reports what one device happened to extract from one file.
 _Avoid_: metadata (unqualified), override, manual title
 
+**Merge Suggestion**:
+Another of the same User's Books that reports an identical title and
+author to this one — case-insensitive and trimmed, on both fields, and
+only among Books that have metadata at all. A proposal shown inline on
+both Books, never an action: merging stays something a reader chooses,
+because a merge is transactional but not undoable. The narrowness is the
+point, not a first pass at fuzzy matching.
+_Avoid_: duplicate, a match or a candidate (as names for the thing —
+matching is how one is found, not what it is), auto-merge (nothing here
+merges anything)
+
 **Document Label**:
 What a Document is called on the two detail pages — the filename a Device
 observed for it, or the first characters of its hash where none was

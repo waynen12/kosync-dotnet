@@ -77,10 +77,44 @@
             <p class="ks-flag-regression ks-merge-error">@curateError</p>
         }
 
-        <div class="ks-section-title">Merge another Book into this one</div>
-        <form class="ks-merge-form" @onsubmit="MergeAsync" @onsubmit:preventDefault="true">
-            <input type="number" min="1" class="ks-merge-input" placeholder="Book #" @bind="mergeBookIdInput" />
-            <button type="submit" class="ks-merge-button">Merge</button>
+        @* Inline on the Book it concerns, like the Split Book flag and the
+           missing-metadata hint above it, rather than in an inbox of its own
+           (docs/ROADMAP.md, "Issue surfacing UX"). Every row is one button
+           press away from a merge and not one step closer than that: the
+           rule suggests, the reader merges (ADR 0007). *@
+        @if (book.MergeSuggestionBookIds.Count > 0)
+        {
+            <div class="ks-section-title">@Constants.MergeSuggestions.SectionTitle</div>
+            <p class="ks-suggestion-hint">@Constants.MergeSuggestions.Hint</p>
+
+            @foreach (var suggestedBookId in book.MergeSuggestionBookIds)
+            {
+                <div class="ks-suggestion-card">
+                    @* By id, not by title: the suggested Book has the same
+                       title as this one, so the id is the only thing on the
+                       row that tells them apart. It links, because deciding
+                       usually means looking at the other Book's Documents
+                       first - and from there the same row offers the merge
+                       the other way round. *@
+                    <a class="ks-suggestion-link" href="@AppRoutes.BookDetail(suggestedBookId)">
+                        @string.Format(Constants.BookFallbackNameFormat, suggestedBookId)
+                    </a>
+                    <span class="ks-card-meta">@Constants.MergeSuggestions.Reason</span>
+                    <button type="button" class="ks-merge-button" @onclick="() => MergeAsync(suggestedBookId)">
+                        @Constants.MergeSuggestions.MergeAction
+                    </button>
+                </div>
+            }
+        }
+
+        <div class="ks-section-title">@Constants.MergeFormSectionTitle</div>
+        @* Still here, and still the only way to merge two Books that nothing
+           suggested: the rule is deliberately narrow, so most real Split
+           Books - no metadata at all, or a title only one device read - will
+           never appear in the list above (ADR 0007). *@
+        <form class="ks-merge-form" @onsubmit="MergeTypedBookAsync" @onsubmit:preventDefault="true">
+            <input type="number" min="1" class="ks-merge-input" placeholder="@Constants.MergeFormPlaceholder" @bind="mergeBookIdInput" />
+            <button type="submit" class="ks-merge-button">@Constants.MergeFormSubmitText</button>
         </form>
         @if (mergeError is not null)
         {
@@ -219,15 +253,23 @@
         await LoadAsync();
     }
 
-    private async Task MergeAsync()
+    private async Task MergeTypedBookAsync()
     {
-        mergeError = null;
-
         if (mergeBookIdInput is not int mergeBookId)
         {
             mergeError = Constants.MergeBookIdRequiredError;
             return;
         }
+
+        await MergeAsync(mergeBookId);
+    }
+
+    // One merge for both entry points - the id typed into the form, and the
+    // id a suggestion offered. A suggestion is only ever a prefilled version
+    // of the action that already existed; it gets no privileges of its own.
+    private async Task MergeAsync(int mergeBookId)
+    {
+        mergeError = null;
 
         var result = await BookDashboardService.MergeBooksAsync(Id, mergeBookId);
 

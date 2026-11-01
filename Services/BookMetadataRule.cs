@@ -10,9 +10,16 @@ namespace Kosync.Services;
 public static class BookMetadataRule
 {
     public static string ResolveTitle(Book book) =>
-        MetadataText.TrimmedOrNull(book.CuratedTitle)
-        ?? MostRecentObservation(book, d => d.ObservedTitle)
+        ResolveTitleOrNull(book)
         ?? string.Format(Constants.BookFallbackNameFormat, book.Id);
+
+    // The same resolution without the `Book #N` fallback, for a caller that
+    // has to tell a title apart from the absence of one. `Book #N` is a label
+    // for a Book that knows nothing about itself, not a title it has - and
+    // BookMergeSuggestionRule has to not match on it.
+    public static string? ResolveTitleOrNull(Book book) =>
+        MetadataText.TrimmedOrNull(book.CuratedTitle)
+        ?? MostRecentObservation(book, d => d.ObservedTitle);
 
     public static string? ResolveAuthor(Book book) =>
         MetadataText.TrimmedOrNull(book.CuratedAuthor)

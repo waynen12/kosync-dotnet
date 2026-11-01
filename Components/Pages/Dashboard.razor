@@ -140,7 +140,21 @@
                                             @Constants.SplitBookFlag
                                         </span>
                                     }
-                                    else
+                                    @* A Book can carry both: being split is
+                                       about progress disagreeing, having a
+                                       suggestion is about another Book
+                                       reporting the same title (ADR 0007).
+                                       Outline rather than warn, because
+                                       nothing has gone wrong here - there is
+                                       a choice waiting on the drill-in. *@
+                                    @if (row.HasMergeSuggestion)
+                                    {
+                                        <span class="hub-badge hub-badge-outline">
+                                            <HubIcon Name="@Constants.Icons.Library" Size="@Constants.Icons.BadgeSize" />
+                                            @Constants.MergeSuggestions.Flag
+                                        </span>
+                                    }
+                                    @if (row.HasNoFlags)
                                     {
                                         <span class="hub-muted hub-xs">@Constants.Dashboard.NoFlagsText</span>
                                     }
