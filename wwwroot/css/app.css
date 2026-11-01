@@ -858,9 +858,10 @@ a.hub-btn { text-decoration: none; }
     font-weight: 700;
 }
 
-/* Manual Book merge action (issue #8) - a plain "merge into Book #" form,
-   for the two Books nothing suggested, which the narrow suggestion rule
-   leaves as the common case (issue #32). */
+/* Manual Book merge action (issue #8) - a plain "merge into Book #" row, for
+   the two Books nothing suggested, which the narrow suggestion rule leaves as
+   the common case (issue #32). A row and not a <form>: Enter in the id field
+   would submit one, past the confirmation. */
 .ks-merge-form {
     display: flex;
     gap: 8px;
@@ -887,6 +888,23 @@ a.hub-btn { text-decoration: none; }
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
+}
+
+/* The merge confirmation, on both the typed form and a suggestion's row
+   (ADR 0007, issue #32). list-style on a <summary> is the triangle marker,
+   and this summary is a button - the same removal the hub's disclosures do.
+   Open, it stacks: the warning has to be read before the button under it. */
+.ks-merge-confirm > summary { list-style: none; }
+.ks-merge-confirm > summary::-webkit-details-marker { display: none; }
+.ks-merge-confirm[open] { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+
+.ks-merge-warning {
+    color: var(--ks-muted);
+    font-size: 12.5px;
+    border-left: 2px solid var(--ks-warning);
+    padding-left: 10px;
+    margin: 0;
+    max-width: 52ch;
 }
 
 .ks-merge-error {

@@ -100,9 +100,21 @@
                         @string.Format(Constants.BookFallbackNameFormat, suggestedBookId)
                     </a>
                     <span class="ks-card-meta">@Constants.MergeSuggestions.Reason</span>
-                    <button type="button" class="ks-merge-button" @onclick="() => MergeAsync(suggestedBookId)">
-                        @Constants.MergeSuggestions.MergeAction
-                    </button>
+                    @* Asks twice, and asks in a <details> - a confirmation is
+                       disclosure, which must not round-trip (ADR 0003), the
+                       same shape the Users page uses before deleting a User.
+                       The first press only opens it: a <summary> cannot run
+                       the merge, so a rule's guess is never one click from an
+                       action nothing can undo. *@
+                    <details class="ks-merge-confirm">
+                        <summary class="ks-merge-button">@Constants.MergeSuggestions.MergeAction</summary>
+
+                        <p class="ks-merge-warning">@Constants.MergeConfirmWarning</p>
+
+                        <button type="button" class="ks-merge-button" @onclick="() => MergeAsync(suggestedBookId)">
+                            @Constants.MergeConfirmSubmitText
+                        </button>
+                    </details>
                 </div>
             }
         }
@@ -112,10 +124,24 @@
            suggested: the rule is deliberately narrow, so most real Split
            Books - no metadata at all, or a title only one device read - will
            never appear in the list above (ADR 0007). *@
-        <form class="ks-merge-form" @onsubmit="MergeTypedBookAsync" @onsubmit:preventDefault="true">
+        @* Deliberately not a <form>: Enter in its last field submits a form,
+           and that press would run the merge past the confirmation below.
+           Nothing else here needed a form either - the id goes to the server
+           over the circuit, not in a POST. *@
+        <div class="ks-merge-form">
             <input type="number" min="1" class="ks-merge-input" placeholder="@Constants.MergeFormPlaceholder" @bind="mergeBookIdInput" />
-            <button type="submit" class="ks-merge-button">@Constants.MergeFormSubmitText</button>
-        </form>
+            @* The same two presses as a suggestion's. A typed id is read off
+               another page and can be a typo, which merges a Book nobody
+               looked at - as irreversible as accepting a false suggestion,
+               and asked the same way so neither path is the lenient one. *@
+            <details class="ks-merge-confirm">
+                <summary class="ks-merge-button">@Constants.MergeFormSubmitText</summary>
+
+                <p class="ks-merge-warning">@Constants.MergeConfirmWarning</p>
+
+                <button type="button" class="ks-merge-button" @onclick="MergeTypedBookAsync">@Constants.MergeConfirmSubmitText</button>
+            </details>
+        </div>
         @if (mergeError is not null)
         {
             <p class="ks-flag-regression ks-merge-error">@mergeError</p>

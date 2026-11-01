@@ -686,6 +686,20 @@ public static class Constants
 
     public const string MergeFormSubmitText = "Merge";
 
+    // Both ways of starting a merge ask twice, through these two strings.
+    // MergeBooksAsync is transactional but not undoable (ADR 0007), and both
+    // entry points can be wrong about which Books are one Book: a typo in the
+    // form picks a Book nobody looked at, and a suggestion was put on screen
+    // by a rule rather than by the reader.
+    //
+    // Says what moves where rather than only "are you sure": the merge is not
+    // symmetric, and which Book survives is the part a reader can still get
+    // wrong at this point - by merging from the wrong page.
+    public const string MergeConfirmWarning =
+        "This moves every Document from that Book onto this one and removes it. A merge cannot be undone.";
+
+    public const string MergeConfirmSubmitText = "Merge these Books";
+
     public const string MergeBookIdRequiredError = "Enter a Book # to merge.";
 
     public const string MergeSameBookError = "Can't merge a Book into itself.";

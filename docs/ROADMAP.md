@@ -283,9 +283,15 @@ Source is now decided (ADR 0007): KOReader's own opt-in metadata push.
   cleanup (ADR 0007). The Books table carries a `Merge suggestion` flag
   beside the Split Book one — independent flags, because a Book can be
   both and they mean opposite things: one is a Book already gone wrong,
-  the other a Book that might be two. The typed "merge Book #" form stays:
-  the rule is narrow enough that most real Split Books (no metadata, or a
-  title only one device read) will never be suggested at all.
+  the other a Book that might be two. The typed "merge Book #" control
+  stays: the rule is narrow enough that most real Split Books (no
+  metadata, or a title only one device read) will never be suggested at
+  all. Both ways of starting a merge now ask twice, as a `<details>`
+  disclosure rather than as round-tripped state (ADR 0003) — a suggested
+  pair came from a rule and a typed id can be a typo, and neither is worth
+  one click when nothing can undo it. The typed control stopped being a
+  `<form>` for the same reason: Enter in its last field would have
+  submitted straight past the confirmation.
 - Later, not now: fill metadata from an entered title or ISBN.
 
 ### Phase 4 — AI integration

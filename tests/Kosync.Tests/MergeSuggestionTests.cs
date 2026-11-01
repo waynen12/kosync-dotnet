@@ -1,3 +1,5 @@
+using System.Net;
+using System.Text.RegularExpressions;
 using Kosync.Database;
 using Kosync.Models;
 using Kosync.Services;
@@ -165,6 +167,55 @@ public class MergeSuggestionTests : IntegrationTestBase
         Assert.DoesNotContain(Constants.MergeSuggestions.SectionTitle, html);
         Assert.DoesNotContain(Constants.MergeSuggestions.MergeAction, html);
     }
+
+    // A merge cannot be undone, and a suggested pair was put in front of the
+    // reader by a rule rather than looked up by them - so the control that
+    // takes one asks twice. The confirmation is a <details> disclosure, the
+    // shape the Users page already uses for deletion: it is local UI state,
+    // which must not round-trip to the server (ADR 0003).
+    [Fact]
+    public async Task BookDetail_AsksTwiceBeforeMergingASuggestedBook()
+    {
+        await SyncAsync("hash1", new DocumentMetadataRequest { title = "Dune", authors = "Frank Herbert" });
+        await SyncAsync("hash2", new DocumentMetadataRequest { title = "Dune", authors = "Frank Herbert" });
+
+        var html = await BookDetailHtmlAsync(await GetBookIdAsync("hash1"));
+
+        Assert.Contains(Constants.MergeConfirmWarning, WebUtility.HtmlDecode(html));
+        Assert.Contains(Constants.MergeConfirmSubmitText, html);
+
+        // The merge label is the <summary>, which is the whole of the first
+        // press: a disclosure cannot submit, so no single click reaches the
+        // merge. Structural because a GET is all this seam can see - the
+        // second press runs over a circuit.
+        AssertIsDisclosureSummary(Constants.MergeSuggestions.MergeAction, html);
+    }
+
+    // The typed form merges the id somebody entered, which a typo makes the
+    // wrong Book - as irreversible as accepting a false suggestion, so it
+    // asks twice through the same two strings.
+    [Fact]
+    public async Task BookDetail_AsksTwiceBeforeMergingATypedBookId()
+    {
+        await SyncAsync("hash1");
+
+        var html = await BookDetailHtmlAsync(await GetBookIdAsync("hash1"));
+
+        Assert.Contains(Constants.MergeConfirmWarning, WebUtility.HtmlDecode(html));
+        Assert.Contains(Constants.MergeConfirmSubmitText, html);
+
+        AssertIsDisclosureSummary(Constants.MergeFormSubmitText, html);
+
+        // And the id box is not in a <form>, because Enter in a form's last
+        // field submits it - which would have run the merge straight past
+        // the confirmation the line above just established. A two-press
+        // action gets no one-key shortcut. (The curate form beside it keeps
+        // its Enter: typing a title is reversible by typing another.)
+        Assert.DoesNotContain(@"<form class=""ks-merge-form""", html);
+    }
+
+    private static void AssertIsDisclosureSummary(string label, string html) =>
+        Assert.Matches($@"<summary[^>]*>\s*{Regex.Escape(label)}", html);
 
     // The point of the whole ticket: a suggestion is a suggestion.
     // MergeBooksAsync is transactional but not undoable, so merging on a
