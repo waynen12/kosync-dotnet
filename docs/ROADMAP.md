@@ -89,8 +89,11 @@ response.
 - Introduce EF Core + SQLite. Schema shape, as built:
   - `Users` — migrated as-is.
   - `Books` — new. A Document always belongs to exactly one Book.
-  - `Documents` — hash, belongs to a Book. Also carries `LastResetAt`
-    for Progress Reset (see Phase 2).
+  - `Documents` — hash, belongs to a Book. Carried a single `LastResetAt`
+    for Progress Reset (see Phase 2) until
+    [#40](https://github.com/waynen12/kosync-dotnet/issues/40) replaced it
+    with `ProgressResets`.
+  - `ProgressResets` — one row per Progress Reset of a Document.
   - `Devices` (new) — identity is `device_id`; `device` label is mutable.
   - `SyncEvents` (new) — append-only: Device, Document, percentage,
     progress, timestamp, `IsCurrent`. This is the full history sync-issue
@@ -156,7 +159,11 @@ response.
   first version could partially apply on failure).
 - Progress Reset: a "delete progress" dashboard action distinct from a
   SyncEvent (see GLOSSARY.md) — clears a Document's current-progress
-  pointer, keeps its SyncEvent history intact, recorded as `LastResetAt`.
+  pointer, keeps its SyncEvent history intact, recorded as a
+  `ProgressResets` row per occurrence
+  ([#40](https://github.com/waynen12/kosync-dotnet/issues/40); originally a
+  single `LastResetAt` timestamp, which could remember only the newest
+  reset and left the push after an earlier one falsely flagged).
 
 **Hardening after the initial build:** issues
 [#10](https://github.com/waynen12/kosync-dotnet/issues/10)-[#13](https://github.com/waynen12/kosync-dotnet/issues/13)

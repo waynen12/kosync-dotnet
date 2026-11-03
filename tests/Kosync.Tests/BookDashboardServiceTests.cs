@@ -396,6 +396,41 @@ public class BookDashboardServiceTests : IntegrationTestBase
         Assert.Single(doc.History, h => h.IsReset);
     }
 
+    // A reset is recorded per occurrence rather than as a last-one-wins
+    // timestamp on the Document (issue #40), so resetting twice leaves two
+    // markers in the history - both resets happened, and the earlier one is
+    // what tells a reader why the push after it was allowed to go backwards.
+    [Fact]
+    public async Task ResetProgressAsync_Twice_LeavesAResetEntryForEach()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.80m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        var bookId = await GetBookIdAsync("hash1");
+        var documentId = await GetDocumentIdAsync("hash1");
+
+        await ResetProgressAsync(documentId);
+
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p0", percentage = 0.05m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        await ResetProgressAsync(documentId);
+
+        var book = await GetBookAsync(bookId);
+        var doc = Assert.Single(book!.Documents);
+
+        // Newest first, each reset sitting above the push it cleared: the
+        // order is what makes the timeline readable, and it is also the order
+        // ProgressRegressionRule replays promotion over.
+        Assert.Equal(
+            [(true, 0m), (false, 0.05m), (true, 0m), (false, 0.80m)],
+            doc.History.Select(h => (h.IsReset, h.Percentage)));
+    }
+
     [Fact]
     public async Task ResetProgressAsync_NextPushBecomesCurrentRegardlessOfPercentage()
     {

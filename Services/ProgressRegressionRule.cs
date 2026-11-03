@@ -10,8 +10,8 @@ namespace Kosync.Services;
 // So the flag is derived rather than read, by replaying the promotion rule
 // in Controllers/SyncController.cs over the history oldest-first: a push was
 // blocked iff it was lower than the Document's current progress at the
-// moment it arrived. No schema change and no second stored field, which
-// would be a second thing that can disagree with the promotion rule.
+// moment it arrived. No second stored field, which would be a second thing
+// that can disagree with the promotion rule.
 //
 // Lives here beside the other rules rather than in the view, so the one
 // statement of what a regression is holds wherever the flag is shown.
@@ -36,12 +36,11 @@ public static class ProgressRegressionRule
             // nothing left to regress against. The marker itself is not a
             // push and so is not a regression either.
             //
-            // Only the *latest* reset is in the timeline to be seen:
-            // Document.LastResetAt is a single timestamp, so a Document reset
-            // twice has lost its first reset and the push that followed it
-            // can still come out falsely flagged (issue #40). Carrying reset
-            // history is a schema change and belongs with the history
-            // timeline rebuild, not here.
+            // Every reset is in the timeline, not only the latest: resets are
+            // recorded one row each (ProgressReset, issue #40), so clearing
+            // the ceiling per marker is enough to get a Document reset twice
+            // right - the push after the earlier reset is measured against
+            // nothing, same as the push after the newer one.
             if (history[i].IsReset)
             {
                 ceiling = 0m;

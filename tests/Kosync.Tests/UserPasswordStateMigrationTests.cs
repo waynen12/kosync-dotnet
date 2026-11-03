@@ -1,10 +1,6 @@
-using Kosync.Database;
 using Kosync.Database.Entities;
 using Kosync.Tests.TestSupport;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace Kosync.Tests;
 
@@ -22,16 +18,16 @@ public class UserPasswordStateMigrationTests
     [Fact]
     public async Task Migrating_TakesEveryExistingUsersPasswordAsTheirOwn()
     {
-        using var connection = OpenDatabaseAt(SchemaBeforePasswordState);
+        using var connection = MigrationTestDatabase.OpenAt(SchemaBeforePasswordState);
 
-        Execute(connection, """
+        connection.Execute("""
             INSERT INTO "Users" ("Username", "PasswordHash", "IsActive", "IsAdministrator") VALUES ('admin', 'x', 1, 1);
             INSERT INTO "Users" ("Username", "PasswordHash", "IsActive", "IsAdministrator") VALUES ('reader', 'x', 1, 0);
             """);
 
-        MigrateToLatest(connection);
+        connection.MigrateToLatest();
 
-        using var db = TestDb.CreateSystemContext(OptionsFor(connection));
+        using var db = connection.ReadEverythingIn();
 
         Assert.All(await db.Users.ToListAsync(), user =>
         {
@@ -47,47 +43,18 @@ public class UserPasswordStateMigrationTests
     [Fact]
     public async Task AfterMigrating_AUserInsertedWithoutAPasswordState_IsProvisional()
     {
-        using var connection = OpenDatabaseAt(SchemaBeforePasswordState);
+        using var connection = MigrationTestDatabase.OpenAt(SchemaBeforePasswordState);
 
-        MigrateToLatest(connection);
+        connection.MigrateToLatest();
 
-        Execute(connection, """
+        connection.Execute("""
             INSERT INTO "Users" ("Username", "PasswordHash", "IsActive", "IsAdministrator") VALUES ('reader', 'x', 1, 0);
             """);
 
-        using var db = TestDb.CreateSystemContext(OptionsFor(connection));
+        using var db = connection.ReadEverythingIn();
         var reader = await db.Users.SingleAsync(u => u.Username == "reader");
 
         Assert.Equal(PasswordState.Provisional, reader.PasswordState);
         Assert.True(reader.MustChangePassword);
-    }
-
-    private static SqliteConnection OpenDatabaseAt(string migrationName)
-    {
-        var connection = new SqliteConnection("DataSource=:memory:");
-        connection.Open();
-
-        using var db = TestDb.CreateSystemContext(OptionsFor(connection));
-        db.GetService<IMigrator>().Migrate(migrationName);
-
-        return connection;
-    }
-
-    private static void MigrateToLatest(SqliteConnection connection)
-    {
-        using var db = TestDb.CreateSystemContext(OptionsFor(connection));
-        db.Database.Migrate();
-    }
-
-    private static DbContextOptions<KosyncDbContext> OptionsFor(SqliteConnection connection)
-    {
-        return new DbContextOptionsBuilder<KosyncDbContext>().UseSqlite(connection).Options;
-    }
-
-    private static void Execute(SqliteConnection connection, string sql)
-    {
-        using var command = connection.CreateCommand();
-        command.CommandText = sql;
-        command.ExecuteNonQuery();
     }
 }

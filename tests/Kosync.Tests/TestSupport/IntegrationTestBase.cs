@@ -124,6 +124,22 @@ public abstract class IntegrationTestBase : IDisposable
         return keep.BookId;
     }
 
+    // Drives the "delete progress" dashboard action (issue #9) against the
+    // Document with this hash, through the real BookDashboardService. For
+    // the tests that need a Progress Reset in a Document's history rather
+    // than being about the action itself - called twice where the subject is
+    // a Document reset more than once (issue #40).
+    protected async Task ResetProgressAsync(string documentHash)
+    {
+        using var scope = Factory.CreateScopeForUser("admin");
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+        var document = await db.Documents.SingleAsync(d => d.DocumentHash == documentHash);
+
+        var result = await new BookDashboardService(db).ResetProgressAsync(document.Id);
+
+        Assert.Equal(ResetProgressResult.Success, result);
+    }
+
     public void Dispose()
     {
         Client.Dispose();

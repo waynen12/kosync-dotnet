@@ -277,13 +277,7 @@ public class BooksViewTests : IntegrationTestBase
 
         var bookId = await GetBookIdAsync("hash1");
 
-        using (var scope = Factory.CreateScopeForUser("admin"))
-        {
-            var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
-            var document = await db.Documents.SingleAsync(d => d.DocumentHash == "hash1");
-            var service = new BookDashboardService(db);
-            await service.ResetProgressAsync(document.Id);
-        }
+        await ResetProgressAsync("hash1");
 
         using var client = Factory.NoRedirectClient();
         await DashboardLogin.LogInAsync(client, "admin", "admin");
@@ -291,6 +285,37 @@ public class BooksViewTests : IntegrationTestBase
         var html = await (await client.GetAsync(AppRoutes.BookDetail(bookId))).Content.ReadAsStringAsync();
 
         Assert.Contains(Constants.ProgressResetFlag, html);
+    }
+
+    // Both resets are rendered, not just the newest (issue #40): the
+    // timeline is the reader's account of what happened to this Document,
+    // and a reset that has gone missing from it leaves the push that
+    // followed looking like an unexplained step backwards.
+    [Fact]
+    public async Task BookDetail_AfterTwoResets_ShowsBothOfThemInHistory()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.80m, device = "Kobo Nova", device_id = "device-1"
+        }, "admin", "admin");
+
+        var bookId = await GetBookIdAsync("hash1");
+
+        await ResetProgressAsync("hash1");
+
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p0", percentage = 0.05m, device = "Kobo Nova", device_id = "device-1"
+        }, "admin", "admin");
+
+        await ResetProgressAsync("hash1");
+
+        using var client = Factory.NoRedirectClient();
+        await DashboardLogin.LogInAsync(client, "admin", "admin");
+
+        var html = await (await client.GetAsync(AppRoutes.BookDetail(bookId))).Content.ReadAsStringAsync();
+
+        Assert.Equal(2, RenderedHtml.Occurrences(html, Constants.ProgressResetFlag));
     }
 
     [Fact]
@@ -342,4 +367,5 @@ public class BooksViewTests : IntegrationTestBase
         var document = await db.Documents.SingleAsync(d => d.DocumentHash == documentHash);
         return document.BookId;
     }
+
 }

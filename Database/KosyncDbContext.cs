@@ -10,6 +10,7 @@ public class KosyncDbContext : DbContext
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<Device> Devices => Set<Device>();
     public DbSet<SyncEvent> SyncEvents => Set<SyncEvent>();
+    public DbSet<ProgressReset> ProgressResets => Set<ProgressReset>();
     public DbSet<ServerSetting> ServerSettings => Set<ServerSetting>();
 
     private readonly TenantContext _tenant;
@@ -105,13 +106,19 @@ public class KosyncDbContext : DbContext
             .HasForeignKey(s => s.DeviceId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        modelBuilder.Entity<ProgressReset>()
+            .HasOne(r => r.Document)
+            .WithMany(d => d.ProgressResets)
+            .HasForeignKey(r => r.DocumentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         modelBuilder.Entity<SyncEvent>()
             .Property(s => s.Timestamp)
             .HasConversion(utcTimestamp);
 
-        modelBuilder.Entity<Document>()
-            .Property(d => d.LastResetAt)
-            .HasConversion(nullableUtcTimestamp);
+        modelBuilder.Entity<ProgressReset>()
+            .Property(r => r.ResetAt)
+            .HasConversion(utcTimestamp);
 
         modelBuilder.Entity<Document>()
             .Property(d => d.MetadataObservedAt)
@@ -149,5 +156,11 @@ public class KosyncDbContext : DbContext
         // DbSet<SyncEvent> safe rather than merely unwritten.
         modelBuilder.Entity<SyncEvent>()
             .HasQueryFilter(s => TenantFiltersBypassed || s.Document.UserId == FilterUserId);
+
+        // Same reasoning for a Progress Reset: reached only through its
+        // Document, filtered anyway so DbSet<ProgressReset> is safe on its
+        // own (issue #40).
+        modelBuilder.Entity<ProgressReset>()
+            .HasQueryFilter(r => TenantFiltersBypassed || r.Document.UserId == FilterUserId);
     }
 }

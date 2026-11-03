@@ -180,10 +180,11 @@ resolved label), name
 
 **Progress Reset**:
 A deliberate action that clears a Document's current-progress pointer so
-a reader can restart a book. Recorded as a timestamp on the Document
-itself, not as a SyncEvent — a SyncEvent is specifically a push from a
-Device, and a reset isn't one, even though it still needs to be visible
-in the Document's history as the distinct event it is.
+a reader can restart a book. Recorded once per occurrence, not as a
+SyncEvent — a SyncEvent is specifically a push from a Device, and a reset
+isn't one, even though it still needs to be visible in the Document's
+history as the distinct event it is. A Document reset twice holds two
+records and shows both.
 _Avoid_: SyncEvent (for this specific action), restart (fine as a verb,
 but the record itself is a Progress Reset)
 

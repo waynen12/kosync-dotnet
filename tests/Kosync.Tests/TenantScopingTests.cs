@@ -127,9 +127,11 @@ public class TenantScopingTests : IntegrationTestBase
 
         using var systemScope = Factory.CreateSystemScope();
         var db = systemScope.ServiceProvider.GetRequiredService<KosyncDbContext>();
-        var document = await db.Documents.SingleAsync(d => d.Id == otherDocumentId);
+        var document = await db.Documents
+            .Include(d => d.ProgressResets)
+            .SingleAsync(d => d.Id == otherDocumentId);
 
-        Assert.Null(document.LastResetAt);
+        Assert.Empty(document.ProgressResets);
     }
 
     // The reason Book needed a UserId of its own. Ownership used to be

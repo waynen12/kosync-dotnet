@@ -77,9 +77,6 @@ namespace Kosync.Database.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime?>("LastResetAt")
-                        .HasColumnType("TEXT");
-
                     b.Property<DateTime?>("MetadataObservedAt")
                         .HasColumnType("TEXT");
 
@@ -102,6 +99,25 @@ namespace Kosync.Database.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("Documents");
+                });
+
+            modelBuilder.Entity("Kosync.Database.Entities.ProgressReset", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DocumentId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("ResetAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId");
+
+                    b.ToTable("ProgressResets");
                 });
 
             modelBuilder.Entity("Kosync.Database.Entities.ServerSetting", b =>
@@ -224,6 +240,17 @@ namespace Kosync.Database.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Kosync.Database.Entities.ProgressReset", b =>
+                {
+                    b.HasOne("Kosync.Database.Entities.Document", "Document")
+                        .WithMany("ProgressResets")
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Document");
+                });
+
             modelBuilder.Entity("Kosync.Database.Entities.SyncEvent", b =>
                 {
                     b.HasOne("Kosync.Database.Entities.Device", "Device")
@@ -255,6 +282,8 @@ namespace Kosync.Database.Migrations
 
             modelBuilder.Entity("Kosync.Database.Entities.Document", b =>
                 {
+                    b.Navigation("ProgressResets");
+
                     b.Navigation("SyncEvents");
                 });
 

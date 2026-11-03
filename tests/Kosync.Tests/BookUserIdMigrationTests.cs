@@ -1,16 +1,12 @@
-using Kosync.Database;
 using Kosync.Tests.TestSupport;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace Kosync.Tests;
 
 // Book had no owner before ADR 0004 - it was reachable only through its
 // Documents - so AddBookUserId has to derive one for every existing row.
 // These tests migrate a database to the schema immediately before it, write
-// rows the old way, and then migrate forward.
+// rows the old way, and then migrate forward (MigrationTestDatabase).
 public class BookUserIdMigrationTests
 {
     // The migration this one follows. Rows are written against its schema,
@@ -20,9 +16,9 @@ public class BookUserIdMigrationTests
     [Fact]
     public async Task Migrating_BackfillsEachBooksUserIdFromItsDocuments()
     {
-        using var connection = OpenDatabaseAt(SchemaBeforeBookUserId);
+        using var connection = MigrationTestDatabase.OpenAt(SchemaBeforeBookUserId);
 
-        Execute(connection, """
+        connection.Execute("""
             INSERT INTO "Users" ("Username", "PasswordHash", "IsActive", "IsAdministrator") VALUES ('reader-a', 'x', 1, 0);
             INSERT INTO "Users" ("Username", "PasswordHash", "IsActive", "IsAdministrator") VALUES ('reader-b', 'x', 1, 0);
             INSERT INTO "Books" DEFAULT VALUES;
@@ -31,9 +27,9 @@ public class BookUserIdMigrationTests
             INSERT INTO "Documents" ("DocumentHash", "UserId", "BookId") VALUES ('hash-b', 2, 2);
             """);
 
-        MigrateToLatest(connection);
+        connection.MigrateToLatest();
 
-        using var db = TestDb.CreateSystemContext(OptionsFor(connection));
+        using var db = connection.ReadEverythingIn();
 
         Assert.Equal(1, (await db.Books.SingleAsync(b => b.Id == 1)).UserId);
         Assert.Equal(2, (await db.Books.SingleAsync(b => b.Id == 2)).UserId);
@@ -45,9 +41,9 @@ public class BookUserIdMigrationTests
     [Fact]
     public async Task Migrating_AMergedBook_TakesTheOwnerItsDocumentsShare()
     {
-        using var connection = OpenDatabaseAt(SchemaBeforeBookUserId);
+        using var connection = MigrationTestDatabase.OpenAt(SchemaBeforeBookUserId);
 
-        Execute(connection, """
+        connection.Execute("""
             INSERT INTO "Users" ("Username", "PasswordHash", "IsActive", "IsAdministrator") VALUES ('ignored', 'x', 1, 0);
             INSERT INTO "Users" ("Username", "PasswordHash", "IsActive", "IsAdministrator") VALUES ('reader', 'x', 1, 0);
             INSERT INTO "Books" DEFAULT VALUES;
@@ -55,9 +51,9 @@ public class BookUserIdMigrationTests
             INSERT INTO "Documents" ("DocumentHash", "UserId", "BookId") VALUES ('hash-2', 2, 1);
             """);
 
-        MigrateToLatest(connection);
+        connection.MigrateToLatest();
 
-        using var db = TestDb.CreateSystemContext(OptionsFor(connection));
+        using var db = connection.ReadEverythingIn();
 
         Assert.Equal(2, (await db.Books.SingleAsync()).UserId);
     }
@@ -68,18 +64,18 @@ public class BookUserIdMigrationTests
     [Fact]
     public async Task Migrating_ABookWithNoDocuments_RemovesIt()
     {
-        using var connection = OpenDatabaseAt(SchemaBeforeBookUserId);
+        using var connection = MigrationTestDatabase.OpenAt(SchemaBeforeBookUserId);
 
-        Execute(connection, """
+        connection.Execute("""
             INSERT INTO "Users" ("Username", "PasswordHash", "IsActive", "IsAdministrator") VALUES ('reader', 'x', 1, 0);
             INSERT INTO "Books" DEFAULT VALUES;
             INSERT INTO "Books" DEFAULT VALUES;
             INSERT INTO "Documents" ("DocumentHash", "UserId", "BookId") VALUES ('hash-1', 1, 2);
             """);
 
-        MigrateToLatest(connection);
+        connection.MigrateToLatest();
 
-        using var db = TestDb.CreateSystemContext(OptionsFor(connection));
+        using var db = connection.ReadEverythingIn();
 
         var book = Assert.Single(await db.Books.ToListAsync());
         Assert.Equal(2, book.Id);
@@ -92,9 +88,9 @@ public class BookUserIdMigrationTests
     [Fact]
     public void Migrating_ABookWhoseDocumentsSpanUsers_AbortsAndChangesNothing()
     {
-        using var connection = OpenDatabaseAt(SchemaBeforeBookUserId);
+        using var connection = MigrationTestDatabase.OpenAt(SchemaBeforeBookUserId);
 
-        Execute(connection, """
+        connection.Execute("""
             INSERT INTO "Users" ("Username", "PasswordHash", "IsActive", "IsAdministrator") VALUES ('reader-a', 'x', 1, 0);
             INSERT INTO "Users" ("Username", "PasswordHash", "IsActive", "IsAdministrator") VALUES ('reader-b', 'x', 1, 0);
             INSERT INTO "Books" DEFAULT VALUES;
@@ -102,57 +98,12 @@ public class BookUserIdMigrationTests
             INSERT INTO "Documents" ("DocumentHash", "UserId", "BookId") VALUES ('hash-b', 2, 1);
             """);
 
-        var exception = Assert.ThrowsAny<Exception>(() => MigrateToLatest(connection));
+        var exception = Assert.ThrowsAny<Exception>(() => connection.MigrateToLatest());
 
         Assert.Contains(Constants.Tenancy.BookOwnershipConflictMessage, exception.Message);
 
         // Rolled back: the column the migration was adding is not there, so
         // the operator can fix the data and run it again.
-        Assert.DoesNotContain("UserId", ColumnNamesOf(connection, "Books"));
-    }
-
-    private static SqliteConnection OpenDatabaseAt(string migrationName)
-    {
-        var connection = new SqliteConnection("DataSource=:memory:");
-        connection.Open();
-
-        using var db = TestDb.CreateSystemContext(OptionsFor(connection));
-        db.GetService<IMigrator>().Migrate(migrationName);
-
-        return connection;
-    }
-
-    private static void MigrateToLatest(SqliteConnection connection)
-    {
-        using var db = TestDb.CreateSystemContext(OptionsFor(connection));
-        db.Database.Migrate();
-    }
-
-    private static DbContextOptions<KosyncDbContext> OptionsFor(SqliteConnection connection)
-    {
-        return new DbContextOptionsBuilder<KosyncDbContext>().UseSqlite(connection).Options;
-    }
-
-    private static void Execute(SqliteConnection connection, string sql)
-    {
-        using var command = connection.CreateCommand();
-        command.CommandText = sql;
-        command.ExecuteNonQuery();
-    }
-
-    private static List<string> ColumnNamesOf(SqliteConnection connection, string table)
-    {
-        using var command = connection.CreateCommand();
-        command.CommandText = $"SELECT name FROM pragma_table_info('{table}')";
-
-        using var reader = command.ExecuteReader();
-
-        var names = new List<string>();
-        while (reader.Read())
-        {
-            names.Add(reader.GetString(0));
-        }
-
-        return names;
+        Assert.DoesNotContain("UserId", connection.ColumnNamesOf("Books"));
     }
 }

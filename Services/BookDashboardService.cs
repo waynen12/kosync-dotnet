@@ -77,6 +77,8 @@ public class BookDashboardService
             .Include(b => b.Documents)
                 .ThenInclude(d => d.SyncEvents)
                     .ThenInclude(s => s.Device)
+            .Include(b => b.Documents)
+                .ThenInclude(d => d.ProgressResets)
             .ToListAsync();
 
         return books
@@ -94,6 +96,8 @@ public class BookDashboardService
             .Include(b => b.Documents)
                 .ThenInclude(d => d.SyncEvents)
                     .ThenInclude(s => s.Device)
+            .Include(b => b.Documents)
+                .ThenInclude(d => d.ProgressResets)
             .FirstOrDefaultAsync(b => b.Id == id);
 
         if (book is null)
@@ -192,7 +196,12 @@ public class BookDashboardService
             current.IsCurrent = false;
         }
 
-        document.LastResetAt = DateTime.UtcNow;
+        // A record per reset, not a last-one-wins timestamp on the Document:
+        // a Document reset twice has two distinct events in its history, and
+        // the replay in ProgressRegressionRule has to see both or it judges
+        // the push after the earlier one against a ceiling that reset had
+        // cleared (issue #40).
+        _db.ProgressResets.Add(new ProgressReset { Document = document, ResetAt = DateTime.UtcNow });
         await _db.SaveChangesAsync();
 
         return ResetProgressResult.Success;
@@ -260,32 +269,39 @@ public class BookDashboardService
             documents);
     }
 
-    // Merges a Document's push history with its reset marker (issue #9)
-    // into one timeline. The reset marker isn't a SyncEvent - CONTEXT.md
-    // ties SyncEvent to a Device push - but it still needs to appear
-    // alongside them as a distinct, identifiable entry rather than a
-    // separate view.
+    // Merges a Document's push history with its reset markers (issue #9)
+    // into one timeline. A reset marker isn't a SyncEvent - GLOSSARY.md ties
+    // SyncEvent to a Device push - but it still needs to appear alongside
+    // them as a distinct, identifiable entry rather than a separate view.
+    //
+    // Every reset appears, not only the newest: resets are recorded one row
+    // each (ProgressReset, issue #40), so a Document reset twice renders two
+    // markers and the replay below sees both.
+    //
+    // Ordered newest first on three stated keys, because
+    // ProgressRegressionRule replays promotion over this sequence and a pair
+    // handed back the other way round is judged against the wrong ceiling:
+    //
+    //  - the timestamp, which is the real order nearly always;
+    //  - then a reset ahead of a push stamped in the same instant, because
+    //    ResetProgressAsync reads a push that already existed, so a reset
+    //    sharing its instant happened after it (issue #38);
+    //  - then the row id, which makes this arrival order rather than merely
+    //    timestamp order: two pushes stamped in the same instant have no
+    //    "more recent" between them to sort on.
     private static List<SyncEventSummary> BuildHistory(Document document)
     {
-        var pushes = document.SyncEvents.History()
-            .Select(s => new SyncEventSummary(s.Device.DeviceName, s.Percentage, s.Timestamp, s.IsCurrent))
-            .ToList();
+        var pushes = document.SyncEvents
+            .Select(s => (s.Id, Entry: new SyncEventSummary(s.Device.DeviceName, s.Percentage, s.Timestamp, s.IsCurrent)));
 
-        if (document.LastResetAt is not DateTime resetAt)
-        {
-            return ProgressRegressionRule.Annotate(pushes);
-        }
+        var resets = document.ProgressResets
+            .Select(r => (r.Id, Entry: new SyncEventSummary(string.Empty, 0m, r.ResetAt, IsCurrent: false, IsReset: true)));
 
-        // IsReset breaks a tie on the timestamp, and breaks it towards the
-        // reset being the newer of the two: ResetProgressAsync reads a push
-        // that already existed, so a reset stamped in the same instant as a
-        // push happened after it. Stated rather than left to the sort being
-        // stable, because ProgressRegressionRule replays promotion over this
-        // order and would otherwise judge the pre-reset push as a post-reset
-        // one (issue #38).
         return ProgressRegressionRule.Annotate(pushes
-            .Append(new SyncEventSummary(string.Empty, 0m, resetAt, IsCurrent: false, IsReset: true))
-            .OrderByDescending(h => h.Timestamp)
-            .ThenByDescending(h => h.IsReset));
+            .Concat(resets)
+            .OrderByDescending(x => x.Entry.Timestamp)
+            .ThenByDescending(x => x.Entry.IsReset)
+            .ThenByDescending(x => x.Id)
+            .Select(x => x.Entry));
     }
 }

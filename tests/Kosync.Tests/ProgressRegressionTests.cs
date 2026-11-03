@@ -87,6 +87,29 @@ public class ProgressRegressionTests : IntegrationTestBase
         Assert.Equal(0, RenderedHtml.Occurrences(html, Constants.ProgressRegressionFlag));
     }
 
+    // A Document reset twice has two resets in its history, not just the
+    // newest, so the push that followed the *first* one is still judged
+    // against the ceiling that reset cleared (issue #40). The replay needs
+    // every reset to be there; one reset per Document is not enough.
+    [Fact]
+    public async Task ResetTwice_TheLowerPushAfterEachReset_IsNotARegression()
+    {
+        //  0.80  no current      -> promoted
+        //  reset                 -> ceiling cleared
+        //  0.05  no current      -> promoted
+        //  reset                 -> ceiling cleared
+        //  0.02  no current      -> promoted
+        await PushAsync(0.80m);
+        await ResetProgressAsync("hash1");
+        await PushAsync(0.05m);
+        await ResetProgressAsync("hash1");
+        await PushAsync(0.02m);
+
+        var history = await GetHistoryAsync("hash1");
+
+        Assert.DoesNotContain(history, h => h.BlockedRegression);
+    }
+
     // Drives the real sync endpoint rather than writing SyncEvents directly:
     // the flag has to agree with what the promotion rule actually did, and
     // only the endpoint runs it.
@@ -105,17 +128,6 @@ public class ProgressRegressionTests : IntegrationTestBase
 
             response.EnsureSuccessStatusCode();
         }
-    }
-
-    private async Task ResetProgressAsync(string documentHash)
-    {
-        using var scope = Factory.CreateScopeForUser("admin");
-        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
-        var document = await db.Documents.SingleAsync(d => d.DocumentHash == documentHash);
-
-        var result = await new BookDashboardService(db).ResetProgressAsync(document.Id);
-
-        Assert.Equal(ResetProgressResult.Success, result);
     }
 
     private async Task<IReadOnlyList<SyncEventSummary>> GetHistoryAsync(string documentHash)
