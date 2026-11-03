@@ -192,7 +192,8 @@
                                 <span class="ks-doc-pct">@DashboardFormatting.Percentage(syncEvent.Percentage)</span>
                                 <span class="ks-card-meta">@syncEvent.DeviceName</span>
                                 <span class="ks-card-meta">@DashboardFormatting.RelativeTime(syncEvent.Timestamp, DateTime.UtcNow)</span>
-                                @if (!syncEvent.IsCurrent)
+                                @* Derived, not !IsCurrent - see SyncEventSummary. *@
+                                @if (syncEvent.BlockedRegression)
                                 {
                                     <span class="ks-flag-regression">@Constants.ProgressRegressionFlag</span>
                                 }

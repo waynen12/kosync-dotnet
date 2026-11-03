@@ -125,6 +125,17 @@ deliberate restart" detection; a reader who wants to restart a book
 deletes its progress explicitly rather than the server guessing at intent.
 _Avoid_: sync, push (too generic alone)
 
+**Progress Regression**:
+A push that was refused promotion when it arrived, because it was behind
+the Document's current progress at that moment. A property of one push at
+one instant, and permanent once true — not a property of the Document, and
+not the same thing as "is not the current progress now", which is also
+every ordinary forward push that a later one has since superseded. Only
+one SyncEvent per Document holds the current-progress pointer, so most of
+a healthy Document's history is not current and none of it regressed.
+_Avoid_: not current, superseded, stale (all describe the pointer, not the
+verdict on the push)
+
 **Split Book**:
 A Book whose Documents disagree on progress across devices because
 KOReader gave them different hashes for what is, to the reader, the same

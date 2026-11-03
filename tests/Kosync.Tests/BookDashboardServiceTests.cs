@@ -106,7 +106,10 @@ public class BookDashboardServiceTests : IntegrationTestBase
         var current = Assert.Single(doc.History, h => h.IsCurrent);
         Assert.Equal(0.50m, current.Percentage);
 
-        var regression = Assert.Single(doc.History, h => !h.IsCurrent);
+        // BlockedRegression, not !IsCurrent: with two pushes the two happen
+        // to pick out the same event, which is why this shape hid issue #38
+        // for as long as it did.
+        var regression = Assert.Single(doc.History, h => h.BlockedRegression);
         Assert.Equal(0.30m, regression.Percentage);
     }
 

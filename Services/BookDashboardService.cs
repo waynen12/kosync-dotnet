@@ -1,6 +1,13 @@
 namespace Kosync.Services;
 
-public record SyncEventSummary(string DeviceName, decimal Percentage, DateTime Timestamp, bool IsCurrent, bool IsReset = false);
+// IsCurrent is the Document's single current-progress pointer: at most one
+// entry in a history has it. BlockedRegression is the separate, derived
+// statement that this push was refused promotion when it arrived - see
+// ProgressRegressionRule, which is the only thing that sets it. A view
+// wanting the Progress Regression flag wants BlockedRegression; !IsCurrent
+// is every push that has since been superseded, which is most of a healthy
+// Document's history (issue #38).
+public record SyncEventSummary(string DeviceName, decimal Percentage, DateTime Timestamp, bool IsCurrent, bool IsReset = false, bool BlockedRegression = false);
 
 // Label is what to *call* this Document, resolved through DocumentLabelRule -
 // the filename a Device observed, or a truncated hash. DocumentHash is the
@@ -266,12 +273,19 @@ public class BookDashboardService
 
         if (document.LastResetAt is not DateTime resetAt)
         {
-            return pushes;
+            return ProgressRegressionRule.Annotate(pushes);
         }
 
-        return pushes
+        // IsReset breaks a tie on the timestamp, and breaks it towards the
+        // reset being the newer of the two: ResetProgressAsync reads a push
+        // that already existed, so a reset stamped in the same instant as a
+        // push happened after it. Stated rather than left to the sort being
+        // stable, because ProgressRegressionRule replays promotion over this
+        // order and would otherwise judge the pre-reset push as a post-reset
+        // one (issue #38).
+        return ProgressRegressionRule.Annotate(pushes
             .Append(new SyncEventSummary(string.Empty, 0m, resetAt, IsCurrent: false, IsReset: true))
             .OrderByDescending(h => h.Timestamp)
-            .ToList();
+            .ThenByDescending(h => h.IsReset));
     }
 }

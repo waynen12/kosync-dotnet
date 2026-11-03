@@ -162,9 +162,10 @@ public class BooksViewTests : IntegrationTestBase
         Assert.Contains("50%", html);
         Assert.Contains("30%", html);
 
-        // Only the regressed push is flagged - the promoted one is not.
-        var regressionCount = html.Split(Constants.ProgressRegressionFlag).Length - 1;
-        Assert.Equal(1, regressionCount);
+        // Only the regressed push is flagged - the promoted one is not. Two
+        // pushes cannot tell that apart from "every push but the current
+        // one"; ProgressRegressionTests is where that distinction is made.
+        Assert.Equal(1, RenderedHtml.Occurrences(html, Constants.ProgressRegressionFlag));
     }
 
     [Fact]
