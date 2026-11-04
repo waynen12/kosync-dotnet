@@ -393,17 +393,19 @@ and where it goes:
 | `LoginVariantA.razor` | `Components/Pages/Login.razor` | Strings move to `Constants.cs`, not `PrototypeConstants.cs` |
 | `DashboardVariantB.razor` + `HubSidebar.razor` | `Components/Pages/Dashboard.razor` | **Done (#18):** `CardGrid.razor` and `CardGridItem.cs` are deleted, and their rules are out of `app.css`. Section selection is a `?tab=` link, so it costs no circuit message; the table's search is `wwwroot/js/dashboard-filter.js`, client-only for the same reason the theme toggle is. The sidebar carries the Library group only — its Administration group pointed at the prototype Users route, and #28/#24 build the real destinations |
 | `UsersVariantB.razor` | a new Users page | **Done (#28):** `Components/Pages/Users.razor`, over `UserAdminService`. Was blocked on Phase 2.5 for an account service and tenancy, which is why #19 waited on it — the variant was the design source and had to outlive the deletion |
-| `HubNav.razor` | `Components/Layout/MainLayout.razor` | **Done (#17):** replaced `.ks-shell-*` outright — those rules and the `--ks-shell-bg` alias are gone, and the nav rules are app.css section 7. The nav carries brand, Username and the theme toggle only; the prototype's "Manage accounts", "Change password" and "Sign out" buttons land with #28, #24 and a sign-out endpoint respectively, rather than shipping as dead chrome |
-| `prototype.css` token block + primitives | `wwwroot/css/app.css` | **Does not delete the `--ks-*` tokens** — see "the detail pages" below |
+| `HubNav.razor` | `Components/Layout/MainLayout.razor` | **Done (#17):** replaced `.ks-shell-*` outright — those rules and the `--ks-shell-bg` alias are gone, and the nav rules are app.css section 6. The nav carries brand, Username and the theme toggle only; the prototype's "Manage accounts", "Change password" and "Sign out" buttons land with #28, #24 and a sign-out endpoint respectively, rather than shipping as dead chrome |
+| `prototype.css` token block + primitives | `wwwroot/css/app.css` | **Done (#15), and finished by #39:** the `--ks-*` aliases it had to keep are gone, along with every `.ks-*` rule that read them. `app.css` is hub tokens and hub rules throughout — see "the detail pages" below |
 | `HubIcon.razor` | keep as-is | Or take a real icon dependency — decide then |
-| `detail-pages-mockup.html` variant A | `Components/Pages/BookDetail.razor`, `DeviceDetail.razor` | **Prototyped by the third session (#33)** — variant A, "Ledger". See "The detail pages" below |
+| `detail-pages-mockup.html` variant A | `Components/Pages/BookDetail.razor`, `DeviceDetail.razor` | **Done (#39):** variant A, "Ledger", over the real services and tests. Both pages are `.hub-main` with a `hub-table` of Documents; the row expander is `wwwroot/js/row-expand.js`, client-only for the reason the dashboard filter is. See "The detail pages" below |
 
 #### The detail pages were never prototyped — *superseded, see below*
 
 > Kept as written because it is the reasoning that produced the `--ks-*`
-> aliases, which are still in `app.css` until #39. The session it calls for
-> has since run; its outcome is the next section. The "21 `.ks-*` classes"
-> figure below is stale — #30, #31 and #32 have added to these pages since.
+> aliases. Both the session it calls for and the implementation have since
+> run — #33 chose the design, #39 built it — so nothing below is still true
+> of the code: the aliases and every rule that read them are gone. The
+> "21 `.ks-*` classes" figure was already stale before that, #30, #31 and
+> #32 having added to these pages since it was written.
 
 Neither session produced a variant for `/dashboard/books/{id}` or
 `/dashboard/devices/{id}`, and they depend on 21 `.ks-*` classes
@@ -428,7 +430,7 @@ The detail pages are therefore **the next UI pass** (a third prototyping
 session), not part of the fold-in. They will look slightly off-brand
 until then: new colours, old radii and spacing.
 
-#### The detail pages — decided (2026-11-01, issue [#33](https://github.com/waynen12/kosync-dotnet/issues/33))
+#### The detail pages — decided and built (decided 2026-11-01, issue [#33](https://github.com/waynen12/kosync-dotnet/issues/33); built 2026-11-04, issue [#39](https://github.com/waynen12/kosync-dotnet/issues/39))
 
 The third prototyping session ran. Three structurally different variants are
 in [prototype/detail-pages-mockup.html](prototype/detail-pages-mockup.html)
@@ -437,15 +439,32 @@ real `app.css` so they were judged in the actual design language rather than
 against a hand-rolled palette — which is what `dashboard-mockup.html` could
 not do, predating app.css having hub tokens.
 
-Implementation is [#39](https://github.com/waynen12/kosync-dotnet/issues/39),
-which also deletes the `--ks-*` aliases. The bug the session found is
-[#38](https://github.com/waynen12/kosync-dotnet/issues/38), and should land
-first.
+**Both halves have landed.** The bug the session found was
+[#38](https://github.com/waynen12/kosync-dotnet/issues/38) — which exposed
+[#40](https://github.com/waynen12/kosync-dotnet/issues/40), the one case the
+derived flag could not get right on the old schema — and both went in ahead
+of the rebuild, so the new markup renders a correct flag rather than
+reproducing the bug. #39 then built variant A and deleted the `--ks-*`
+aliases with it, which was the last of the pre-hub styling: `app.css` is hub
+tokens and hub rules throughout.
 
-**Decision: variant A, "Ledger".** Documents become a `hub-table`; a row
+**Decision: variant A, "Ledger".** Documents are a `hub-table`; a row
 expands into its full hash, its SyncEvent history and the reset action. The
 metadata editor and the merge controls are closed `<details>` disclosures in
 a strip under the header.
+
+**As built.** The one deliberate departure from the mockup is that the
+mockup's two spellings of the reset warning (a quiet `hub-guard` on the Book
+page, a red aside on the merge beside it) became one: `.hub-aside-danger`
+carries both confirmations and all three error messages, because "this
+cannot be undone" and "it was not done" are the same claim at different
+moments and the retired rules had spent three near-identical classes telling
+them apart. Otherwise: the `.v-*`/`.va-*` candidate names became `.hub-*`
+and joined the existing sections rather than forming one of their own, the
+shared disclosure-marker removal is now a single rule covering the Users
+page's two disclosures as well, and `--hub-maxw-narrow` went with
+`.ks-detail` — its only reader — since variant A put a table on both pages
+and was measured at the full width.
 
 **Why.** The deciding argument is the same one that chose the dashboard's
 table over the card grid, one level down: *the drill-in should not be a
@@ -525,16 +544,17 @@ Document, not four. B and C pay their full height whether you need it or not.
   a reset is a deliberate restart, flagged neutrally precisely because
   nothing went wrong (issue #9), so it has nothing to summon anybody into
   a row for. It still shows in the history once opened.
-- **The `--ks-*` aliases and every `.ks-*` rule are now scheduled for
-  deletion**, with [#39](https://github.com/waynen12/kosync-dotnet/issues/39)
-  — which is the last of the pre-hub styling. Current count, since the "21
-  classes" above is stale (it was written before #30, #31 and #32 added to
-  these pages): **33** distinct `.ks-*` class names in `app.css`, of which
-  the two pages render **31**, over **11** `--ks-*` aliases. The candidate replacement
-  rules in the mockup deliberately drop the pre-hub geometry the fold-in
-  left behind (the ad-hoc 8px/12px radii and 12.5px/13.5px font sizes) for
-  `--hub-radius-*` and the hub's type steps. That geometry is most of what
-  "off-brand" currently means on these two pages.
+- **The `--ks-*` aliases and every `.ks-*` rule are gone**, deleted by
+  [#39](https://github.com/waynen12/kosync-dotnet/issues/39) — the last of
+  the pre-hub styling. The count they went out on, since the "21 classes"
+  above is stale (it was written before #30, #31 and #32 added to these
+  pages): **33** distinct `.ks-*` class names in `app.css`, of which the two
+  pages rendered **31**, over **11** `--ks-*` aliases. The replacement rules
+  drop the pre-hub geometry the fold-in left behind (the ad-hoc 8px/12px
+  radii and 12.5px/13.5px font sizes) for `--hub-radius-*` and the hub's
+  type steps — which was most of what "off-brand" meant on these two pages.
+  `DesignSystemTests` guarded the aliases while they existed and now asserts
+  their absence, along with the presence of what replaced them.
 
 **One bug found, and it is not a styling one.** `BookDetail.razor` flags
 every SyncEvent with `!IsCurrent` as a Progress Regression. `IsCurrent` is
@@ -547,8 +567,16 @@ test uses two pushes, where "not current" and "was blocked" coincide, which
 is why it never caught this. The fix needs no schema change: replaying the
 promotion rule over the history the service already returns recovers which
 pushes were actually blocked, and the mockup does exactly that. Filed as
-[#38](https://github.com/waynen12/kosync-dotnet/issues/38) so it can land on
-its own schedule — ahead of #39, which re-renders that flag.
+[#38](https://github.com/waynen12/kosync-dotnet/issues/38) so it could land
+on its own schedule — ahead of #39, which re-renders that flag.
+
+**Both done**, and #38's own spec review turned up a second bug underneath
+it: `Document.LastResetAt` was a single last-one-wins timestamp, so a
+Document reset twice had lost its first reset and the replay judged the push
+that followed it against a ceiling that reset had cleared. Filed as
+[#40](https://github.com/waynen12/kosync-dotnet/issues/40) and fixed by
+recording a Progress Reset per occurrence, which also gave the timeline #39
+rebuilds every reset to render rather than only the newest.
 
 #### The dashboard stops listing documents
 
@@ -568,8 +596,8 @@ the hash in the first place. They are in no column. Two knock-ons:
 `Constants.NoDeviceDocumentsSyncedText` (issue #13) moved to
 `DeviceDetail.razor`, since the table shows an empty Device as a plain `0`
 and has no per-Device empty state to put it in; and `.ks-card-meta` and
-`.ks-doc-card` survive the card-grid deletion because `BookDetail.razor`
-renders them.
+`.ks-doc-card` survived the card-grid deletion because `BookDetail.razor`
+still rendered them — until #39 rebuilt that page and they went too.
 
 Delete the rest: `PrototypeConstants.cs`, `PrototypeRoutes.cs`,
 `PrototypeDemoData.cs`, `PrototypeSwitcher.razor`, `PrototypeUsers.razor`,
@@ -704,5 +732,5 @@ amended rather than superseded, Tailwind CLI rejected
 ([ui-tech-review.md](ui-tech-review.md#resolved-2026-10-13)).
 
 *Resolved by the third prototyping session:* detail-page design — variant
-A, "Ledger", with the `--ks-*` aliases scheduled for deletion alongside it
-(above, "The detail pages — decided").
+A, "Ledger", built by #39, which deleted the `--ks-*` aliases alongside it
+(above, "The detail pages — decided and built").

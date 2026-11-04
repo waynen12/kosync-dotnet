@@ -9,11 +9,16 @@ namespace Kosync.Tests;
 // markup, because the things they protect are stylesheet-level decisions that
 // nothing else can catch:
 //
-//   - BookDetail and DeviceDetail were never prototyped. They render 21
-//     `.ks-*` classes whose rules read `var(--ks-*)`, so deleting the
-//     `--ks-*` token block leaves both pages unstyled (docs/ROADMAP.md,
-//     "The detail pages were never prototyped"). A render test still passes
-//     when that happens - the classes are there, the variables are not.
+//   - Every rule in the file reads the hub tokens. Three tests here used to
+//     protect the opposite: a block of pre-hub aliases that kept BookDetail
+//     and DeviceDetail alive, unprototyped, through the fold-in. Issue #39
+//     rebuilt both pages on the primitives, so the aliases went and those
+//     three tests went with them - they existed to guard the survivor. What
+//     replaces them is below: the prefix is gone, and gone for good, and
+//     the rules the two pages now depend on are present.
+//   - A page whose rules have been deleted still renders its classes, so a
+//     view test cannot see this - which is the whole reason the aliases were
+//     kept rather than risked in the first place.
 //   - `margin: 0 auto` on a flex item's cross axis makes it size to content
 //     instead of stretching, which centred the dashboard in a narrow column
 //     at every width. The fix is one `width: 100%` per container, and it
@@ -39,32 +44,60 @@ public class DesignSystemTests
         Assert.Matches(@":root\[data-theme=""dark""\]\s*\{[^}]*--hub-bg:", css);
     }
 
+    // What the three retired alias tests become. The pre-hub prefix is not
+    // merely unused - it is absent, comments included, which is issue #39's
+    // stated finish line (`grep -c -- '--ks-\|\.ks-'` is 0). Asserted on the
+    // raw file rather than the comment-stripped one for exactly that reason:
+    // prose explaining the prefix would keep teaching it.
     [Fact]
-    public void AppCss_StillDefinesEveryKsTokenItReferences()
+    public void AppCss_CarriesNoPreHubTokensOrRulesAtAll()
     {
         var css = StaticAssets.ReadAppCss();
 
-        var referenced = TokenNames(css, @"var\((--ks-[a-z0-9-]+)");
-        var defined = TokenNames(css, @"(--ks-[a-z0-9-]+)\s*:");
+        Assert.DoesNotMatch(@"--ks-", css);
+        Assert.DoesNotMatch(@"\.ks-", css);
+    }
+
+    // And every token the file does read is defined in it. The aliases were
+    // the one family that could go missing while the rules reading them
+    // stayed - but the general rule is what outlives them, and it catches a
+    // `var(--hub-...)` typo as well as a deleted block.
+    [Fact]
+    public void AppCss_DefinesEveryHubTokenItReferences()
+    {
+        var css = StaticAssets.ReadAppCss();
+
+        var referenced = TokenNames(css, @"var\((--hub-[a-z0-9-]+)");
+        var defined = TokenNames(css, @"(--hub-[a-z0-9-]+)\s*:");
 
         Assert.NotEmpty(referenced);
         Assert.Empty(referenced.Except(defined));
     }
 
-    [Fact]
-    public void AppCss_ResolvesEveryKsTokenThroughAHubToken()
+    // The detail pages' own rules, which replaced the deleted ones. A view
+    // test cannot catch their absence: BookDetail would render every class
+    // below and simply look wrong, which is the failure mode the aliases
+    // were kept to avoid and this is the guard that replaces them.
+    [Theory]
+    [InlineData("hub-detail")] // the page container, replacing its own
+    [InlineData("hub-back")] // the way back to the list
+    [InlineData("hub-hash")] // a Document's full hash, in the drawer
+    [InlineData("hub-doc-key")] // D1/D2/D3, keyed by position not colour
+    [InlineData("hub-doc-label")] // the observed filename, truncating
+    [InlineData("hub-aside")] // the hint, both warnings and the errors
+    [InlineData("hub-confirm")] // the two-press guard on reset and merge
+    [InlineData("hub-drawer")] // the metadata and merge disclosures
+    [InlineData("hub-row-toggle")] // the row expander
+    [InlineData("hub-row-drawer")] // what it expands into
+    [InlineData("hub-event")] // one SyncEvent in that drawer
+    public void AppCss_StylesTheRulesTheDetailPagesRender(string className)
     {
-        var css = StaticAssets.ReadAppCss();
+        var css = StaticAssets.ReadAppCssWithoutComments();
 
-        // Aliases, not a second palette: a `--ks-*` definition whose value
-        // carries no `--hub-*` reference means the old palette survived the
-        // fold-in and the detail pages are off-brand.
-        var standalone = Regex.Matches(css, @"(--ks-[a-z0-9-]+)\s*:\s*([^;]+);")
-            .Where(match => !match.Groups[2].Value.Contains("--hub-"))
-            .Select(match => match.Groups[1].Value)
-            .ToList();
-
-        Assert.Empty(standalone);
+        // The lookahead is what makes a failure mean the right thing:
+        // without it `.hub-row-drawer-cell` reads as a definition of
+        // `.hub-row-drawer`, and `.hub-aside-danger` as one of `.hub-aside`.
+        Assert.Matches($@"\.{Regex.Escape(className)}(?![\w-])", css);
     }
 
     [Theory]
@@ -87,7 +120,7 @@ public class DesignSystemTests
     [Fact]
     public void AppCss_GivesEveryAutoMarginContainerAFullWidth()
     {
-        // Comments are stripped first: section 5's prose quotes
+        // Comments are stripped first: section 4's prose quotes
         // `margin: 0 auto` to explain the rule, and a naive scan folds that
         // text into the next selector.
         var css = StaticAssets.ReadAppCssWithoutComments();

@@ -45,7 +45,12 @@ public class ProgressRegressionTests : IntegrationTestBase
 
         var html = await GetBookDetailHtmlAsync("hash1");
 
-        Assert.Equal(1, RenderedHtml.Occurrences(html, Constants.ProgressRegressionFlag));
+        // Counted inside the Document's drawer, which is where the history
+        // moved with issue #39. The page carries a second copy of the flag -
+        // rolled up onto the collapsed row, so a closed table still shows
+        // which Document has something wrong - and counting the whole page
+        // would let a reappearance of this bug hide behind that one.
+        Assert.Equal(1, RenderedHtml.Occurrences(RenderedHtml.RowDrawers(html), Constants.ProgressRegressionFlag));
     }
 
     // A blocked push leaves the ceiling where it was - it never became the

@@ -5,203 +5,438 @@
 @inject PortalTenantResolver PortalTenant
 @inject BookDashboardService BookDashboardService
 
-<PageTitle>@(book is null ? "Book" : book.Title)</PageTitle>
+@* Variant A, "Ledger" - the third prototyping session's winner (issue #33,
+   implemented by #39; docs/ROADMAP.md, "The detail pages - decided and built").
 
-<div class="ks-detail">
-    <a class="ks-back" href="@AppRoutes.DashboardBooksTab">&larr; Back</a>
+   The deciding argument is the one that chose the dashboard's table over the
+   card grid, one level down: a drill-in should not be a different design
+   language from the page that links to it. A Book's Documents are the same
+   kind of list as the dashboard's Books - scanned for the one that went
+   wrong - so they get the same `hub-table`, and a row expands into the full
+   hash, that Document's SyncEvents and the reset action.
+
+   The page also lands on *evidence* rather than on inputs. The metadata
+   editor and the merge controls used to be permanently open above the
+   Documents, which put an irreversible merge control between the reader and
+   the thing they came to look at; both are closed disclosures now. *@
+
+<PageTitle>@(book is null ? Constants.DetailPages.BookPageTitle : book.Title)</PageTitle>
+
+<div class="hub-main hub-detail">
+    <a class="hub-back" href="@AppRoutes.DashboardBooksTab">
+        <HubIcon Name="@Constants.Icons.ChevronRight" Size="@Constants.Icons.BadgeSize" Class="hub-back-icon" />
+        @Constants.Dashboard.BooksLabel
+    </a>
 
     @if (book is null)
     {
-        <p class="ks-empty ks-empty-inline">@Constants.BookNotFoundText</p>
+        <p class="hub-empty">@Constants.BookNotFoundText</p>
     }
     else
     {
-        @* Curated, then the most recent observation, then `Book #N` - all
-           resolved in BookMetadataRule, never here (ADR 0007). *@
-        <h1 class="ks-detail-title">
-            @book.Title
-            @if (book.IsSplitBook)
-            {
-                <span class="ks-flag-split">@Constants.SplitBookFlag</span>
-            }
-        </h1>
-        @* The id stays on the page even once the Book has a title: it is
-           what another Book gets merged into, and what KOReader's own
-           screens cannot tell you. *@
-        <p class="ks-detail-sub">
-            @if (book.Author is not null)
-            {
-                <span>@book.Author</span>
-                <span> &middot; </span>
-            }
-            <span>@string.Format(Constants.BookFallbackNameFormat, book.Id)</span>
-            <span> &middot; </span>
-            <span>@DashboardFormatting.Percentage(book.Percentage) progress</span>
-            <span> &middot; </span>
-            <span>last synced @DashboardFormatting.RelativeTime(book.LastSyncedAt, DateTime.UtcNow)</span>
-        </p>
+        <div class="hub-detail-head">
+            @* Curated, then the most recent observation, then `Book #N` - all
+               resolved in BookMetadataRule, never here (ADR 0007). *@
+            <div class="hub-title-row">
+                <h1 class="hub-page-title">@book.Title</h1>
+
+                @* Both flags are inline on the Book and unconditional, which
+                   is unchanged by this redesign: what moved behind the merge
+                   disclosure below is the *action*, not the flag that there
+                   is something to look at (docs/ROADMAP.md). *@
+                @if (book.IsSplitBook)
+                {
+                    <span class="hub-badge hub-badge-warn">
+                        <HubIcon Name="@Constants.Icons.Merge" Size="@Constants.Icons.BadgeSize" />
+                        @Constants.SplitBookFlag
+                    </span>
+                }
+                @if (book.MergeSuggestionBookIds.Count > 0)
+                {
+                    <span class="hub-badge hub-badge-outline">
+                        <HubIcon Name="@Constants.Icons.Library" Size="@Constants.Icons.BadgeSize" />
+                        @Constants.MergeSuggestions.Flag
+                    </span>
+                }
+            </div>
+
+            @* The id stays on the page even once the Book has a title: it is
+               what another Book gets merged into, and what KOReader's own
+               screens cannot tell you. *@
+            <p class="hub-page-sub hub-detail-sub">
+                @if (book.Author is not null)
+                {
+                    <span>@book.Author</span>
+                    <span class="hub-sep">&middot;</span>
+                }
+                <span>@string.Format(Constants.BookFallbackNameFormat, book.Id)</span>
+                <span class="hub-sep">&middot;</span>
+                <span>@string.Format(Constants.DetailPages.ProgressFormat, DashboardFormatting.Percentage(book.Percentage))</span>
+                <span class="hub-sep">&middot;</span>
+                <span>@string.Format(Constants.DetailPages.LastSyncedFormat, DashboardFormatting.RelativeTime(book.LastSyncedAt, DateTime.UtcNow))</span>
+            </p>
+        </div>
 
         @* Inline on the Book, like the Split Book flag above it: a Book
            nobody has ever reported a title for, with the KOReader setting
            that would have reported one named where the reader is already
-           looking for the missing title (ADR 0007). *@
+           looking for the missing title (ADR 0007). An aside and not an
+           error - nothing is wrong, a setting is simply off. *@
         @if (book.NeedsMetadataHint)
         {
-            <p class="ks-metadata-hint">@Constants.MissingMetadataHint</p>
+            <p class="hub-aside">@Constants.MissingMetadataHint</p>
         }
 
-        <div class="ks-section-title">@Constants.CuratedMetadata.SectionTitle</div>
-        <form class="ks-curate-form" @onsubmit="SaveCuratedAsync" @onsubmit:preventDefault="true">
-            @* Bound to what was *curated*, not to what is displayed: an
-               observation showing through must leave these blank, or saving
-               would silently curate a device's guess. *@
-            <input type="text"
-                   class="ks-curate-input"
-                   placeholder="@Constants.CuratedMetadata.TitlePlaceholder"
-                   aria-label="@Constants.CuratedMetadata.TitleLabel"
-                   @bind="curatedTitleInput" />
-            <input type="text"
-                   class="ks-curate-input"
-                   placeholder="@Constants.CuratedMetadata.AuthorPlaceholder"
-                   aria-label="@Constants.CuratedMetadata.AuthorLabel"
-                   @bind="curatedAuthorInput" />
-            <button type="submit" class="ks-merge-button">@Constants.CuratedMetadata.SaveButton</button>
-            @if (book.CuratedTitle is not null || book.CuratedAuthor is not null)
-            {
-                <button type="button" class="ks-reset-button" @onclick="ClearCuratedAsync">@Constants.CuratedMetadata.ClearButton</button>
-            }
-        </form>
-        <p class="ks-curate-hint">@Constants.CuratedMetadata.Hint</p>
-        @if (curateError is not null)
-        {
-            <p class="ks-flag-regression ks-merge-error">@curateError</p>
-        }
+        @* The strip of closed disclosures. Native <details>, so opening one
+           is local UI state that never reaches the server (ADR 0003's
+           amendment) - the same shape the Users page's create form uses. *@
+        <div class="hub-drawer-group">
+            <details>
+                <summary class="hub-btn hub-btn-outline hub-btn-sm">@Constants.CuratedMetadata.SectionTitle</summary>
 
-        @* Inline on the Book it concerns, like the Split Book flag and the
-           missing-metadata hint above it, rather than in an inbox of its own
-           (docs/ROADMAP.md, "Issue surfacing UX"). Every row is one button
-           press away from a merge and not one step closer than that: the
-           rule suggests, the reader merges (ADR 0007). *@
-        @if (book.MergeSuggestionBookIds.Count > 0)
-        {
-            <div class="ks-section-title">@Constants.MergeSuggestions.SectionTitle</div>
-            <p class="ks-suggestion-hint">@Constants.MergeSuggestions.Hint</p>
+                <div class="hub-drawer">
+                    @* Behaviour unchanged by this redesign (issue #30) -
+                       only its place and its default state moved. Still a
+                       <form>, so Enter in a field saves: typing a title is
+                       reversible by typing another, which is why the merge
+                       beside it refuses the same shortcut. *@
+                    <form class="hub-stack-3" @onsubmit="SaveCuratedAsync" @onsubmit:preventDefault="true">
+                        <div class="hub-grid-2">
+                            @* Bound to what was *curated*, not to what is
+                               displayed: an observation showing through must
+                               leave these blank, or saving would silently
+                               curate a device's guess. *@
+                            <div class="hub-field">
+                                <label class="hub-label" for="curate-title">@Constants.CuratedMetadata.TitleLabel</label>
+                                <input id="curate-title"
+                                       type="text"
+                                       class="hub-input hub-input-sm"
+                                       placeholder="@Constants.CuratedMetadata.TitlePlaceholder"
+                                       @bind="curatedTitleInput" />
+                            </div>
+                            <div class="hub-field">
+                                <label class="hub-label" for="curate-author">@Constants.CuratedMetadata.AuthorLabel</label>
+                                <input id="curate-author"
+                                       type="text"
+                                       class="hub-input hub-input-sm"
+                                       placeholder="@Constants.CuratedMetadata.AuthorPlaceholder"
+                                       @bind="curatedAuthorInput" />
+                            </div>
+                        </div>
 
-            @foreach (var suggestedBookId in book.MergeSuggestionBookIds)
-            {
-                <div class="ks-suggestion-card">
-                    @* By id, not by title: the suggested Book has the same
-                       title as this one, so the id is the only thing on the
-                       row that tells them apart. It links, because deciding
-                       usually means looking at the other Book's Documents
-                       first - and from there the same row offers the merge
-                       the other way round. *@
-                    <a class="ks-suggestion-link" href="@AppRoutes.BookDetail(suggestedBookId)">
-                        @string.Format(Constants.BookFallbackNameFormat, suggestedBookId)
-                    </a>
-                    <span class="ks-card-meta">@Constants.MergeSuggestions.Reason</span>
-                    @* Asks twice, and asks in a <details> - a confirmation is
-                       disclosure, which must not round-trip (ADR 0003), the
-                       same shape the Users page uses before deleting a User.
-                       The first press only opens it: a <summary> cannot run
-                       the merge, so a rule's guess is never one click from an
-                       action nothing can undo. *@
-                    <details class="ks-merge-confirm">
-                        <summary class="ks-merge-button">@Constants.MergeSuggestions.MergeAction</summary>
+                        <p class="hub-guard">@Constants.CuratedMetadata.Hint</p>
 
-                        <p class="ks-merge-warning">@Constants.MergeConfirmWarning</p>
+                        <div class="hub-form-actions">
+                            @* Only offered where there is something to clear.
+                               Hands the action two blanks, which is how
+                               Curated Metadata is removed (ADR 0007). *@
+                            @if (book.CuratedTitle is not null || book.CuratedAuthor is not null)
+                            {
+                                <button type="button" class="hub-btn hub-btn-outline hub-btn-sm" @onclick="ClearCuratedAsync">
+                                    @Constants.CuratedMetadata.ClearButton
+                                </button>
+                            }
+                            <button type="submit" class="hub-btn hub-btn-brand hub-btn-sm">@Constants.CuratedMetadata.SaveButton</button>
+                        </div>
 
-                        <button type="button" class="ks-merge-button" @onclick="() => MergeAsync(suggestedBookId)">
-                            @Constants.MergeConfirmSubmitText
-                        </button>
-                    </details>
+                        @if (curateError is not null)
+                        {
+                            <p class="hub-aside hub-aside-danger">@curateError</p>
+                        }
+                    </form>
                 </div>
-            }
-        }
+            </details>
 
-        <div class="ks-section-title">@Constants.MergeFormSectionTitle</div>
-        @* Still here, and still the only way to merge two Books that nothing
-           suggested: the rule is deliberately narrow, so most real Split
-           Books - no metadata at all, or a title only one device read - will
-           never appear in the list above (ADR 0007). *@
-        @* Deliberately not a <form>: Enter in its last field submits a form,
-           and that press would run the merge past the confirmation below.
-           Nothing else here needed a form either - the id goes to the server
-           over the circuit, not in a POST. *@
-        <div class="ks-merge-form">
-            <input type="number" min="1" class="ks-merge-input" placeholder="@Constants.MergeFormPlaceholder" @bind="mergeBookIdInput" />
-            @* The same two presses as a suggestion's. A typed id is read off
-               another page and can be a typo, which merges a Book nobody
-               looked at - as irreversible as accepting a false suggestion,
-               and asked the same way so neither path is the lenient one. *@
-            <details class="ks-merge-confirm">
-                <summary class="ks-merge-button">@Constants.MergeFormSubmitText</summary>
+            <details>
+                @* The count is on the summary because closed, the summary is
+                   the only thing that can say there is something in there.
+                   The flag on the header above stays either way. *@
+                <summary class="hub-btn hub-btn-outline hub-btn-sm">@MergeSummaryText</summary>
 
-                <p class="ks-merge-warning">@Constants.MergeConfirmWarning</p>
+                <div class="hub-drawer">
+                    @* Suggestions first, then the typed form that is still
+                       the only way to merge two Books nothing suggested: the
+                       rule is deliberately narrow, so most real Split Books -
+                       no metadata at all, or a title only one device read -
+                       will never appear in the list (ADR 0007). *@
+                    @if (book.MergeSuggestionBookIds.Count > 0)
+                    {
+                        <p class="hub-section-label hub-drawer-label">@Constants.MergeSuggestions.SectionTitle</p>
+                        <p class="hub-guard hub-drawer-hint">@Constants.MergeSuggestions.Hint</p>
 
-                <button type="button" class="ks-merge-button" @onclick="MergeTypedBookAsync">@Constants.MergeConfirmSubmitText</button>
+                        @foreach (var suggestedBookId in book.MergeSuggestionBookIds)
+                        {
+                            <div class="hub-kv">
+                                @* By id, not by title: the suggested Book has
+                                   the same title as this one, so the id is
+                                   the only thing that tells them apart. It
+                                   links, because deciding usually means
+                                   looking at the other Book's Documents
+                                   first - and from there the same row offers
+                                   the merge the other way round. *@
+                                <span>
+                                    <a class="hub-table-link" href="@AppRoutes.BookDetail(suggestedBookId)">
+                                        @string.Format(Constants.BookFallbackNameFormat, suggestedBookId)
+                                    </a>
+                                    <span class="hub-xs hub-muted">@Constants.MergeSuggestions.Reason</span>
+                                </span>
+                            </div>
+
+                            @* Asks twice, and asks in a <details> - a
+                               confirmation is disclosure, which must not
+                               round-trip (ADR 0003), the same shape the Users
+                               page uses before deleting a User. The first
+                               press only opens it: a <summary> cannot run the
+                               merge, so a rule's guess is never one click
+                               from an action nothing can undo. *@
+                            <details class="hub-confirm">
+                                <summary class="hub-btn hub-btn-outline hub-btn-sm">@Constants.MergeSuggestions.MergeAction</summary>
+
+                                <p class="hub-aside hub-aside-danger">@Constants.MergeConfirmWarning</p>
+
+                                <button type="button" class="hub-btn hub-btn-danger hub-btn-sm" @onclick="() => MergeAsync(suggestedBookId)">
+                                    @Constants.MergeConfirmSubmitText
+                                </button>
+                            </details>
+                        }
+
+                        <hr class="hub-divider hub-drawer-divider" />
+                    }
+
+                    <p class="hub-section-label hub-drawer-label">@Constants.MergeFormSectionTitle</p>
+
+                    @* Deliberately not a <form>: Enter in its last field
+                       submits a form, and that press would run the merge past
+                       the confirmation below. Nothing else here needed a form
+                       either - the id goes to the server over the circuit,
+                       not in a POST. *@
+                    <div class="hub-stack-2">
+                        <input type="number"
+                               min="1"
+                               class="hub-input hub-input-sm hub-input-narrow"
+                               placeholder="@Constants.MergeFormPlaceholder"
+                               aria-label="@Constants.MergeFormPlaceholder"
+                               @bind="mergeBookIdInput" />
+
+                        @* The same two presses as a suggestion's. A typed id
+                           is read off another page and can be a typo, which
+                           merges a Book nobody looked at - as irreversible as
+                           accepting a false suggestion, and asked the same way
+                           so neither path is the lenient one. *@
+                        <details class="hub-confirm">
+                            <summary class="hub-btn hub-btn-outline hub-btn-sm">@Constants.MergeFormSubmitText</summary>
+
+                            <p class="hub-aside hub-aside-danger">@Constants.MergeConfirmWarning</p>
+
+                            <button type="button" class="hub-btn hub-btn-danger hub-btn-sm" @onclick="MergeTypedBookAsync">
+                                @Constants.MergeConfirmSubmitText
+                            </button>
+                        </details>
+                    </div>
+
+                    @if (mergeError is not null)
+                    {
+                        <p class="hub-aside hub-aside-danger">@mergeError</p>
+                    }
+                </div>
             </details>
         </div>
-        @if (mergeError is not null)
-        {
-            <p class="ks-flag-regression ks-merge-error">@mergeError</p>
-        }
-
-        <div class="ks-section-title">Documents (@book.Documents.Count)</div>
 
         @if (book.Documents.Count == 0)
         {
-            <p class="ks-empty ks-empty-inline">No sync history yet.</p>
+            @* Talks about Documents, like the Device page's equivalent
+               (Constants.NoDeviceDocumentsSyncedText, issue #13), because
+               that is what the table above it lists. *@
+            <p class="hub-empty">@Constants.NoBookDocumentsSyncedText</p>
         }
         else
         {
-            @foreach (var doc in book.Documents)
-            {
-                <div class="ks-doc-card">
-                    @* The filename a Device observed, or a truncated hash -
-                       resolved in DocumentLabelRule, never here. The full
-                       hash stays beside it either way: it is what you take
-                       to KOReader to tell a Split Book's files apart
-                       (ADR 0007). *@
-                    <span class="ks-doc-label">@doc.Label</span>
-                    <span class="ks-doc-hash">@doc.DocumentHash</span>
-                    @if (doc.HasCurrentProgress)
-                    {
-                        <span class="ks-card-meta">@doc.DeviceName</span>
-                    }
-                    <span class="ks-doc-pct">@DashboardFormatting.Percentage(doc.Percentage)</span>
-                    <button type="button" class="ks-reset-button" @onclick="() => ResetProgressAsync(doc.DocumentId)">@Constants.ResetProgressButton</button>
-                </div>
-                @if (resetError is not null && resetErrorDocumentId == doc.DocumentId)
-                {
-                    <p class="ks-flag-regression ks-merge-error">@resetError</p>
-                }
+            @* Only where there is something to count, as on the Device page:
+               "0 documents" sitting above "No documents synced yet" says the
+               same thing twice and the second one says it better. *@
+            <div class="hub-toolbar">
+                <span class="hub-sm hub-muted">
+                    @DashboardFormatting.Pluralize(book.Documents.Count, Constants.DetailPages.DocumentNoun)
+                </span>
+            </div>
 
-                <div class="ks-history">
-                    @foreach (var syncEvent in doc.History)
-                    {
-                        <div class="ks-history-row">
-                            @if (syncEvent.IsReset)
-                            {
-                                <span class="ks-card-meta">@Constants.ProgressResetLabel</span>
-                                <span class="ks-card-meta">@DashboardFormatting.RelativeTime(syncEvent.Timestamp, DateTime.UtcNow)</span>
-                                <span class="ks-flag-reset">@Constants.ProgressResetFlag</span>
-                            }
-                            else
-                            {
-                                <span class="ks-doc-pct">@DashboardFormatting.Percentage(syncEvent.Percentage)</span>
-                                <span class="ks-card-meta">@syncEvent.DeviceName</span>
-                                <span class="ks-card-meta">@DashboardFormatting.RelativeTime(syncEvent.Timestamp, DateTime.UtcNow)</span>
-                                @* Derived, not !IsCurrent - see SyncEventSummary. *@
-                                @if (syncEvent.BlockedRegression)
-                                {
-                                    <span class="ks-flag-regression">@Constants.ProgressRegressionFlag</span>
-                                }
-                            }
-                        </div>
-                    }
-                </div>
-            }
+            <div class="hub-table-wrap">
+                <table class="hub-table">
+                    <thead>
+                        <tr>
+                            <th>@Constants.DetailPages.ColumnDocument</th>
+                            <th>@Constants.DetailPages.ColumnDevice</th>
+                            <th>@Constants.DetailPages.ColumnProgress</th>
+                            <th class="hub-table-num">@Constants.DetailPages.ColumnLastPush</th>
+                            <th class="hub-table-actions">@Constants.DetailPages.ColumnFlags</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var (doc, index) in book.Documents.Select((doc, index) => (doc, index)))
+                        {
+                            @* Keyed, and keyed on the Document rather than on
+                               the position, because this list reorders under
+                               an open row: BookDashboardService sorts by
+                               percentage, and a reset drops its Document to
+                               0% and sends it to the bottom.
+
+                               Expansion lives in the DOM, not in the render
+                               tree - it is local UI state (ADR 0003), so the
+                               server neither knows nor should. Unkeyed,
+                               Blazor reuses row nodes positionally and the
+                               open one stays open wherever it happens to
+                               sit, which after a reset is some other
+                               Document. @key makes it move the nodes with
+                               their Document instead, so the row you opened
+                               is still the row that is open. *@
+                            <tr @key="RowKey(doc.DocumentId)">
+                                <td class="hub-table-name">
+                                    @* A <button> and not a <details>, which
+                                       cannot wrap two <tr>s - the one place
+                                       these pages need script. It is
+                                       wwwroot/js/row-expand.js, client-side
+                                       like the dashboard filter and the theme
+                                       toggle, because disclosure must not
+                                       round-trip (ADR 0003's amendment). *@
+                                    <button type="button"
+                                            class="hub-row-toggle"
+                                            aria-expanded="false"
+                                            data-row-expand="@doc.DocumentId">
+                                        <HubIcon Name="@Constants.Icons.ChevronRight"
+                                                 Size="@Constants.Icons.BadgeSize"
+                                                 Class="hub-row-chevron" />
+                                        @* Positional, not colour: the hub ramp
+                                           is achromatic with one brand orange,
+                                           so a per-Document colour key would be
+                                           the first chromatic thing in the
+                                           system. *@
+                                        <span class="hub-doc-key">@DocumentKey(index)</span>
+                                        @* The filename a Device observed, or a
+                                           truncated hash - resolved in
+                                           DocumentLabelRule, never here. The
+                                           full hash is in the drawer below
+                                           rather than beside it: ~32 monospace
+                                           characters per row is what stopped
+                                           this being a table (ADR 0007). *@
+                                        <span class="hub-doc-label">@doc.Label</span>
+                                    </button>
+                                </td>
+                                <td class="hub-muted">
+                                    @if (doc.HasCurrentProgress)
+                                    {
+                                        @doc.DeviceName
+                                    }
+                                    else
+                                    {
+                                        @* Percentage 0 and no Device name,
+                                           which reads as a Document nobody
+                                           started rather than one somebody
+                                           reset unless it says so. *@
+                                        <span class="hub-xs">@Constants.DetailPages.NoCurrentProgressText</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="hub-table-progress">
+                                        <span class="hub-bar"><span style="width: @DashboardFormatting.Percentage(doc.Percentage)"></span></span>
+                                        <span class="hub-pct">@DashboardFormatting.Percentage(doc.Percentage)</span>
+                                    </span>
+                                </td>
+                                <td class="hub-table-num hub-muted">@DashboardFormatting.RelativeTime(doc.Timestamp, DateTime.UtcNow)</td>
+                                <td class="hub-table-actions">
+                                    <span class="hub-table-badges">
+                                        @* Rolled up from the history below, so
+                                           progressive disclosure cannot hide
+                                           the one thing this page exists to
+                                           surface. Deliberately no Progress
+                                           Reset roll-up: a reset is a
+                                           deliberate restart flagged neutrally
+                                           (issue #9), so it has nothing to
+                                           summon anybody into a row for. *@
+                                        @if (HasBlockedPush(doc))
+                                        {
+                                            <span class="hub-badge hub-badge-danger">@Constants.ProgressRegressionFlag</span>
+                                        }
+                                    </span>
+                                </td>
+                            </tr>
+
+                            @* `hidden` rather than absent: the drawer's
+                               contents are already in the page, so opening a
+                               row is a browser concern and not a request. *@
+                            <tr hidden @key="DrawerKey(doc.DocumentId)" data-row-drawer="@doc.DocumentId">
+                                <td class="hub-row-drawer-cell" colspan="5">
+                                    <div class="hub-row-drawer">
+                                        <div>
+                                            <span class="hub-xs hub-muted">@Constants.DetailPages.HashLabel</span>
+                                            <span class="hub-hash">@doc.DocumentHash</span>
+                                        </div>
+
+                                        @* Every push, newest first, with the
+                                           blocked ones flagged inline (issue
+                                           #7) rather than collected into an
+                                           issues inbox. *@
+                                        <div class="hub-events">
+                                            @foreach (var syncEvent in doc.History)
+                                            {
+                                                <div class="hub-event">
+                                                    @if (syncEvent.IsReset)
+                                                    {
+                                                        <span class="hub-event-pct hub-muted">&mdash;</span>
+                                                        <span class="hub-muted">@Constants.ProgressResetLabel</span>
+                                                        <span class="hub-badge hub-badge-muted">@Constants.ProgressResetFlag</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="hub-event-pct">@DashboardFormatting.Percentage(syncEvent.Percentage)</span>
+                                                        <span>@syncEvent.DeviceName</span>
+                                                        @* Derived, not !IsCurrent - see
+                                                           SyncEventSummary and issue #38. *@
+                                                        @if (syncEvent.BlockedRegression)
+                                                        {
+                                                            <span class="hub-badge hub-badge-danger">@Constants.ProgressRegressionFlag</span>
+                                                        }
+                                                        @* Stated rather than implied by the
+                                                           absence of the flag above, which
+                                                           since #38 means something else
+                                                           entirely: most of a healthy
+                                                           history is neither blocked nor
+                                                           current. *@
+                                                        @if (syncEvent.IsCurrent)
+                                                        {
+                                                            <span class="hub-badge hub-badge-ok">@Constants.DetailPages.CurrentFlag</span>
+                                                        }
+                                                    }
+                                                    <span class="hub-event-when">@DashboardFormatting.RelativeTime(syncEvent.Timestamp, DateTime.UtcNow)</span>
+                                                </div>
+                                            }
+                                        </div>
+
+                                        @* Inside the drawer, and behind the
+                                           same two presses as the merge. It
+                                           was a button on every row, one press
+                                           from an irreversible action, in a
+                                           column you scan past. *@
+                                        <details class="hub-confirm">
+                                            <summary class="hub-btn hub-btn-outline hub-btn-sm">@Constants.ResetProgressButton</summary>
+
+                                            <p class="hub-aside hub-aside-danger">@Constants.ResetProgressConfirmWarning</p>
+
+                                            <button type="button" class="hub-btn hub-btn-danger hub-btn-sm" @onclick="() => ResetProgressAsync(doc.DocumentId)">
+                                                @Constants.ResetProgressButton
+                                            </button>
+                                        </details>
+
+                                        @if (resetError is not null && resetErrorDocumentId == doc.DocumentId)
+                                        {
+                                            <p class="hub-aside hub-aside-danger">@resetError</p>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         }
     }
 </div>
@@ -218,6 +453,33 @@
     private string? curatedTitleInput;
     private string? curatedAuthorInput;
     private string? curateError;
+
+    // `Merge` on its own, or `Merge (1 suggested)`. The suggestions moved
+    // inside this disclosure, so without the count a closed summary says
+    // nothing about what the rule found - and the ROADMAP's reconciliation
+    // is that the flag stays visible while only the action is one press away.
+    private string MergeSummaryText => book is { MergeSuggestionBookIds.Count: > 0 } withSuggestions
+        ? string.Format(Constants.MergeSuggestions.MergeDisclosureFormat, withSuggestions.MergeSuggestionBookIds.Count)
+        : Constants.MergeFormSubmitText;
+
+    // D1/D2/D3 - a Document's position in the list, which is what the
+    // history rows and the hash in a drawer are being tied back to.
+    private static string DocumentKey(int index) => $"D{index + 1}";
+
+    // Each Document renders two <tr>s into one <tbody>, and a @key has to be
+    // unique among its siblings - so they take one key each, both derived
+    // from the Document so that the pair travels together when the list
+    // reorders under an open row.
+    private static string RowKey(int documentId) => $"row-{documentId}";
+
+    private static string DrawerKey(int documentId) => $"drawer-{documentId}";
+
+    // The regression flag rolled up from the drawer onto the collapsed row.
+    // BlockedRegression and not !IsCurrent: the former is "this push was
+    // refused promotion when it arrived", the latter is every push since
+    // superseded, which is most of a healthy Document (issue #38).
+    private static bool HasBlockedPush(BookDocumentSummary doc) =>
+        doc.History.Any(syncEvent => syncEvent.BlockedRegression);
 
     protected override async Task OnInitializedAsync()
     {

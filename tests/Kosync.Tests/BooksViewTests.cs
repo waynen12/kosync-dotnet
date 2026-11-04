@@ -165,7 +165,10 @@ public class BooksViewTests : IntegrationTestBase
         // Only the regressed push is flagged - the promoted one is not. Two
         // pushes cannot tell that apart from "every push but the current
         // one"; ProgressRegressionTests is where that distinction is made.
-        Assert.Equal(1, RenderedHtml.Occurrences(html, Constants.ProgressRegressionFlag));
+        //
+        // In the drawer since issue #39, which is where the history now
+        // lives. The row above it carries its own rolled-up copy.
+        Assert.Equal(1, RenderedHtml.Occurrences(RenderedHtml.RowDrawers(html), Constants.ProgressRegressionFlag));
     }
 
     [Fact]
@@ -246,7 +249,13 @@ public class BooksViewTests : IntegrationTestBase
         var html = await (await client.GetAsync(AppRoutes.BookDetail(bookId))).Content.ReadAsStringAsync();
 
         Assert.Contains("Merge another Book into this one", html);
-        Assert.Contains("ks-merge-form", html);
+
+        // The id box it is still built around. Since issue #39 the form is
+        // inside a closed disclosure rather than open on the page - which
+        // DetailPageTableTests owns - but the Book id typed into it is the
+        // only way to merge two Books nothing suggested, so it has to be
+        // reachable from here either way.
+        Assert.Contains($@"placeholder=""{Constants.MergeFormPlaceholder}""", html);
     }
 
     [Fact]

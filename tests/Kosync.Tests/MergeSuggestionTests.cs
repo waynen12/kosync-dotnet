@@ -211,7 +211,17 @@ public class MergeSuggestionTests : IntegrationTestBase
         // the confirmation the line above just established. A two-press
         // action gets no one-key shortcut. (The curate form beside it keeps
         // its Enter: typing a title is reversible by typing another.)
-        Assert.DoesNotContain(@"<form class=""ks-merge-form""", html);
+        //
+        // Asserted on the box itself rather than on the wrapper's class,
+        // which is what this checked until issue #39 renamed it - a test
+        // naming a class that no longer exists passes whatever the markup
+        // does. So: collect every <form> on the page, and the id box is in
+        // none of them.
+        var formContents = string.Concat(
+            Regex.Matches(html, @"<form(?s).*?</form>").Select(form => form.Value));
+
+        Assert.NotEmpty(formContents);
+        Assert.DoesNotContain($@"placeholder=""{Constants.MergeFormPlaceholder}""", formContents);
     }
 
     private static void AssertIsDisclosureSummary(string label, string html) =>

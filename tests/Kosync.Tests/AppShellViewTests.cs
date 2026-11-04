@@ -73,7 +73,7 @@ public class AppShellViewTests : IntegrationTestBase
         // (which stay until issue #33) these had no remaining reader. Dead
         // rules in a stylesheet read as a second, competing shell.
         //
-        // Comments are stripped first: section 7's prose names what it
+        // Comments are stripped first: section 6's prose names what it
         // replaced, and that is the explanation, not a surviving rule.
         Assert.DoesNotContain("ks-shell", StaticAssets.ReadAppCssWithoutComments());
     }

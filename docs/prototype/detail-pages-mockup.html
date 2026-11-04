@@ -25,7 +25,7 @@
   different design language from the dashboard that links to it, and the
   same argument that chose a table there holds one level down. Full
   reasoning, the measured heights, and what B and C were right about:
-  docs/ROADMAP.md -> "The detail pages - decided". Implementation is #39;
+  docs/ROADMAP.md -> "The detail pages - decided and built". Implementation is #39;
   the bug this session turned up is #38.
 
   This file stays as the primary source. It is the design record, and it is
@@ -1364,7 +1364,7 @@ const variantC = {
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
     root.innerHTML = `
-      <div class="hub-main" style="padding-top:24px;max-width:var(--hub-maxw-narrow)">
+      <div class="hub-main" style="padding-top:24px;max-width:48rem">
         ${backLink("?page=book", "Books")}
 
         <div class="vc-head">
@@ -1486,7 +1486,7 @@ const variantC = {
 
   renderDevice(root, device) {
     root.innerHTML = `
-      <div class="hub-main" style="padding-top:24px;max-width:var(--hub-maxw-narrow)">
+      <div class="hub-main" style="padding-top:24px;max-width:48rem">
         ${backLink("?page=device", "Devices")}
 
         <div class="vc-head">

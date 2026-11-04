@@ -139,22 +139,20 @@ public class DashboardViewTests : IntegrationTestBase
     [Fact]
     public void AppCss_NoLongerCarriesTheCardGridChrome()
     {
-        // Comments stripped first: section 9's prose says the card-grid rules
-        // went with this issue, which is the explanation, not a survivor.
-        var css = StaticAssets.ReadAppCssWithoutComments();
+        var css = StaticAssets.ReadAppCss();
 
-        // The lookahead is what makes these fail for the right reason:
-        // without it `.ks-card-meta`, which BookDetail still renders, reads
-        // as a definition of `.ks-card`.
-        foreach (var retired in new[] { "ks-grid", "ks-card", "ks-card-head", "ks-card-title", "ks-card-sub", "ks-card-clickable", "ks-doc-row", "ks-pbar-track", "ks-pbar-fill", "ks-tabs", "ks-tab", "ks-header", "ks-title", "ks-subtitle" })
-        {
-            Assert.DoesNotMatch($@"\.{retired}(?![\w-])", css);
-        }
-
-        // ...and the two the detail pages still need are still here, so this
-        // cannot pass by deleting section 9 wholesale.
-        Assert.Matches(@"\.ks-card-meta(?![\w-])", css);
-        Assert.Matches(@"\.ks-doc-card(?![\w-])", css);
+        // This test used to name the card grid's classes one by one, and to
+        // assert that two of them - `.ks-card-meta` and `.ks-doc-card` -
+        // were *still* there, because BookDetail rendered them and deleting
+        // the section wholesale would have unstyled it.
+        //
+        // Issue #39 rebuilt that page, so the section went in full and the
+        // enumeration with it: the claim is now the stronger and simpler one
+        // that nothing pre-hub survives anywhere in the file. That covers
+        // every class the list named and the ones it did not.
+        // DesignSystemTests.AppCss_StylesTheRulesTheDetailPagesRender is the
+        // other side of it - what replaced them is present.
+        Assert.DoesNotMatch(@"\.ks-", css);
     }
 
     // The Flags column means two different things, and only one of them is a

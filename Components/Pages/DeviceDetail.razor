@@ -5,46 +5,147 @@
 @inject PortalTenantResolver PortalTenant
 @inject DeviceDashboardService DeviceDashboardService
 
-<PageTitle>@(device?.DeviceName ?? "Device")</PageTitle>
+@* The Book page's table, one page over (issue #39, variant A). Sharing it is
+   the point rather than a convenience: variant C's interleaved timeline was
+   the better diagnosis and lost on exactly this - `DeviceDocumentSummary`
+   carries no SyncEvent history, so a Device could only imitate it, and a
+   layout that works on one of the two drill-ins reintroduces the split the
+   prototyping session existed to close (docs/ROADMAP.md).
 
-<div class="ks-detail">
-    <a class="ks-back" href="@AppRoutes.Dashboard">&larr; Back</a>
+   Which is also why a row here expands to the hash and stops. There is no
+   history to show, and no actions: a reset belongs to the Document on its
+   Book, where the other Devices' pushes are visible too. *@
+
+<PageTitle>@(device?.DeviceName ?? Constants.DetailPages.DevicePageTitle)</PageTitle>
+
+<div class="hub-main hub-detail">
+    <a class="hub-back" href="@AppRoutes.Dashboard">
+        <HubIcon Name="@Constants.Icons.ChevronRight" Size="@Constants.Icons.BadgeSize" Class="hub-back-icon" />
+        @Constants.Dashboard.DevicesLabel
+    </a>
 
     @if (device is null)
     {
-        <p class="ks-empty ks-empty-inline">@Constants.DeviceNotFoundText</p>
+        <p class="hub-empty">@Constants.DeviceNotFoundText</p>
     }
     else
     {
-        <h1 class="ks-detail-title">@device.DeviceName</h1>
-        <p class="ks-detail-sub">Device ID @device.DeviceId &middot; last synced @DashboardFormatting.RelativeTime(device.LastSyncedAt, DateTime.UtcNow)</p>
+        <div class="hub-detail-head">
+            <div class="hub-title-row">
+                <h1 class="hub-page-title">@device.DeviceName</h1>
+            </div>
 
-        <div class="ks-section-title">Documents (@device.Documents.Count)</div>
+            @* The Device ID is KOReader's own identifier and the only way to
+               tell two Devices with the same name apart, so it reads as
+               reference material: mono, like a Document's hash. *@
+            <p class="hub-page-sub hub-detail-sub">
+                <span>@Constants.DetailPages.DeviceIdLabel</span>
+                <span class="hub-hash">@device.DeviceId</span>
+                <span class="hub-sep">&middot;</span>
+                <span>@string.Format(Constants.DetailPages.LastSyncedFormat, DashboardFormatting.RelativeTime(device.LastSyncedAt, DateTime.UtcNow))</span>
+            </p>
+        </div>
 
         @if (device.Documents.Count == 0)
         {
             @* Issue #13's wording, and since #18 this is where it lives: the
                dashboard's table shows a Document count rather than listing
                Documents, so a Device's empty state is only ever here. *@
-            <p class="ks-empty ks-empty-inline">@Constants.NoDeviceDocumentsSyncedText</p>
+            <p class="hub-empty">@Constants.NoDeviceDocumentsSyncedText</p>
         }
         else
         {
-            @foreach (var doc in device.Documents)
-            {
-                <div class="ks-doc-card">
-                    @* Same pair as the Book detail page, for the same
-                       reasons: a label to read, and the full hash to
-                       diagnose a Split Book with (ADR 0007). *@
-                    <span class="ks-doc-label">@doc.Label</span>
-                    <span class="ks-doc-hash">@doc.DocumentHash</span>
-                    <span class="ks-doc-pct">@DashboardFormatting.Percentage(doc.Percentage)</span>
-                    @if (doc.IsSplitBook)
-                    {
-                        <span class="ks-flag-split">@Constants.SplitBookFlag</span>
-                    }
-                </div>
-            }
+            <div class="hub-toolbar">
+                <span class="hub-sm hub-muted">
+                    @DashboardFormatting.Pluralize(device.Documents.Count, Constants.DetailPages.DocumentNoun)
+                </span>
+            </div>
+
+            <div class="hub-table-wrap">
+                <table class="hub-table">
+                    <thead>
+                        <tr>
+                            <th>@Constants.DetailPages.ColumnDocument</th>
+                            @* Not "Progress": this is this Device's own most
+                               recent push for the Document, and another
+                               Device may have pushed further and become
+                               current since (DeviceDashboardService). *@
+                            <th>@Constants.DetailPages.ColumnDeviceProgress</th>
+                            <th class="hub-table-num">@Constants.DetailPages.ColumnLastPush</th>
+                            <th class="hub-table-actions">@Constants.DetailPages.ColumnFlags</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var doc in device.Documents)
+                        {
+                            @* Keyed on the Document, as on the Book page and
+                               for the same reason: expansion lives in the
+                               DOM rather than in the render tree (ADR 0003),
+                               so an unkeyed list that reorders under an open
+                               row leaves the wrong row open. Nothing on this
+                               page reorders it today - there are no actions -
+                               but a push that arrives while it is on screen
+                               does, and the two pages should not disagree
+                               about something this easy to get wrong. *@
+                            <tr @key="RowKey(doc.DocumentHash)">
+                                <td class="hub-table-name">
+                                    @* wwwroot/js/row-expand.js, as on the Book
+                                       page and for the same reason: a
+                                       <details> cannot wrap two <tr>s, and
+                                       disclosure must not round-trip
+                                       (ADR 0003's amendment). *@
+                                    <button type="button"
+                                            class="hub-row-toggle"
+                                            aria-expanded="false"
+                                            data-row-expand="@doc.DocumentHash">
+                                        <HubIcon Name="@Constants.Icons.ChevronRight"
+                                                 Size="@Constants.Icons.BadgeSize"
+                                                 Class="hub-row-chevron" />
+                                        @* Same pair as the Book page, for the
+                                           same reasons: a label to read, and
+                                           the full hash below to diagnose a
+                                           Split Book with (ADR 0007). *@
+                                        <span class="hub-doc-label">@doc.Label</span>
+                                    </button>
+                                </td>
+                                <td>
+                                    <span class="hub-table-progress">
+                                        <span class="hub-bar"><span style="width: @DashboardFormatting.Percentage(doc.Percentage)"></span></span>
+                                        <span class="hub-pct">@DashboardFormatting.Percentage(doc.Percentage)</span>
+                                    </span>
+                                </td>
+                                <td class="hub-table-num hub-muted">@DashboardFormatting.RelativeTime(doc.Timestamp, DateTime.UtcNow)</td>
+                                <td class="hub-table-actions">
+                                    <span class="hub-table-badges">
+                                        @* A Device is not a Split Book
+                                           (GLOSSARY.md) - it holds a Document
+                                           that belongs to one, which is what
+                                           this row says. *@
+                                        @if (doc.IsSplitBook)
+                                        {
+                                            <span class="hub-badge hub-badge-warn">
+                                                <HubIcon Name="@Constants.Icons.Merge" Size="@Constants.Icons.BadgeSize" />
+                                                @Constants.SplitBookFlag
+                                            </span>
+                                        }
+                                    </span>
+                                </td>
+                            </tr>
+
+                            <tr hidden @key="DrawerKey(doc.DocumentHash)" data-row-drawer="@doc.DocumentHash">
+                                <td class="hub-row-drawer-cell" colspan="4">
+                                    <div class="hub-row-drawer">
+                                        <div>
+                                            <span class="hub-xs hub-muted">@Constants.DetailPages.HashLabel</span>
+                                            <span class="hub-hash">@doc.DocumentHash</span>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         }
     }
 </div>
@@ -54,6 +155,13 @@
     public int Id { get; set; }
 
     private DeviceSummary? device;
+
+    // One key each for the Document's two <tr>s, as on the Book page: a @key
+    // must be unique among its siblings, and both have to derive from the
+    // Document so the pair moves together if the list reorders.
+    private static string RowKey(string documentHash) => $"row-{documentHash}";
+
+    private static string DrawerKey(string documentHash) => $"drawer-{documentHash}";
 
     protected override async Task OnInitializedAsync()
     {

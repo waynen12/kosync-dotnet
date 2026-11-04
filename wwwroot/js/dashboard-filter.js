@@ -9,7 +9,7 @@
  * The contract with Dashboard.razor:
  *   [data-ks-filter="#id"]  the input, naming the element it filters inside
  *   [data-ks-text]          a row, carrying everything it matches against
- *   [data-hidden]           set per row; app.css section 8 does the hiding
+ *   [data-hidden]           set per row; app.css section 7 does the hiding
  *   [data-none]             set on the scope when nothing matched, which is
  *                           what reveals its .hub-list-none message
  */

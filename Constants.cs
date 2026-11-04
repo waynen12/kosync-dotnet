@@ -592,6 +592,14 @@ public static class Constants
     // Device reads as a plain 0 and cannot name the wrong thing.
     public const string NoDeviceDocumentsSyncedText = "No documents synced yet";
 
+    // The Book page's half of the same statement (issue #39). It said "No
+    // sync history yet." until the two detail pages became one table - which
+    // talked about history where the line above it talks about Documents,
+    // for a page that lists Documents either way. Same wording shape, and
+    // deliberately not the same constant: these are two pages that happen to
+    // agree, and a Book's Documents are not a Device's.
+    public const string NoBookDocumentsSyncedText = "No documents synced yet";
+
     public const string NoBookProgressText = "No progress yet";
 
     // What the two drill-ins render for an id they cannot find. Also what
@@ -623,6 +631,95 @@ public static class Constants
     // rather than collected into an inbox of things to fix.
     public const string MissingMetadataHint =
         "No title yet — enable Send document metadata in KOReader's sync settings.";
+
+    // The two drill-ins, which since issue #39 are one design: a Book's
+    // Documents and a Device's Documents are the same kind of list - scanned
+    // for the one that went wrong - so both render the dashboard's
+    // `hub-table`, a row expanding into the full hash and whatever history
+    // that page has (docs/ROADMAP.md, "The detail pages - decided").
+    //
+    // The headings are here rather than in the markup for the reason
+    // Dashboard's and Users' are: CLAUDE.md's "do not hard code any values",
+    // and a column whose name is a literal in one page's <th> is a column
+    // the other page can spell differently.
+    public static class DetailPages
+    {
+        public const string ColumnDocument = "Document";
+
+        // Which Device holds the Document's current progress. Only on the
+        // Book page: on a Device page every row is that Device's already.
+        public const string ColumnDevice = "Device";
+
+        public const string ColumnProgress = "Progress";
+
+        // The Device page's progress column instead of the plain word. A
+        // Device's row shows that Device's own most recent push, which is
+        // not the Document's current progress - another Device may have
+        // pushed further since (DeviceDashboardService). "Progress" alone
+        // would state the stronger thing.
+        public const string ColumnDeviceProgress = "This device's progress";
+
+        // Not "Last synced", which is what the dashboard's row-level column
+        // is called. A row here is a Document, and what is being dated is
+        // the arrival of a SyncEvent - a push.
+        public const string ColumnLastPush = "Last push";
+
+        public const string ColumnFlags = "Flags";
+
+        // Labels the full hash inside an expanded row. The collapsed row
+        // carries the label only (DocumentLabelRule), because ~32 monospace
+        // characters per row is what stopped the table being a table; the
+        // hash is reference material you fetch while diagnosing, so it is
+        // behind the disclosure but never replaced by the label (ADR 0007).
+        public const string HashLabel = "Hash";
+
+        // Marks the one SyncEvent holding the Document's current-progress
+        // pointer. New with issue #39 because the old page said this by the
+        // *absence* of a Progress Regression flag, which is not the same
+        // claim: since issue #38 the flag means "this push was blocked", and
+        // most of a healthy history is neither blocked nor current.
+        public const string CurrentFlag = "Current";
+
+        // A Document whose current-progress pointer was cleared and which
+        // nothing has pushed to since: percentage 0 and no Device name. Worth
+        // saying rather than rendering as 0% beside a blank cell, which reads
+        // as a Document somebody has not started instead of one somebody
+        // reset.
+        public const string NoCurrentProgressText = "not the current progress";
+
+        // What the toolbar above each table counts. Singular, because
+        // DashboardFormatting.Pluralize is what turns a count into a phrase.
+        public const string DocumentNoun = "document";
+
+        // The Device's own identifier, which KOReader generates and which is
+        // the only way to tell two Devices with the same name apart.
+        public const string DeviceIdLabel = "Device ID";
+
+        // The header's progress and recency, which were literals in the
+        // markup until this issue rewrote the line they sit on. Whole format
+        // strings rather than the fragments they replaced, like
+        // BookFallbackNameFormat: a bare "progress" concatenated in the
+        // markup leaves the word order in the Razor, where a translator or
+        // a rewording cannot reach it.
+        public const string ProgressFormat = "{0} progress";
+
+        public const string LastSyncedFormat = "last synced {0}";
+
+        // The browser tab before the Book or Device has loaded, and for one
+        // that was not found - the only moment either page has no name of
+        // its own to show.
+        public const string BookPageTitle = "Book";
+
+        public const string DevicePageTitle = "Device";
+
+        // The row expander, named here because App.razor's <script> and the
+        // test asserting it never reaches the server have to mean the same
+        // file. It is the one piece of these pages that needs script: a
+        // <details> cannot wrap two <tr>s, so a row and its drawer cannot be
+        // one native disclosure (ADR 0003's amendment - local UI state must
+        // not round-trip, so the alternative was an @onclick).
+        public const string RowExpandScript = "row-expand.js";
+    }
 
     // How a Document is named on the two detail pages (ADR 0007, issue #31).
     public static class DocumentLabel
@@ -674,6 +771,19 @@ public static class Constants
     public const string ProgressResetLabel = "Progress reset";
 
     public const string ResetProgressButton = "Reset progress";
+
+    // The reset asks twice, through the same <details> shape the merge uses
+    // (issue #39). It had no warning at all while it was a button on every
+    // Document row - one press from an irreversible action, in a column you
+    // scan past. Written like MergeConfirmWarning: what it touches, then
+    // what it costs, in the second person and without "reader" (GLOSSARY,
+    // "User").
+    //
+    // Says "this Document only" because the reset is per Document and the
+    // Book above it has others - the mistake available here is resetting the
+    // wrong row, not misreading what a reset does.
+    public const string ResetProgressConfirmWarning =
+        "This clears the progress on this Document only. You start it again from the beginning.";
 
     public const string ResetProgressFailedError = "Reset failed - document not found.";
 
@@ -735,6 +845,18 @@ public static class Constants
         // prose above - it says only that there is something to look at, and
         // the drill-in says what (issue #18's table).
         public const string Flag = "Merge suggestion";
+
+        // Since issue #39 the suggestions live inside the merge disclosure
+        // rather than unconditionally above the Documents, so the count has
+        // to reach the summary: closed, the disclosure is the only thing on
+        // screen that can say there is something in there. The *flag* is
+        // unaffected and stays inline and unconditional on the Book header
+        // and in the dashboard's Flags column - only the action moved
+        // (docs/ROADMAP.md, "The detail pages - decided").
+        //
+        // MergeFormSubmitText is what the summary reads with no suggestions,
+        // which is why this carries the word rather than only the suffix.
+        public const string MergeDisclosureFormat = "Merge ({0} suggested)";
     }
 
     // The product name, rendered as the login card's title and the app

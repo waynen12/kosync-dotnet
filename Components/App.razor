@@ -11,6 +11,10 @@
        first paint or the page flashes, whereas a filter has nothing to do
        until someone types. *@
     <script src="@($"/js/{Constants.Dashboard.FilterScript}")" defer></script>
+    @* Deferred for the same reason, and for one more: it delegates from
+       `document`, so it has nothing to find in the DOM when it runs and
+       nothing to re-find afterwards. *@
+    <script src="@($"/js/{Constants.DetailPages.RowExpandScript}")" defer></script>
     <HeadOutlet />
 </head>
 <body>

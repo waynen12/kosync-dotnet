@@ -13,16 +13,23 @@
 
    Sections:
      1. Hub tokens            the palette, radii and layout scale
-     2. --ks-* aliases        the pre-hub token names, re-pointed at the above
-     3. Base                  reset and document defaults
-     4. Primitives            buttons, inputs, cards, badges, type
-     5. Layout containers     the page-level wrappers
-     6. Login                 the one screen with its own shell
-     7. App shell             the authenticated nav every other page wears
-     8. Dashboard and Users   the sidebar shell, the dense table, and the
-                              Users page's slide-over panel
-     9. Pre-hub rules         .ks-* detail-page chrome
-    10. Breakpoints           every @media query in the system
+     2. Base                  reset and document defaults
+     3. Primitives            buttons, inputs, cards, badges, type
+     4. Layout containers     the page-level wrappers, including the two
+                              drill-ins' header and disclosure strip
+     5. Login                 the one screen with its own shell
+     6. App shell             the authenticated nav every other page wears
+     7. Tables and panels     the dashboard sidebar, the dense table shared
+                              by four pages, the Users page's slide-over,
+                              and the drill-ins' expanding rows
+     8. Breakpoints           every @media query in the system
+
+   Issue #39 removed the last two sections this list used to carry: the
+   pre-hub token aliases, and the detail-page rules they fed. Those existed
+   to keep BookDetail and DeviceDetail alive, unprototyped, through the hub
+   fold-in; both pages are now variant A and wear the primitives below, so
+   there is one design language in here rather than one and a survivor. The
+   pre-hub prefix appears nowhere in this file, and a test asserts it.
    ========================================================================= */
 
 @import url("https://fonts.googleapis.com/css2?family=Geist:wght@300..900&family=Geist+Mono:wght@300..700&display=swap");
@@ -82,12 +89,18 @@
     --hub-radius-xl: calc(var(--hub-radius) * 1.4);
     --hub-radius-2xl: calc(var(--hub-radius) * 1.8);
 
-    /* Narrowed at the phone and tablet breakpoints in section 7 - every
+    /* Narrowed at the phone and tablet breakpoints in section 6 - every
        page-level horizontal padding in the system reads this, so one
        override there re-gutters the whole app. */
     --hub-gutter: 24px;
-    --hub-maxw: 72rem; /* max-w-6xl - scan-heavy pages: dashboard, users */
-    --hub-maxw-narrow: 48rem; /* read-heavy pages: a single Book or Device */
+
+    /* One page width, for all four pages that have a table on them. There
+       used to be a narrow second one for "read-heavy pages: a single Book or
+       Device", read by the detail pages' own container - but variant A put a
+       table on both of those too, and measured them at this width (issue
+       #39). A token describing pages that no longer exist is worse than no
+       token, so it went with the container that read it. */
+    --hub-maxw: 72rem; /* max-w-6xl */
 }
 
 :root[data-theme="dark"] {
@@ -115,34 +128,7 @@
 }
 
 /* =========================================================================
-   2. --ks-* ALIASES
-
-   BookDetail and DeviceDetail were never prototyped (docs/ROADMAP.md, "The
-   detail pages were never prototyped"). They render 21 `.ks-*` classes whose
-   rules are built on these names, so the names stay - re-pointed at the hub
-   ramp rather than carrying a second palette. Both pages keep working and
-   inherit the new colours; the aliases delete themselves when issue #33
-   prototypes those screens in the hub language.
-
-   Deliberately defined once, not per theme: every hub token on the right
-   already flips under [data-theme="dark"].
-   ========================================================================= */
-:root {
-    --ks-bg: var(--hub-bg);
-    --ks-fg: var(--hub-fg);
-    --ks-muted: var(--hub-muted-fg);
-    --ks-border: var(--hub-border);
-    --ks-card-bg: var(--hub-card);
-    --ks-accent: var(--hub-brand);
-    --ks-track: var(--hub-muted);
-    --ks-danger: var(--hub-destructive);
-    --ks-danger-bg: color-mix(in srgb, var(--hub-destructive) 12%, transparent);
-    --ks-warning: var(--hub-amber-strong);
-    --ks-warning-bg: var(--hub-amber-soft);
-}
-
-/* =========================================================================
-   3. BASE
+   2. BASE
    ========================================================================= */
 * {
     box-sizing: border-box;
@@ -163,7 +149,7 @@ a {
 }
 
 /* =========================================================================
-   4. PRIMITIVES (shadcn shapes, hand-written)
+   3. PRIMITIVES (shadcn shapes, hand-written)
    ========================================================================= */
 .hub-root {
     min-height: 100vh;
@@ -341,8 +327,104 @@ a {
 .hub-bar span { display: block; height: 100%; border-radius: 999px; background: var(--hub-brand); }
 .hub-pct { width: 36px; text-align: right; font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
 
+/* A Document's full hash, and a Device's own id (issue #39). Reference
+   material rather than a label: it is what you take to KOReader to tell a
+   Split Book's files apart, so it is mono, muted and small wherever it
+   appears - and it is never replaced by the label beside it (ADR 0007).
+   `anywhere` because 32 hex characters contain no break opportunity and will
+   otherwise push a narrow container open. */
+.hub-hash {
+    font-family: var(--hub-font-mono);
+    font-size: 12px;
+    color: var(--hub-muted-fg);
+    overflow-wrap: anywhere;
+}
+
+/* A Document identified by position rather than by colour - D1/D2/D3. The
+   hub ramp is achromatic with one brand orange, so a per-Document colour key
+   would be the first chromatic thing in the system; a mono badge keys the
+   same thing without spending a colour. */
+.hub-doc-key {
+    font-family: var(--hub-font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--hub-muted-fg);
+    background: var(--hub-muted);
+    border-radius: var(--hub-radius-sm);
+    padding: 2px 6px;
+    flex: 0 0 auto;
+}
+
+/* An aside, not an error: "nothing is broken, there is something to know".
+   .hub-notice is the strong version of this (a filled amber box) and
+   .hub-guard the quiet one (small italic prose); this is the middle one, and
+   it carries the missing-metadata hint.
+
+   The danger variant is every warning and error on the two drill-ins - both
+   irreversible-action confirmations and the three failure messages. One
+   shape for all five deliberately: they are the same claim at different
+   moments ("this cannot be undone" / "it was not done"), and the pre-hub
+   rules spent three near-identical classes on telling them apart. */
+.hub-aside {
+    color: var(--hub-muted-fg);
+    font-size: 13px;
+    line-height: 1.5;
+    border-left: 2px solid var(--hub-amber-strong);
+    padding-left: 12px;
+    margin: 0 0 16px;
+    max-width: 60ch;
+}
+
+.hub-aside-danger { border-left-color: var(--hub-destructive); color: var(--hub-destructive); }
+
+/* The middot between the facts on a drill-in's subtitle line. Dimmed,
+   because it is punctuation and was reading as a third item. */
+.hub-sep { opacity: 0.5; margin: 0 7px; }
+
+/* Every disclosure in the system hides the native marker, because every
+   <summary> in it is already a button and the triangle is a second
+   affordance beside one. One rule rather than a copy per disclosure: the
+   Users page's create form and delete confirmation and the drill-ins'
+   drawers and confirmations are the same shape, which is what issue #39
+   reused instead of twinning (see .hub-confirm below). */
+.hub-create > summary,
+.hub-confirm > summary,
+.hub-drawer-group > details > summary,
+.hub-panel-actions details > summary { list-style: none; cursor: pointer; }
+
+.hub-create > summary::-webkit-details-marker,
+.hub-confirm > summary::-webkit-details-marker,
+.hub-drawer-group > details > summary::-webkit-details-marker,
+.hub-panel-actions details > summary::-webkit-details-marker { display: none; }
+
+/* The two-press confirmation that guards everything irreversible: merging
+   two Books (issue #32) and resetting a Document's progress (#39). A
+   <details> and not round-tripped state, because a confirmation is
+   disclosure (ADR 0003) - and the first press therefore cannot act, since a
+   <summary> has no way to.
+
+   Open, it becomes a box and stacks: the warning has to be read before the
+   button under it, and boxing it is what stops the button reading as a
+   sibling of the summary that revealed it. */
+.hub-confirm[open] {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    margin-top: 8px;
+    border: 1px solid var(--hub-border);
+    border-radius: var(--hub-radius-lg);
+    background: var(--hub-muted);
+}
+
+.hub-confirm[open] > summary { margin-bottom: 2px; }
+
+/* The warning inside one has nowhere below it to push to. */
+.hub-confirm > .hub-aside { margin-bottom: 0; }
+
 /* =========================================================================
-   5. LAYOUT CONTAINERS
+   4. LAYOUT CONTAINERS
 
    `width: 100%` is load-bearing on every centred container here, not
    belt-and-braces. They are flex items in the column-flex .hub-root, and
@@ -395,8 +477,98 @@ a {
     margin-bottom: 20px;
 }
 
+/* -------------------------------------------------------------------------
+   The two drill-ins (Components/Pages/BookDetail.razor, DeviceDetail.razor,
+   issue #39)
+
+   Variant A, "Ledger". These pages used to have their own container, their
+   own type scale and their own radii - the last pre-hub family, which this
+   issue finally retired. They are ordinary `.hub-main` pages now, at the
+   same width as the dashboard that links to them, which is most of what
+   "one design language" meant in practice.
+
+   Their Documents table is section 7's, beside the dashboard's; what is here
+   is the page around it - the header, and the strip of closed disclosures
+   under it that holds the actions.
+   ------------------------------------------------------------------------- */
+
+/* .hub-main's own padding clears the fold at the bottom and nothing at the
+   top, because its usual sibling .hub-page-head carries that. These pages
+   put the heading inside .hub-main - they have a back link above it - so the
+   top padding comes here instead. */
+.hub-detail { padding-top: 24px; }
+
+/* The way back to the list. Muted rather than brand-coloured: it is how you
+   leave, not a second thing to do on the page. */
+.hub-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--hub-muted-fg);
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 14px;
+}
+
+.hub-back:hover { color: var(--hub-fg); }
+
+/* One chevron icon serves both directions; this is the one pointing back. */
+.hub-back-icon { transform: rotate(180deg); }
+
+.hub-detail-head { margin-bottom: 18px; }
+
+/* The title and the flags that belong to the thing itself - a Split Book,
+   a Merge suggestion. Inline and unconditional, which the redesign did not
+   touch: only the merge *action* moved into a disclosure (docs/ROADMAP.md,
+   "The detail pages - decided"). */
+.hub-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* .hub-page-title's bottom margin is for a .hub-page-sub directly under it;
+   in the flex row above it would offset the title against its own badges. */
+.hub-title-row > .hub-page-title { margin-bottom: 0; }
+
+/* Likewise the subtitle: the head wrapper owns the gap to what follows, so
+   the <p> only needs to clear the title. */
+.hub-detail-sub { margin: 6px 0 0; }
+
+/* The strip of closed action disclosures: the metadata editor and the merge
+   block. Closed is the point - both used to be permanently open above the
+   Documents, which put an irreversible merge control between the reader and
+   the evidence they came for.
+
+   An open one takes the whole row so its drawer has the width, and the other
+   summary drops below it rather than being squeezed beside a form. */
+.hub-drawer-group { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+.hub-drawer-group > details { position: relative; }
+.hub-drawer-group > details[open] { flex: 1 1 100%; }
+
+.hub-drawer {
+    margin-top: 10px;
+    padding: 16px;
+    border: 1px solid var(--hub-border);
+    border-radius: var(--hub-radius-xl);
+    background: var(--hub-card);
+    max-width: 40rem;
+}
+
+/* .hub-section-label is written for a page-level heading with the gutter's
+   padding on it; inside a drawer it is a sub-heading in a box. */
+.hub-drawer-label { padding: 0; margin: 0 0 8px; }
+.hub-drawer-hint { margin: 0 0 10px; }
+.hub-drawer-divider { margin: 16px 0; }
+
+/* A Book id is four characters wide at most, and .hub-input is full-width by
+   default - which would give the merge form a text field the width of the
+   drawer for a number. */
+.hub-input-narrow { max-width: 9rem; }
+
+/* The section-4 containers are centred in a page-wide column of their own.
+   A toolbar inside .hub-main is already in one, so it must not add a second
+   gutter - the same correction .hub-shell-main makes in section 7. */
+.hub-main > .hub-toolbar { padding-left: 0; padding-right: 0; max-width: none; }
+
 /* =========================================================================
-   6. LOGIN
+   5. LOGIN
 
    The one screen with its own shell: a full-bleed gradient with a centred
    card, rather than the nav-plus-main shape every authenticated page takes
@@ -463,16 +635,18 @@ a {
 .hub-login-link:hover { color: var(--hub-fg); }
 
 /* =========================================================================
-   7. APP SHELL
+   6. APP SHELL
 
    Components/Layout/MainLayout.razor - the chrome every authenticated page
    wears. Ported out of the prototype's HubNav.razor with issue #17, for the
-   same reason the login rules moved in section 6: prototype.css was only
+   same reason the login rules moved in section 5: prototype.css was only
    ever linked by PrototypeSwitcher, so rules left there went unstyled when
    issue #19 deleted it.
 
-   This replaced the `.ks-shell-*` chrome wholesale, which is why no alias
-   for it survives in section 2.
+   This replaced the pre-hub shell chrome wholesale rather than being styled
+   on top of it, which is why it needed no token alias to survive the
+   fold-in - unlike the detail pages, which took until issue #39 to get the
+   same treatment.
    ========================================================================= */
 
 /* The gradient sits on the band, not the nav, so the nav's dark wash has
@@ -517,13 +691,13 @@ a {
     overflow-wrap: anywhere;
 }
 
-/* The nav's sibling. Pages bring their own centred container (section 5), so
+/* The nav's sibling. Pages bring their own centred container (section 4), so
    this only claims the rest of the column and the clearance below the fold.
 
-   The column-flex is for the dashboard's sidebar (section 8): a flex item's
+   The column-flex is for the dashboard's sidebar (section 7): a flex item's
    height is its content's, so `flex: 1` on the shell inside is the only way
    a full-height sidebar reaches the bottom of a short page. Every centred
-   container in section 5 already carries the `width: 100%` that keeps it
+   container in section 4 already carries the `width: 100%` that keeps it
    stretching rather than shrinking to content in here. */
 .hub-app-main {
     display: flex;
@@ -534,20 +708,23 @@ a {
 }
 
 /* =========================================================================
-   8. DASHBOARD AND USERS SHELL, TABLE AND PANEL
+   7. TABLES AND PANELS
 
    Components/Pages/Dashboard.razor - the sidebar beside a dense table of
-   Devices or Books - and, at the end of the section,
-   Components/Pages/Users.razor, which wears the same shell and table plus
-   variant B's slide-over. Ported out of the prototype's variant B with
+   Devices or Books - then Components/Pages/Users.razor, which wears the same
+   shell and table plus variant B's slide-over, and finally the two
+   drill-ins' expanding rows. Ported out of the prototype's variant B with
    issue #18,
-   for the same reason sections 6 and 7 moved: prototype.css was only ever
+   for the same reason sections 5 and 6 moved: prototype.css was only ever
    linked by PrototypeSwitcher, so rules left there went unstyled when
    issue #19 deleted it.
 
    Why a table and not the card grid it replaced - a grid row is as tall as
    its tallest card, and these lists are scanned rather than browsed - is
    docs/ROADMAP.md's business ("Why the card grid lost, for both lists").
+   Issue #39 then applied the same argument one level down: four pages share
+   `.hub-table` now, because a drill-in should not be a different design
+   language from the page that links to it.
    ========================================================================= */
 .hub-shell {
     display: flex;
@@ -583,7 +760,7 @@ a {
 .hub-nav-item.current { background: color-mix(in srgb, var(--hub-brand) 12%, transparent); color: var(--hub-brand); }
 .hub-nav-count { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--hub-muted-fg); font-variant-numeric: tabular-nums; }
 
-/* No bottom padding: .hub-app-main (section 7) already clears the fold for
+/* No bottom padding: .hub-app-main (section 6) already clears the fold for
    every page, and this one is inside it. */
 .hub-shell-main { flex: 1; min-width: 0; padding: 24px var(--hub-gutter) 0; }
 
@@ -676,11 +853,9 @@ a {
 .hub-form-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
 /* The create form, as a disclosure whose summary is the page's primary
-   button. list-style on a <summary> is the triangle marker; the button has
-   its own icon. */
+   button. The native triangle marker is removed with every other
+   disclosure's in section 3; the button has its own icon. */
 .hub-create { margin-bottom: 16px; padding: 14px 16px; }
-.hub-create > summary { list-style: none; }
-.hub-create > summary::-webkit-details-marker { display: none; }
 .hub-create[open] { padding-bottom: 18px; }
 .hub-create[open] > summary { margin-bottom: 16px; }
 
@@ -746,315 +921,96 @@ a {
 .hub-panel-actions .hub-btn { width: 100%; justify-content: flex-start; height: 36px; }
 .hub-panel-actions .hub-field { margin-bottom: 4px; }
 
-/* The delete confirmation, which is the second <details> on the page. */
-.hub-panel-actions details > summary { list-style: none; }
-.hub-panel-actions details > summary::-webkit-details-marker { display: none; }
+/* The delete confirmation, which is the second <details> on the page - and
+   the shape .hub-confirm generalised for the drill-ins (section 3), which is
+   also where its marker removal now lives. */
 .hub-panel-actions details > .hub-guard { margin: 8px 0; }
 
 /* .hub-btn's own padding and height are written for <button>; an <a>
    wearing it needs the text centred the same way. */
 a.hub-btn { text-decoration: none; }
 
-/* =========================================================================
-   9. PRE-HUB RULES
+/* -------------------------------------------------------------------------
+   The drill-ins' Documents table (BookDetail.razor, DeviceDetail.razor,
+   issue #39)
 
-   Everything below predates the fold-in and runs on the section-2 aliases.
-   The card-grid rules went with issue #18, which deleted their last caller;
-   the detail-page rules stay until issue #33. Radii and spacing here are
-   intentionally untouched - new palette, old geometry, as docs/ROADMAP.md
-   calls for.
-   ========================================================================= */
+   Everything above is also these pages': the wrap, the table, the header
+   cells, the progress mark, the badge group. What is left is the one thing
+   the dashboard's table does not do - a row that expands into a drawer
+   under itself.
+   ------------------------------------------------------------------------- */
 
-.ks-card-meta {
-    font-size: 12px;
-    color: var(--ks-muted);
-}
-
-/* A Document's label on the detail pages (issue #31) - the observed
-   filename, or a truncated hash. It takes the row's spare width; the full
-   hash beside it sizes to its content, because the label is the part worth
-   reading and the hash is the part worth having. */
-.ks-doc-label {
-    flex: 1;
-    min-width: 0;
-    font-size: 13px;
+/* A Document's label - the observed filename, or a truncated hash
+   (DocumentLabelRule). Takes the row's spare width and truncates, because
+   real filenames are long and the start is the recognisable part. */
+.hub-doc-label {
     font-weight: 500;
-    color: var(--ks-fg);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.ks-doc-hash {
-    flex: 0 1 auto;
     min-width: 0;
-    font-family: var(--hub-font-mono);
-    font-size: 12px;
-    color: var(--ks-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
-.ks-doc-pct {
-    font-size: 12px;
-    font-weight: 600;
-    width: 38px;
-    text-align: right;
-}
-
-.ks-empty {
-    color: var(--ks-muted);
-    font-size: 12.5px;
-    font-style: italic;
-    padding: 0 var(--hub-gutter);
-    max-width: var(--hub-maxw);
-    margin: 0 auto;
-    width: 100%;
-}
-
-.ks-empty-inline {
-    padding: 0;
-    max-width: none;
-    margin: 0;
-}
-
-/* Drill-in detail page */
-.ks-detail {
-    max-width: var(--hub-maxw-narrow);
-    margin: 0 auto;
-    width: 100%;
-    padding: 28px var(--hub-gutter);
-}
-
-.ks-back {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--ks-accent);
-    font-size: 13.5px;
-    font-weight: 600;
-    margin-bottom: 18px;
-}
-
-.ks-detail-title {
-    font-size: 22px;
-    font-weight: 700;
-    margin: 0 0 2px;
-}
-
-.ks-detail-sub {
-    color: var(--ks-muted);
-    font-size: 14px;
-    margin-bottom: 16px;
-}
-
-.ks-section-title {
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--ks-muted);
-    margin: 26px 0 10px;
-    font-weight: 700;
-}
-
-/* Manual Book merge action (issue #8) - a plain "merge into Book #" row, for
-   the two Books nothing suggested, which the narrow suggestion rule leaves as
-   the common case (issue #32). A row and not a <form>: Enter in the id field
-   would submit one, past the confirmation. */
-.ks-merge-form {
+/* The row's expander, filling the Document cell. A <button> rather than a
+   <details>, which cannot wrap two <tr>s - the one place these pages need
+   script, and it is wwwroot/js/row-expand.js rather than an @onclick
+   because disclosure must not round-trip (ADR 0003's amendment). Stripped
+   back to its text, so the cell reads as a row and not as a control. */
+.hub-row-toggle {
     display: flex;
-    gap: 8px;
-    margin-bottom: 8px;
-    flex-wrap: wrap;
-}
-
-.ks-merge-input {
-    width: 100px;
-    padding: 8px 10px;
-    border-radius: 8px;
-    border: 1px solid var(--ks-border);
-    background: var(--ks-card-bg);
-    color: var(--ks-fg);
-    font-size: 14px;
-}
-
-.ks-merge-button {
-    padding: 8px 16px;
-    border-radius: 8px;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    background: none;
     border: none;
-    background: var(--ks-accent);
-    color: var(--hub-on-brand);
-    font-size: 14px;
-    font-weight: 600;
+    padding: 0;
+    font: inherit;
+    color: inherit;
     cursor: pointer;
+    text-align: left;
 }
 
-/* The merge confirmation, on both the typed form and a suggestion's row
-   (ADR 0007, issue #32). list-style on a <summary> is the triangle marker,
-   and this summary is a button - the same removal the hub's disclosures do.
-   Open, it stacks: the warning has to be read before the button under it. */
-.ks-merge-confirm > summary { list-style: none; }
-.ks-merge-confirm > summary::-webkit-details-marker { display: none; }
-.ks-merge-confirm[open] { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.hub-row-toggle:focus-visible { outline: 2px solid var(--hub-ring); outline-offset: 2px; }
 
-.ks-merge-warning {
-    color: var(--ks-muted);
-    font-size: 12.5px;
-    border-left: 2px solid var(--ks-warning);
-    padding-left: 10px;
-    margin: 0;
-    max-width: 52ch;
-}
+/* Turns to point down when the row is open. Driven off aria-expanded rather
+   than a second class, so the attribute a screen reader reads is the one
+   thing holding the row's state. */
+.hub-row-chevron { color: var(--hub-muted-fg); transition: transform 120ms ease; }
+.hub-row-toggle[aria-expanded="true"] .hub-row-chevron { transform: rotate(90deg); }
 
-.ks-merge-error {
-    display: inline-block;
-    margin: 0 0 16px;
-}
+/* The drawer: the full hash, the SyncEvents on a Book, and the reset
+   action. Inset and on the muted surface so it reads as belonging to the row
+   above it rather than as more rows. The cell override beats .hub-table td's
+   own padding, which would box the drawer away from its row. */
+.hub-row-drawer-cell { padding: 0; background: var(--hub-muted); }
+.hub-row-drawer { padding: 14px 16px 16px 42px; display: grid; gap: 12px; }
 
-/* Curated Metadata editor (ADR 0007, issue #30) - the same shape as the
-   merge form above it, with inputs wide enough for a title rather than for a
-   Book id, and reusing that form's save button. */
-.ks-curate-form {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 8px;
-    flex-wrap: wrap;
-    align-items: center;
-}
+/* One Document's pushes, newest first. A flat list rather than a drawn
+   timeline with a rail: variant B had the room for that and this is a
+   drawer, where the dots would cost more than they say. */
+.hub-events { display: grid; gap: 0; font-size: 13px; }
 
-.ks-curate-input {
-    flex: 1 1 220px;
-    min-width: 0;
-    padding: 8px 10px;
-    border-radius: 8px;
-    border: 1px solid var(--ks-border);
-    background: var(--ks-card-bg);
-    color: var(--ks-fg);
-    font-size: 14px;
-}
-
-/* The missing-metadata hint (issue #31). Reads as an aside rather than as
-   an error: nothing is wrong, a setting is simply off. */
-.ks-metadata-hint {
-    color: var(--ks-muted);
-    font-size: 12.5px;
-    border-left: 2px solid var(--ks-warning);
-    padding-left: 10px;
-    margin: 0 0 18px;
-}
-
-.ks-suggestion-link {
-    color: var(--ks-fg);
-    font-weight: 600;
-    font-size: 14px;
-    text-decoration: none;
-}
-
-.ks-suggestion-link:hover {
-    color: var(--ks-accent);
-}
-
-/* The suggestion rule and what it will not do on its own. An aside, like
-   the missing-metadata hint: nothing is wrong, there is a choice to make. */
-.ks-suggestion-hint {
-    color: var(--ks-muted);
-    font-size: 12.5px;
-    margin: 0 0 12px;
-}
-
-.ks-curate-hint {
-    color: var(--ks-muted);
-    font-size: 12.5px;
-    margin: 0 0 16px;
-}
-
-/* One card shape for the two things a detail page lists on a Book: its
-   Documents, and the Books suggested as the same Book (issue #32). Each is a
-   thing with actions on it, which is the shape's whole job - a second
-   near-identical block would only drift from this one. */
-.ks-doc-card,
-.ks-suggestion-card {
-    background: var(--ks-card-bg);
-    border: 1px solid var(--ks-border);
-    border-radius: 12px;
-    padding: 13px 16px;
-    margin-bottom: 10px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
-}
-
-/* A Document card's progress and its reset button belong at the far edge; a
-   suggestion's three items read as one sentence and stay together. */
-.ks-doc-card {
-    justify-content: space-between;
-}
-
-/* SyncEvent history under each Document, with regressed pushes flagged
-   inline (issue #7) rather than surfaced in a separate issues inbox. */
-.ks-history {
-    margin: 0 0 18px 4px;
-    padding-left: 12px;
-    border-left: 2px solid var(--ks-border);
-}
-
-.ks-history-row {
+.hub-event {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 6px 0;
-    font-size: 12.5px;
-    flex-wrap: wrap;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--hub-border);
 }
 
-.ks-flag-regression {
-    color: var(--ks-danger);
-    background: var(--ks-danger-bg);
-    border-radius: 999px;
-    padding: 2px 9px;
-    font-size: 11px;
-    font-weight: 700;
-}
+.hub-event:last-child { border-bottom: none; }
 
-/* "Delete progress" dashboard action (issue #9) - a deliberate restart,
-   flagged neutrally (not danger/warning like a detected issue) since the
-   reader chose this. */
-.ks-flag-reset {
-    color: var(--ks-muted);
-    background: var(--ks-track);
-    border-radius: 999px;
-    padding: 2px 9px;
-    font-size: 11px;
-    font-weight: 700;
-}
+/* Fixed width and tabular, so the percentages line up into a column you can
+   read down - which is the whole reason to render a history as rows. */
+.hub-event-pct { font-variant-numeric: tabular-nums; font-weight: 600; width: 40px; }
 
-.ks-reset-button {
-    padding: 5px 12px;
-    border-radius: 8px;
-    border: 1px solid var(--ks-border);
-    background: transparent;
-    color: var(--ks-muted);
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-}
+/* Pushed to the far edge: every row has a time, and none of them is what
+   you are scanning for. */
+.hub-event-when { color: var(--hub-muted-fg); margin-left: auto; white-space: nowrap; }
 
-/* A Book (or one of its Documents, on a Device) whose Documents disagree on
-   current progress (GLOSSARY.md "Split Book", issue #8) - the signal that a
-   manual merge may be needed. Shown inline, not in a separate inbox. */
-.ks-flag-split {
-    color: var(--ks-warning);
-    background: var(--ks-warning-bg);
-    border-radius: 999px;
-    padding: 2px 9px;
-    font-size: 11px;
-    font-weight: 700;
-}
 
 /* =========================================================================
-   10. BREAKPOINTS
+   8. BREAKPOINTS
 
    The stylesheet had none at all before this, which is the other half of the
    responsiveness bug the second prototyping session found. Desktop-first,
@@ -1127,13 +1083,20 @@ a.hub-btn { text-decoration: none; }
     .hub-nav-actions { gap: 6px; }
 
     /* Two fields side by side stop fitting well before this width; the
-       create form on the Users page is the only user of the pair. */
+       create form on the Users page is the only user of the pair - and
+       since issue #39, the Book page's title/author editor. */
     .hub-grid-2 { grid-template-columns: 1fr; }
-    .ks-detail { padding-top: 20px; }
-    .ks-detail-title { font-size: 19px; }
 
-    /* A Document's hash, device, percentage and reset button cannot share a
-       row this narrow; the row has flex-wrap, this gives the wrap room. */
-    .ks-doc-card { gap: 10px; }
-    .ks-history-row { gap: 8px; }
+    /* The drill-ins' own page-level padding, matching .hub-page-head's -
+       the title's own step down comes from .hub-page-title above, which
+       these pages now share rather than sizing their heading themselves. */
+    .hub-detail { padding-top: 20px; }
+
+    /* A drawer is a card inside the gutter at this width, so 16px of padding
+       on top of 16px of gutter leaves the form in a column. Nothing is done
+       to the rows inside the table: .hub-table keeps its min-width and
+       .hub-table-wrap scrolls, which is the answer issue #18 chose over
+       collapsing columns - the column dropped is always the one somebody
+       opened the page to compare. */
+    .hub-drawer { padding: 14px; }
 }
