@@ -96,8 +96,10 @@ before any automatic matching exists — a brand-new Document gets its own
 Book until deliberately merged into another. When a Book has multiple
 Documents, its overall progress is the furthest-along current progress of
 any of them — whichever device has read deepest into the book wins, not
-whichever synced most recently. A Book *has* a title; a title is not a
-Book.
+whichever synced most recently. A Book no Document belongs to is removed
+rather than kept: there is nothing left to read, and it would show in its
+owner's library as a book that is not there. A Book *has* a title; a
+title is not a Book.
 _Avoid_: Document, title (as a synonym for the Book itself)
 
 **Document**:
@@ -106,8 +108,19 @@ computes locally (by default, a partial MD5 over sampled byte ranges of
 the file's content; optionally, an MD5 of the filename instead). This hash
 is sensitive to file conversion, DRM stripping, or renaming, so the same
 Book can be represented by multiple Documents across devices when their
-hashes diverge.
+hashes diverge. A User owns at most one Document per hash and the database
+enforces it (ADR 0008) — a second one is not another file, it is the same
+file twice, and it used to break that Book permanently. Two *Users* with
+the same hash is two Documents and nothing wrong.
 _Avoid_: Book, hash (on its own)
+
+**Duplicate Document**:
+Two Documents with the same hash owned by one User — the same file stored
+twice, which the database refuses outright (ADR 0008). Not a Split Book
+and not a Merge Suggestion: those are different *files* of one Book, and
+both are ordinary states of a healthy library. This one is a defect, and
+while a pair existed that Book could not sync, be read, or be deleted.
+_Avoid_: Split Book, duplicate book, merge candidate
 
 **Device**:
 A single KOReader installation, identified by the opaque `device_id` it

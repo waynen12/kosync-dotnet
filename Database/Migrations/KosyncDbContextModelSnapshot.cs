@@ -96,7 +96,8 @@ namespace Kosync.Database.Migrations
 
                     b.HasIndex("BookId");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId", "DocumentHash")
+                        .IsUnique();
 
                     b.ToTable("Documents");
                 });

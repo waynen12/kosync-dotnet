@@ -341,6 +341,11 @@ public class ManagementController : ControllerBase
         // known User without that Document, rather than dereferencing null.
         // One answer for both keeps the endpoint from confirming which of the
         // two it was, and leaves nothing to echo the username back in.
+        //
+        // Single is safe because of the unique index on (UserId,
+        // DocumentHash), not because nobody has written the duplicate yet
+        // (ADR 0008, issue #37) - this delete was the one route out of a
+        // duplicate pair, and threw on it like everything else.
         var document = user?.Documents.SingleOrDefault(i => i.DocumentHash == documentHash);
 
         if (document is null)

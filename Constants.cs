@@ -11,6 +11,17 @@ public static class Constants
         public const string AuthKey = "x-auth-key";
     }
 
+    // What the database says when it refuses a write, for the one refusal the
+    // server answers rather than reports (DocumentRegistry).
+    public static class Sqlite
+    {
+        // SQLITE_CONSTRAINT_UNIQUE: an INSERT that would have duplicated a
+        // unique index. The extended result code, because the primary one
+        // (SQLITE_CONSTRAINT, 19) is every constraint alike - a not-null or a
+        // foreign key failure would be indistinguishable from this one.
+        public const int UniqueConstraintViolation = 2067;
+    }
+
     // Password storage settings (ADR 0005). Defaults only - the live values
     // come from the "Passwords" configuration section via
     // PasswordHashingOptions.

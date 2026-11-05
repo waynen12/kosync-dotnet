@@ -70,6 +70,7 @@ response.
 | Device identity | `device_id` only; a reinstall is a brand-new Device, no auto-merge | Firm |
 | Book/Document split | Modeled from the first migration, not deferred to metadata phase (ADR 0001) | Firm |
 | Book/Document assignment | New Document auto-creates its own 1:1 Book; "same book" merges are a manual dashboard action | Firm |
+| Document identity | One Document per `(UserId, DocumentHash)`, enforced by a unique index; a push that loses the insert race lands on the Document that won (ADR 0008) | Firm |
 | Automatic Book-matching (metadata-based) | Now viable on real metadata, but **suggestions only** — exact case-insensitive match on title *and* author, never an automatic merge (ADR 0007) | Firm |
 | Regression protection | Document-scoped only (not across a Book's merged Documents) | Firm |
 | Regression mechanism | Every push recorded as a SyncEvent; only promotes to current if percentage ≥ current. No auto-detected "restart" carve-out. | Firm |

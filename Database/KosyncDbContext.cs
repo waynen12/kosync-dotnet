@@ -84,6 +84,16 @@ public class KosyncDbContext : DbContext
             .HasForeignKey(d => d.BookId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // A hash identifies a file to the one User who owns it, so a second
+        // Document with the same hash is not another file - it is the same
+        // one twice (ADR 0008). Without this the check-then-insert in the
+        // push path could create a pair that then broke every read of that
+        // hash forever, because reading one is a Single (issue #37). The
+        // Device index below is the same invariant for the same reason.
+        modelBuilder.Entity<Document>()
+            .HasIndex(d => new { d.UserId, d.DocumentHash })
+            .IsUnique();
+
         modelBuilder.Entity<Device>()
             .HasOne(d => d.User)
             .WithMany(u => u.Devices)

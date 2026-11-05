@@ -27,6 +27,7 @@ builder.Services.AddScoped<PortalTenantResolver, PortalTenantResolver>();
 builder.Services.AddScoped<UserAdminService, UserAdminService>();
 builder.Services.AddScoped<DeviceDashboardService, DeviceDashboardService>();
 builder.Services.AddScoped<BookDashboardService, BookDashboardService>();
+builder.Services.AddScoped<DocumentRegistry, DocumentRegistry>();
 
 var dataDirectory = Path.Combine(builder.Environment.ContentRootPath, "data");
 

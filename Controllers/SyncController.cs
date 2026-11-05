@@ -15,9 +15,10 @@ public class SyncController : ControllerBase
     private PasswordHasher _passwordHasher;
     private TenantContext _tenant;
     private PortalOptions _portal;
+    private DocumentRegistry _documentRegistry;
 
 
-    public SyncController(ILogger<SyncController> logger, ProxyService proxyService, IPService ipService, KosyncDbContext db, UserService userService, PasswordHasher passwordHasher, TenantContext tenant, IOptions<PortalOptions> portal)
+    public SyncController(ILogger<SyncController> logger, ProxyService proxyService, IPService ipService, KosyncDbContext db, UserService userService, PasswordHasher passwordHasher, TenantContext tenant, IOptions<PortalOptions> portal, DocumentRegistry documentRegistry)
     {
         _logger = logger;
         _proxyService = proxyService;
@@ -27,6 +28,7 @@ public class SyncController : ControllerBase
         _passwordHasher = passwordHasher;
         _tenant = tenant;
         _portal = portal.Value;
+        _documentRegistry = documentRegistry;
     }
 
     // The sync half of "an account does nothing until its password is
@@ -223,20 +225,11 @@ public class SyncController : ControllerBase
             .Include(i => i.Devices)
             .FirstOrDefault(i => i.Username == _userService.Username)!;
 
-        var document = user.Documents.SingleOrDefault(i => i.DocumentHash == payload.document);
-        if (document is null)
-        {
-            document = new Document()
-            {
-                DocumentHash = payload.document,
-                User = user,
-                // A brand-new Document gets its own Book until deliberately
-                // merged into another (GLOSSARY "Book"), and that Book belongs
-                // to the same User.
-                Book = new Book() { User = user },
-            };
-            user.Documents.Add(document);
-        }
+        // Found, or created with its own Book - and if another Device created
+        // it first in the instant since the read above, the one it created
+        // (DocumentRegistry, ADR 0008). This push then lands on that
+        // Document, so nothing about where somebody had read to is lost.
+        var document = _documentRegistry.GetOrCreate(user, payload.document);
 
         var device = user.Devices.SingleOrDefault(i => i.DeviceId == payload.device_id);
         if (device is null)
@@ -336,6 +329,13 @@ public class SyncController : ControllerBase
 
         // No `d.UserId == user.Id` here any more: the tenant filter is what
         // scopes this, which is the point of enforcing it in one place.
+        //
+        // Single, and provably so: the unique index on (UserId, DocumentHash)
+        // is what makes a second row with this hash impossible, and this is
+        // one of the reads that threw forever on a pair before it existed
+        // (ADR 0008, issue #37). Left as a Single deliberately - a First here
+        // would answer with one of two rows and hide a broken invariant
+        // behind a reader quietly seeing the wrong progress.
         var document = _db.Documents
             .Include(d => d.SyncEvents)
             .ThenInclude(s => s.Device)

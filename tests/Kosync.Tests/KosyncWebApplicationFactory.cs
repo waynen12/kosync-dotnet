@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -43,6 +44,11 @@ public class KosyncWebApplicationFactory : WebApplicationFactory<Program>
     // setting unconfigured, so the app falls back to its shipped default the
     // way a deployment that never set it does.
     public string? PortalBaseUrl { get; init; }
+
+    // Something to do to the database from inside the app's own
+    // SaveChanges - RivalDocumentPush being the one that exists, which lands
+    // a competing push in the window a race needs (issue #37).
+    public IInterceptor? DbInterceptor { get; init; }
 
     public string ContentRoot { get; }
 
@@ -147,7 +153,15 @@ public class KosyncWebApplicationFactory : WebApplicationFactory<Program>
                 services.Remove(descriptor);
             }
 
-            services.AddDbContext<KosyncDbContext>(options => options.UseSqlite(_connection));
+            services.AddDbContext<KosyncDbContext>(options =>
+            {
+                options.UseSqlite(_connection);
+
+                if (DbInterceptor is not null)
+                {
+                    options.AddInterceptors(DbInterceptor);
+                }
+            });
 
             if (Kdf is not null)
             {
