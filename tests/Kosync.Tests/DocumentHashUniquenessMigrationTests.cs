@@ -189,7 +189,8 @@ public class DocumentHashUniquenessMigrationTests
 
     // The losing Document's Book is left with nothing in it, and a Book no
     // Document belongs to is unreachable - removed here the way
-    // RemoveOrphanedBooks removes one after a Document delete.
+    // UserAdminService.DeleteDocumentAsync removes one after a Document
+    // delete.
     [Fact]
     public async Task Migrating_RemovesABookLeftWithNoDocuments()
     {

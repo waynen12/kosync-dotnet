@@ -246,6 +246,118 @@ public class ManagementControllerTests : IntegrationTestBase
         Assert.Empty(body.EnumerateArray());
     }
 
+    // The deliberate carve-out from "tenancy is absolute": an Administrator
+    // may delete another User's Document, because a Document whose hash went
+    // bad is exactly the kind of thing an Administrator gets asked to sort
+    // out, and deleting the whole account instead is wildly disproportionate
+    // (ADR 0004, issue #35). Reading that library stays banned - the GET
+    // above is the endpoint that refuses.
+    [Fact]
+    public async Task DeleteUserDocument_Admin_DeletesAnotherUsersDocument()
+    {
+        await CreateSyncingUserAsync("reader", "pw");
+        await PushProgressAsync("hash1", "reader", "pw");
+
+        var deleteResponse = await DeleteAsync("/manage/users/documents?username=reader&documentHash=hash1", "admin", "admin");
+
+        Assert.Equal(HttpStatusCode.OK, deleteResponse.StatusCode);
+        Assert.Empty((await BodyAsync(await GetAsync("/manage/users/documents?username=reader", "reader", "pw"))).EnumerateArray());
+    }
+
+    // ... and only an Administrator may. A plain User reaches their own
+    // library and nothing else, which is the rule the carve-out is carved
+    // out of.
+    [Fact]
+    public async Task DeleteUserDocument_NonAdmin_AnotherUsersDocument_Returns401AndKeepsIt()
+    {
+        await CreateSyncingUserAsync("reader", "pw");
+        await CreateSyncingUserAsync("other", "pw");
+        await PushProgressAsync("hash1", "reader", "pw");
+
+        var deleteResponse = await DeleteAsync("/manage/users/documents?username=reader&documentHash=hash1", "other", "pw");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, deleteResponse.StatusCode);
+        Assert.Single((await BodyAsync(await GetAsync("/manage/users/documents?username=reader", "reader", "pw"))).EnumerateArray());
+    }
+
+    // Deleting one of your own Documents needs no capability at all - it is
+    // your library.
+    [Fact]
+    public async Task DeleteUserDocument_NonAdmin_OwnDocument_Succeeds()
+    {
+        await CreateSyncingUserAsync("reader", "pw");
+        await PushProgressAsync("hash1", "reader", "pw");
+
+        var deleteResponse = await DeleteAsync("/manage/users/documents?username=reader&documentHash=hash1", "reader", "pw");
+
+        Assert.Equal(HttpStatusCode.OK, deleteResponse.StatusCode);
+        Assert.Empty((await BodyAsync(await GetAsync("/manage/users/documents?username=reader", "reader", "pw"))).EnumerateArray());
+    }
+
+    // A Book with no Documents left is a phantom in the reader's library
+    // (ADR 0001), so the delete sweeps up the Book it orphaned - including
+    // when the Document belonged to somebody else, which is the case the
+    // sweep has to reach across Users for.
+    [Fact]
+    public async Task DeleteUserDocument_SweepsTheBookItOrphaned()
+    {
+        await CreateSyncingUserAsync("reader", "pw");
+        await PushProgressAsync("hash1", "reader", "pw");
+        Assert.Equal(1, Factory.CountOfEveryStoredRow<Book>());
+
+        await DeleteAsync("/manage/users/documents?username=reader&documentHash=hash1", "admin", "admin");
+
+        Assert.Equal(0, Factory.CountOfEveryStoredRow<Book>());
+    }
+
+    // The Book stays when a second Document is still on it, which is the
+    // other half of the sweep: a merged Book outlives any one of its files.
+    [Fact]
+    public async Task DeleteUserDocument_KeepsABookAnotherDocumentIsStillOn()
+    {
+        await PushProgressAsync("hash1", "admin", "admin");
+        await PushProgressAsync("hash2", "admin", "admin");
+        await MergeIntoOneBookAsync("hash1", "hash2");
+
+        await DeleteAsync("/manage/users/documents?username=admin&documentHash=hash2", "admin", "admin");
+
+        Assert.Equal(1, Factory.CountOfEveryStoredRow<Book>());
+        var documents = (await BodyAsync(await GetAsync("/manage/users/documents?username=admin", "admin", "admin"))).EnumerateArray();
+        Assert.Equal("hash1", documents.Single().GetProperty("documentHash").GetString());
+    }
+
+    // A User naming themselves in the wrong case is still naming themselves -
+    // the endpoint has always matched the caller's own name
+    // case-insensitively. So this is a miss on the hash, answered like any
+    // other miss, rather than a refusal for reaching at somebody else.
+    [Fact]
+    public async Task DeleteUserDocument_NonAdmin_OwnNameInAnotherCase_Returns404NotRefused()
+    {
+        await CreateSyncingUserAsync("reader", "pw");
+
+        var response = await DeleteAsync("/manage/users/documents?username=READER&documentHash=missing", "reader", "pw");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(
+            Constants.UserAdmin.DocumentNotFound,
+            (await BodyAsync(response)).GetProperty("message").GetString());
+    }
+
+    // A request that leaves the username off is turned away by
+    // [ApiController]'s model validation before any of this endpoint's own
+    // rules run. Worth pinning rather than assuming: it is why the guard
+    // below can compare a username at all, and the neighbouring 500 issue
+    // #35 came to fix was exactly a username nothing had checked.
+    [Fact]
+    public async Task DeleteUserDocument_NoUsernameAtAll_Returns400NotServerError()
+    {
+        await CreateSyncingUserAsync("reader", "pw");
+
+        var response = await DeleteAsync("/manage/users/documents?documentHash=missing", "reader", "pw");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     [Fact]
     public async Task DeleteUserDocument_NotFound_Returns404()
     {
@@ -399,6 +511,24 @@ public class ManagementControllerTests : IntegrationTestBase
         await PutAsync("/manage/users/password?username=reader", new PasswordChangeRequest { password = "handed-over" }, "admin", "admin");
 
         Assert.Equal(PasswordState.Provisional, Factory.StoredPasswordStateOf("reader"));
+    }
+
+    // One progress push, which is how a Document comes to exist at all
+    // (GLOSSARY "Document") - for the delete tests, which care only that
+    // there is something there to delete. Fails loudly if the push did not
+    // land, so a delete test cannot pass by deleting nothing.
+    private async Task PushProgressAsync(string documentHash, string username, string password)
+    {
+        var response = await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = documentHash,
+            progress = "p1",
+            percentage = 0.1m,
+            device = "Kobo",
+            device_id = $"device-{documentHash}",
+        }, username, password);
+
+        response.EnsureSuccessStatusCode();
     }
 
     // Pushes the one hash every caller of this shares, which is the point

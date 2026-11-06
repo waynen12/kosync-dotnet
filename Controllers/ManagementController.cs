@@ -291,7 +291,7 @@ public class ManagementController : ControllerBase
     }
 
     [HttpDelete("/manage/users/documents")]
-    public ObjectResult DeleteUserDocument(string username, string documentHash)
+    public async Task<ObjectResult> DeleteUserDocument(string username, string documentHash)
     {
         if (!_userService.IsAuthenticated)
         {
@@ -310,8 +310,11 @@ public class ManagementController : ControllerBase
             });
         }
 
+        // string.Equals rather than username.Equals, matching the GET above:
+        // a null username cannot dereference here even if [ApiController]
+        // ever stopped rejecting a request that left the parameter off.
         if (!_userService.IsAdmin &&
-            !username.Equals(_userService.Username, StringComparison.OrdinalIgnoreCase))
+            !string.Equals(username, _userService.Username, StringComparison.OrdinalIgnoreCase))
         {
             LogWarning($"Unauthorized DELETE request to /manage/users/documents from user [{_userService.Username}].");
 
@@ -331,44 +334,30 @@ public class ManagementController : ControllerBase
             });
         }
 
-        // IgnoreQueryFilters is deliberate here, not an oversight: an
-        // Administrator may delete another User's Document as a diagnostic
-        // power (ADR 0004, issue #35). Reading a library stays banned - the
-        // GET above is the endpoint that refuses.
-        var user = _db.Users.IgnoreQueryFilters().Include(i => i.Documents).FirstOrDefault(i => i.Username == username);
-
-        // Null-propagating so an unknown username lands in the same 404 as a
-        // known User without that Document, rather than dereferencing null.
-        // One answer for both keeps the endpoint from confirming which of the
-        // two it was, and leaves nothing to echo the username back in.
+        // The deliberate cross-user reach, the single answer for a missing
+        // User and a missing Document, and the sweep of the Book it orphans
+        // all live in the service (ADR 0004, issue #35), which is where the
+        // portal will find them when it grows this action. What is left here
+        // is the endpoint's own business: who is asking, and which status
+        // code each refusal gets.
         //
-        // Single is safe because of the unique index on (UserId,
-        // DocumentHash), not because nobody has written the duplicate yet
-        // (ADR 0008, issue #37) - this delete was the one route out of a
-        // duplicate pair, and threw on it like everything else.
-        var document = user?.Documents.SingleOrDefault(i => i.DocumentHash == documentHash);
+        // No ScopeToAuthenticatedUser call: this is the one operation that
+        // may act on a library that is not the caller's, so a tenant would be
+        // the wrong one to set. The service says so by escaping the filters
+        // in exactly one place.
+        var result = await _userAdminService.DeleteDocumentAsync(
+            _userService.UserId!.Value, username, documentHash);
 
-        if (document is null)
+        if (result.Succeeded)
         {
-            return StatusCode(404, new
-            {
-                message = Constants.UserAdmin.DocumentNotFound
-            });
+            LogInfo($"User [{_userService.Username}] deleted document with hash [{documentHash}] for user [{username}].");
+        }
+        else
+        {
+            LogWarning($"DELETE request to /manage/users/documents from [{_userService.Username}] refused: {result.Message}");
         }
 
-        var bookId = document.BookId;
-
-        _db.Documents.Remove(document);
-        _db.SaveChanges();
-
-        RemoveOrphanedBooks([bookId]);
-
-        LogInfo($"User [{_userService.Username}] deleted document with hash [{documentHash}] for user [{username}].");
-
-        return StatusCode(200, new
-        {
-            message = "Success"
-        });
+        return Respond(result, notFoundStatus: 404);
     }
 
     [HttpPut("/manage/users/active")]
@@ -504,7 +493,12 @@ public class ManagementController : ControllerBase
         {
             UserAdminOutcome.Succeeded => 200,
             UserAdminOutcome.NotAnAdministrator => 401,
-            UserAdminOutcome.UserNotFound => notFoundStatus,
+            // An outcome of its own rather than UserNotFound, because it is
+            // deliberately the answer to both "no such Document" and "no such
+            // User" and must not vary with whichever the caller got wrong
+            // (ADR 0004, issue #35) - but the same status either way, so the
+            // endpoint names it the same way.
+            UserAdminOutcome.UserNotFound or UserAdminOutcome.DocumentNotFound => notFoundStatus,
             _ => 400,
         };
 
@@ -512,15 +506,6 @@ public class ManagementController : ControllerBase
         {
             message = result.Message
         });
-    }
-
-    private void RemoveOrphanedBooks(IEnumerable<int> bookIds)
-    {
-        var orphanedBooks = _db.Books
-            .IgnoreQueryFilters()
-            .Where(b => bookIds.Contains(b.Id) && !b.Documents.Any());
-        _db.Books.RemoveRange(orphanedBooks);
-        _db.SaveChanges();
     }
 
     private void LogInfo(string text)

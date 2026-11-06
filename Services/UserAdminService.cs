@@ -31,6 +31,7 @@ public enum UserAdminOutcome
     SelfDeactivationRefused,
     SelfDeletionRefused,
     LastAdministratorRefused,
+    DocumentNotFound,
 }
 
 public record UserAdminResult(UserAdminOutcome Outcome, string Message)
@@ -261,6 +262,104 @@ public class UserAdminService
         return UserAdminResult.Ok(Constants.UserAdmin.Deleted);
     }
 
+    // Deletes one Document of one User's library - the only operation here
+    // that touches a library at all, and the only one anybody but an
+    // Administrator may call.
+    //
+    // An Administrator may delete another User's Document. That is a
+    // deliberate carve-out from "tenancy is absolute" rather than the gap
+    // ADR 0004 originally left it in (issue #35): a Document whose hash went
+    // bad, or a Split Book that wants clearing, is exactly what an
+    // Administrator gets asked to sort out, and "delete the whole account, it
+    // cascades" is wildly disproportionate. Reading a library stays banned -
+    // GET /manage/users/documents refuses an Administrator outright - and the
+    // asymmetry is the point: that GET returned a whole library, while this
+    // can only answer a question about a hash the caller already holds, and a
+    // Document hash is an MD5 over file content with nothing to enumerate.
+    //
+    // Which is why the refusals here say as little as they can. A missing
+    // User and a missing Document are one answer that names neither, so a
+    // caller who guessed wrong is not told which half of the question missed.
+    public async Task<UserAdminResult> DeleteDocumentAsync(
+        int actingUserId, string username, string documentHash)
+    {
+        var acting = await ActingUserAsync(actingUserId);
+
+        // Nobody usable is asking - an inactive User, or an id with no row
+        // behind it. The Administrator sentence is a loose fit for either,
+        // and it is the backstop rather than the answer anybody sees: both
+        // callers turn those away before reaching here, the endpoint with its
+        // own "Unauthorized".
+        if (acting is null)
+        {
+            return NotAnAdministrator();
+        }
+
+        // The one query in this service that escapes the tenant filters to
+        // read a library, and a documented bypass rather than an oversight -
+        // so don't "fix" it. Its Books come along so the orphan sweep below
+        // needs no second bypass of its own: one place escapes the filters
+        // here, and this is it.
+        var target = await _db.Users
+            .IgnoreQueryFilters()
+            .Include(u => u.Documents)
+            .Include(u => u.Books)
+            .FirstOrDefaultAsync(u => u.Username == username);
+
+        // Anybody may delete their own; reaching into somebody else's is the
+        // Administrator capability.
+        //
+        // "Their own" is answered by id where the target resolved, so it
+        // cannot be thrown off by how the username reached us - and by name,
+        // case-insensitively, where it did not. The second half is not
+        // belt-and-braces: a name differing only in case still names the
+        // caller to the caller, the exact-match lookup above cannot say so,
+        // and without it somebody asking about their own library in the
+        // wrong case would be refused as if they had asked about a stranger's
+        // instead of told their Document was not found.
+        var isOwnLibrary = target?.Id == acting.Id ||
+            string.Equals(username, acting.Username, StringComparison.OrdinalIgnoreCase);
+
+        if (!acting.IsAdministrator && !isOwnLibrary)
+        {
+            return NotAnAdministrator();
+        }
+
+        // Safe as a Single because of the unique index on (UserId,
+        // DocumentHash), not because nobody has written the duplicate yet
+        // (ADR 0008, issue #37) - this delete was the one route out of a
+        // duplicate pair, and threw on it like everything else.
+        var document = target?.Documents.SingleOrDefault(d => d.DocumentHash == documentHash);
+
+        if (document is null)
+        {
+            return UserAdminResult.Refused(
+                UserAdminOutcome.DocumentNotFound, Constants.UserAdmin.DocumentNotFound);
+        }
+
+        target!.Documents.Remove(document);
+        _db.Documents.Remove(document);
+
+        // A Book with no Documents left is a phantom in the reader's library
+        // (ADR 0001), so it goes with the last Document on it. Answered from
+        // the rows already loaded rather than by querying again: every
+        // Document on a Book belongs to that Book's owning User (ADR 0004),
+        // so this collection is the whole truth about what is left on it.
+        // That invariant is enforced rather than assumed - the AddBookUserId
+        // migration's `CHECK (OwnerCount = 1)` aborts rather than backfill a
+        // Book two Users share - which is what makes an in-memory answer as
+        // sound as the second filter bypass it replaced.
+        if (!target.Documents.Any(d => d.BookId == document.BookId) &&
+            target.Books.FirstOrDefault(b => b.Id == document.BookId) is Book orphaned)
+        {
+            _db.Books.Remove(orphaned);
+        }
+
+        await _db.SaveChangesAsync();
+
+        return UserAdminResult.Ok(Constants.UserAdmin.Deleted);
+    }
+
     private async Task<UserAdminResult> SetActiveAsync(User acting, User target, bool isActive)
     {
         // Reactivating removes nobody, so neither guard is in play.
@@ -348,9 +447,18 @@ public class UserAdminService
     // check in the path.
     private async Task<User?> ActingAdministratorAsync(int actingUserId)
     {
+        return await ActingUserAsync(actingUserId) is { IsAdministrator: true } acting ? acting : null;
+    }
+
+    // The caller, if they may act at all. Only DeleteDocumentAsync stops
+    // here: it is the one operation a User may call on their own behalf, so
+    // it asks "who is this" and decides about the Administrator capability
+    // itself. Everything else wants the Administrator check folded in.
+    private async Task<User?> ActingUserAsync(int actingUserId)
+    {
         var acting = await _db.Users.FirstOrDefaultAsync(u => u.Id == actingUserId);
 
-        return acting is { IsAdministrator: true, IsActive: true } ? acting : null;
+        return acting is { IsActive: true } ? acting : null;
     }
 
     private static string SelfRefusalMessage(UserAdminOutcome outcome) => outcome switch

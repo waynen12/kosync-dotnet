@@ -105,7 +105,7 @@ namespace Kosync.Database.Migrations
 
         // A losing Document's Book is left behind by the delete above. If it
         // has no other Documents it is a Book nobody can reach - removed the
-        // way RemoveOrphanedBooks removes one after a Document delete - but
+        // way DeleteDocumentAsync removes one after a Document delete - but
         // its Curated Metadata is a title a human typed, which no Document
         // observed and no push will bring back (ADR 0007). So it moves onto
         // the survivor's Book first, per field, and never over an answer that
