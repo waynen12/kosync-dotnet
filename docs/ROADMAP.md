@@ -8,16 +8,19 @@ A design pass after that merge reframed the project substantially: the
 dashboard is **not** a single-operator monitoring tool but a multi-tenant
 portal every reader logs into with their own sync credentials (ADR 0004).
 That, plus a forced first-login password change (ADR 0006), real password
-storage (ADR 0005), and the discovery that KOReader can now push book
-metadata (ADR 0007), are designed and specified but **not yet
-implemented**. Phase 2.5 and Phase 3 below carry that work.
+storage (ADR 0005), and KOReader's new metadata push (ADR 0007), became
+Phase 2.5 and Phase 3.
 
-Two prototyping sessions then settled the UI: layouts and design language
-(ai-hub branding, dense tables over card grids), and the framework
-question — Blazor stays. The prototype itself lives on the
-`design/portal-redesign` branch. **Folding that UI in is the next piece of
-work**, ahead of Phase 2.5, since all of it except the Users page is
-backend-independent.
+Three prototyping sessions settled the UI: layouts and design language
+(ai-hub branding, dense tables over card grids), the framework question
+(Blazor stays, ADR 0003), and the two detail pages.
+
+**Phases 2.5 and 3 are now implemented**, along with the UI fold-in —
+spec [#14](https://github.com/waynen12/kosync-dotnet/issues/14) and its
+23 tickets, all closed. The whole of it lives on the
+`design/portal-redesign` branch and **has not been merged to `main`**;
+that merge, and the manual testing that should precede it, is the next
+piece of work. Phase 4 (AI) has not started.
 
 This doc exists to get the plan out of chat and into the repo so it
 survives between sessions. Domain vocabulary lives in
@@ -28,11 +31,17 @@ SyncEvent, Split Book, Observed/Curated Metadata, Progress Reset).
 Decisions with real reasoning behind them are recorded as ADRs in
 [docs/adr/](adr/) rather than repeated here.
 
-**Implementation tickets** for everything below that isn't done live under
+**Implementation tickets** for the Phase 2.5/3 work lived under
 [#14](https://github.com/waynen12/kosync-dotnet/issues/14) — the spec
 issue, with each phase's tickets as sub-issues and blocking recorded as
-native GitHub issue dependencies. The ready-to-start frontier is whichever
-of them has no open blocker.
+native GitHub issue dependencies. All 23 are closed; the issue history is
+the record of how each decision below was actually built, including the
+four bugs the reviews caught along the way
+([#35](https://github.com/waynen12/kosync-dotnet/issues/35),
+[#36](https://github.com/waynen12/kosync-dotnet/issues/36),
+[#37](https://github.com/waynen12/kosync-dotnet/issues/37),
+[#38](https://github.com/waynen12/kosync-dotnet/issues/38),
+[#40](https://github.com/waynen12/kosync-dotnet/issues/40)).
 
 ## Guiding constraint
 
@@ -184,7 +193,7 @@ discharges the fold-in ordering constraint below.
 Note [#1](https://github.com/waynen12/kosync-dotnet/issues/1), the
 Phases 0-2 spec, is also still open despite that work having shipped.
 
-### Phase 2.5 — Accounts, passwords and tenancy — designed, not started
+### Phase 2.5 — Accounts, passwords and tenancy — ✅ Done ([#20](https://github.com/waynen12/kosync-dotnet/issues/20)-[#28](https://github.com/waynen12/kosync-dotnet/issues/28))
 
 Numbered 2.5 rather than 3 only to keep the existing Phase 3/4 references
 stable. In scope and effort this is the largest change since Phase 0: it
