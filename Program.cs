@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +15,9 @@ builder.Services.Configure<PasswordPolicyOptions>(
 builder.Services.Configure<PortalOptions>(
     builder.Configuration.GetSection(Constants.Portal.ConfigurationSection));
 
+builder.Services.Configure<SyncTraceOptions>(
+    builder.Configuration.GetSection(Constants.SyncTrace.ConfigurationSection));
+
 builder.Services.AddMemoryCache();
 
 builder.Services.AddSingleton<ProxyService, ProxyService>();
@@ -22,6 +26,7 @@ builder.Services.AddSingleton<PasswordHasher, PasswordHasher>();
 builder.Services.AddSingleton<PasswordPolicy, PasswordPolicy>();
 builder.Services.AddScoped<TenantContext, TenantContext>();
 builder.Services.AddScoped<IPService, IPService>();
+builder.Services.AddScoped<RequestLogFormatter, RequestLogFormatter>();
 builder.Services.AddScoped<UserService, UserService>();
 builder.Services.AddScoped<PortalTenantResolver, PortalTenantResolver>();
 builder.Services.AddScoped<UserAdminService, UserAdminService>();
@@ -83,9 +88,24 @@ using (var scope = app.Services.CreateScope())
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     var passwordHasher = scope.ServiceProvider.GetRequiredService<PasswordHasher>();
     KosyncDbInitializer.Initialize(db, tenant, dataDirectory, passwordHasher, logger);
+
+    // Said once, out loud, when the trace is on. Without it an operator who
+    // sees no trace lines cannot tell "the setting did not take" from "the
+    // device never reached this server" - and telling those apart is usually
+    // the reason they turned it on.
+    if (scope.ServiceProvider.GetRequiredService<IOptions<SyncTraceOptions>>().Value.IsEnabled)
+    {
+        logger.LogWarning(Constants.SyncTrace.EnabledNotice);
+    }
 }
 
 app.UseForwardedHeaders();
+
+// First in the pipeline, because the requests worth tracing are the ones
+// that never reach an endpoint: a 404 on a path we do not serve is the
+// diagnosis, and anything placed later would not see it. After
+// UseForwardedHeaders, because the line it writes names the client.
+app.UseMiddleware<SyncTraceMiddleware>();
 
 app.UseStaticFiles();
 

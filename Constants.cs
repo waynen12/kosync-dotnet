@@ -27,6 +27,135 @@ public static class Constants
         public const string EmptyProgressBody = "{}";
     }
 
+    // How a sync log line is stamped, for the one formatter that writes them
+    // (RequestLogFormatter).
+    public static class Logging
+    {
+        public const string TimestampFormat = "yyyy/MM/dd HH:mm:ss";
+
+        // Marks a request that did *not* arrive through one of the configured
+        // TRUSTED_PROXIES, so the IP beside it is the connection's own rather
+        // than a forwarded one. Only ever appears once proxies are set at
+        // all - with none configured there is nothing to contrast against.
+        public const string UntrustedSourceMarker = "*";
+    }
+
+    // The Sync Trace: what an operator turns on to watch one device's
+    // requests and the answers it got. Defaults only - the live values come
+    // from the "SyncTrace" configuration section via SyncTraceOptions.
+    //
+    // Exists because the per-endpoint logging can only report what a
+    // controller action chose to say, so it is blind to every request that
+    // never reaches one: a path we do not serve, a verb we do not accept, a
+    // body model binding refused. Those answer 404/405/400 silently, and a
+    // reader whose device gets one sees a sync that just stops (issue #41).
+    public static class SyncTrace
+    {
+        public const string ConfigurationSection = "SyncTrace";
+
+        // What SyncTrace__Enabled has to say to turn the trace on. Compared
+        // case-insensitively, like SELF_REGISTRATION_ENABLED, and for a
+        // sharper reason than tidiness: binding this section to a `bool`
+        // throws on the first request if an operator typed `yes`, and an
+        // InvalidOperationException per request is a worse outage than the
+        // bug they turned the trace on to find. Anything but this value
+        // leaves it off, which is the safe way round.
+        public const string EnabledValue = "true";
+
+        // Enough for any protocol body - a progress push with metadata is a
+        // few hundred characters - without letting a surprise payload fill
+        // the log. Also what an unparseable MaxBodyCharacters falls back to.
+        public const int DefaultMaxBodyCharacters = 2048;
+
+        // A configured value below this means "trace the exchange but none of
+        // its bodies", which is a legitimate thing to want. Negatives are
+        // clamped up to it rather than throwing on the first request.
+        public const int MinimumMaxBodyCharacters = 0;
+
+        // One entry as the request arrives, one as the answer leaves, both
+        // tagged with the marker so an operator can grep the pair out of
+        // everything else, and both carrying the request's trace identifier
+        // so the pair stays matched when two devices sync at once. The
+        // arrows read as the device's point of view: --> is what it sent.
+        public const string Marker = "Sync trace";
+
+        public const string RequestArrow = "-->";
+
+        public const string ResponseArrow = "<--";
+
+        public const string RequestFormat = Marker + " {0} " + RequestArrow + " {1} {2}";
+
+        public const string ResponseFormat = Marker + " {0} " + ResponseArrow + " {1} in {2} ms";
+
+        // When the pipeline threw before any answer was sent. Deliberately
+        // not a status code: nothing had set one yet, so printing
+        // Response.StatusCode here would report a 200 the device never got.
+        public const string FaultFormat =
+            Marker + " {0} " + ResponseArrow + " threw after {1} ms, before any answer was sent";
+
+        // Written once at startup when the trace is on, so an operator who
+        // sees no trace lines knows the difference between "the setting did
+        // not take" and "the device never reached this server" - which is the
+        // whole question they are usually trying to answer.
+        public const string EnabledNotice =
+            "Sync Trace is ON: every sync client request and response will be logged, "
+            + "including bodies. Unset " + ConfigurationSection + "__Enabled to stop.";
+
+        public const string SectionSeparator = " | ";
+
+        public const string HeaderSeparator = "; ";
+
+        public const string HeaderFormat = "{0}: {1}";
+
+        // Stands in for any value that must never reach a log file. Written
+        // rather than dropped, because "this header arrived and we are not
+        // printing it" and "this header never arrived" are different
+        // diagnoses and the trace exists to tell them apart.
+        public const string RedactedValue = "[redacted]";
+
+        public const string EmptyBodyText = "(no body)";
+
+        public const string TruncationSuffix = "...[truncated]";
+
+        // Request headers whose values are never written out. The auth key is
+        // the credential itself; the other three are the portal's own
+        // session, which a device never sends but a browser poking at these
+        // paths would.
+        public static readonly string[] RedactedHeaders =
+        [
+            AuthHeaders.AuthKey,
+            "authorization",
+            "cookie",
+            "set-cookie",
+        ];
+
+        // Body fields whose values are never written out, by their wire
+        // names - `password` covers UserCreateRequest and
+        // PasswordChangeRequest, the two bodies that carry one.
+        //
+        // Matched against the field names of a *parsed* body rather than its
+        // text, so an escaped spelling like "password" is caught too.
+        public static readonly string[] RedactedBodyFields =
+        [
+            "password",
+        ];
+
+        // Traced even when the request carries no x-auth-user header, which
+        // is how a device that failed to send its credentials at all still
+        // shows up. Everything else is recognised by that header instead, so
+        // a device hitting a path nobody serves is traced too - the case this
+        // whole feature exists for.
+        //
+        // The same spellings the endpoints are routed on, so the two cannot
+        // drift apart.
+        public static readonly string[] ProtocolPaths =
+        [
+            AppRoutes.UsersAuth,
+            AppRoutes.UsersCreate,
+            AppRoutes.SyncsProgress,
+        ];
+    }
+
     // What the database says when it refuses a write, for the one refusal the
     // server answers rather than reports (DocumentRegistry).
     public static class Sqlite

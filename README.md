@@ -88,6 +88,27 @@ The `TRUSTED_PROXIES` environment variable is an optional variable that defines 
 
 If you would like logging output to be on a single line, you may add the environment variable `SINGLE_LINE_LOGGING` and set it to `true`.
 
+### Tracing a device that will not sync
+
+The per-endpoint log lines only cover requests that reached an endpoint. When a device asks for a path this server does not serve, uses a verb it does not accept, or sends a body it cannot bind, the answer is a 404, 405 or 400 that nothing writes down — so the log shows the device never asked, while the reader sees a sync that silently stops.
+
+`SyncTrace__Enabled` records the whole exchange instead: one line for what arrived, one for what went back.
+
+```yaml
+    environment:
+      - SyncTrace__Enabled=true
+      # How much of each body to write, in characters. 2048 is the default;
+      # 0 traces the exchange and none of its bodies.
+      - SyncTrace__MaxBodyCharacters=2048
+```
+
+```
+[2026/11/10 20:29:11] [10.0.0.9] Sync trace --> GET /syncs/progress/1924aa71 | Host: kosync.example.org; User-Agent: CrossPoint/1.0; x-auth-user: wayne; x-auth-key: [redacted] | (no body)
+[2026/11/10 20:29:11] [10.0.0.9] Sync trace <-- 200 in 4 ms | {}
+```
+
+Only requests from sync clients are traced — the dashboard's own traffic is left out, so the device's exchange is not buried in it. `x-auth-key` and any `password` field are replaced with `[redacted]`, but everything else is written out verbatim, including document hashes and reading positions. It is a diagnostic to turn on while you chase a problem and off again afterwards, which is why it ships disabled.
+
 Mapping user to `1000:1000` is just a way to ensure the database files are created using your own user, rather than root. If your operating system user ID is different from `1000:1000`, change it to yours.
 
 This example doesn't expose any ports for the container, however the sync server is accessible via port `8080` inside the container. The recommendation is to expose the server via a reverse proxy such as [Nginx Proxy Manager](https://nginxproxymanager.com/).

@@ -201,6 +201,20 @@ records and shows both.
 _Avoid_: SyncEvent (for this specific action), restart (fine as a verb,
 but the record itself is a Progress Reset)
 
+**Sync Trace**:
+A log of the whole exchange with a sync client — what each request carried
+and what went back — that an operator switches on to diagnose a Device
+that will not sync, and off again afterwards. Not the endpoints' own
+logging and not a replacement for it: that reports what an action decided,
+which means it cannot see a request that reached no action at all. The
+Trace is specifically for those: a path this server does not serve, a verb
+it does not accept, a body it would not bind. Nothing persists it and
+nothing in the portal shows it; it is log output, and a Device's reading
+positions and document hashes are in it verbatim.
+_Avoid_: audit log (nothing here is kept or accountable to anything),
+request log (too generic — this is the sync surface only), debug logging
+(names a level, not this thing)
+
 ### Design system
 
 **Hub design language**:

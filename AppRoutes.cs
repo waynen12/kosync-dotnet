@@ -2,6 +2,21 @@ namespace Kosync;
 
 public static class AppRoutes
 {
+    // The KOReader sync protocol surface, whose spellings are fixed by the
+    // client rather than chosen by us (docs/ROADMAP.md, "Guiding
+    // constraint"). Here rather than only in SyncController's attributes
+    // because the Sync Trace has to recognise the same paths, and two
+    // spellings of a route are two things to keep in step.
+    public const string UsersAuth = "/users/auth";
+
+    public const string UsersCreate = "/users/create";
+
+    public const string SyncsProgress = "/syncs/progress";
+
+    // The pull. A child of the push's own path, which is the protocol's
+    // shape, not an accident.
+    public const string SyncsProgressForDocument = SyncsProgress + "/{documentHash}";
+
     public const string Login = "/login";
 
     // The forced first password change (ADR 0006) and the one way out of it

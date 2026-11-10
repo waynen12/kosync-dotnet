@@ -8,8 +8,7 @@ public class SyncController : ControllerBase
 {
     private ILogger<SyncController> _logger;
 
-    private ProxyService _proxyService;
-    private IPService _ipService;
+    private RequestLogFormatter _logFormatter;
     private KosyncDbContext _db;
     private UserService _userService;
     private PasswordHasher _passwordHasher;
@@ -18,11 +17,10 @@ public class SyncController : ControllerBase
     private DocumentRegistry _documentRegistry;
 
 
-    public SyncController(ILogger<SyncController> logger, ProxyService proxyService, IPService ipService, KosyncDbContext db, UserService userService, PasswordHasher passwordHasher, TenantContext tenant, IOptions<PortalOptions> portal, DocumentRegistry documentRegistry)
+    public SyncController(ILogger<SyncController> logger, RequestLogFormatter logFormatter, KosyncDbContext db, UserService userService, PasswordHasher passwordHasher, TenantContext tenant, IOptions<PortalOptions> portal, DocumentRegistry documentRegistry)
     {
         _logger = logger;
-        _proxyService = proxyService;
-        _ipService = ipService;
+        _logFormatter = logFormatter;
         _db = db;
         _userService = userService;
         _passwordHasher = passwordHasher;
@@ -82,7 +80,7 @@ public class SyncController : ControllerBase
         });
     }
 
-    [HttpGet("/users/auth")]
+    [HttpGet(AppRoutes.UsersAuth)]
     public ObjectResult AuthoriseUser()
     {
         string? username = Request.Headers[Constants.AuthHeaders.Username];
@@ -139,7 +137,7 @@ public class SyncController : ControllerBase
             Constants.SelfRegistration.EnabledValue,
             StringComparison.OrdinalIgnoreCase);
 
-    [HttpPost("/users/create")]
+    [HttpPost(AppRoutes.UsersCreate)]
     public ObjectResult CreateUser(UserCreateRequest payload)
     {
         if (!SelfRegistrationEnabled)
@@ -184,7 +182,7 @@ public class SyncController : ControllerBase
         });
     }
 
-    [HttpPut("/syncs/progress")]
+    [HttpPut(AppRoutes.SyncsProgress)]
     public ObjectResult SyncProgress(DocumentRequest payload)
     {
         if (!_userService.IsAuthenticated)
@@ -292,7 +290,7 @@ public class SyncController : ControllerBase
         });
     }
 
-    [HttpGet("/syncs/progress/{documentHash}")]
+    [HttpGet(AppRoutes.SyncsProgressForDocument)]
     public IActionResult GetProgress(string documentHash)
     {
         if (!_userService.IsAuthenticated)
@@ -394,18 +392,6 @@ public class SyncController : ControllerBase
 
     private void Log(LogLevel level, string text)
     {
-        string logMsg = $"[{DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")}] [{_ipService.ClientIP}]";
-
-
-        // If trusted proxies are set but this request comes from another address, mark it
-        if (_proxyService.TrustedProxies.Length > 0 &&
-            !_ipService.TrustedProxy)
-        {
-            logMsg += "*";
-        }
-
-        logMsg += $" {text}";
-
-        _logger?.Log(level, logMsg);
+        _logger?.Log(level, _logFormatter.Prefixed(text));
     }
 }

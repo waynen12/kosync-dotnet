@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Kosync.Tests;
 
@@ -44,6 +45,19 @@ public class KosyncWebApplicationFactory : WebApplicationFactory<Program>
     // setting unconfigured, so the app falls back to its shipped default the
     // way a deployment that never set it does.
     public string? PortalBaseUrl { get; init; }
+
+    // Whether the operator has turned the Sync Trace on. Null leaves
+    // SyncTrace:Enabled unconfigured, so the app falls back to its shipped
+    // default - which is off, and which SyncTraceTests asserts.
+    public bool? SyncTraceEnabled { get; init; }
+
+    // Stands in for the operator's own SyncTrace:MaxBodyCharacters. Null
+    // leaves it unconfigured, so bodies are cut at the shipped default.
+    public int? SyncTraceMaxBodyCharacters { get; init; }
+
+    // Every log entry the app has written. The Sync Trace's whole observable
+    // behaviour is what lands in here.
+    public RecordingLoggerProvider Logs { get; } = new();
 
     // Something to do to the database from inside the app's own
     // SaveChanges - RivalDocumentPush being the one that exists, which lands
@@ -144,6 +158,22 @@ public class KosyncWebApplicationFactory : WebApplicationFactory<Program>
         {
             builder.UseSetting($"{Constants.Portal.ConfigurationSection}:BaseUrl", PortalBaseUrl);
         }
+
+        if (SyncTraceEnabled is not null)
+        {
+            builder.UseSetting(
+                $"{Constants.SyncTrace.ConfigurationSection}:Enabled",
+                SyncTraceEnabled.Value.ToString());
+        }
+
+        if (SyncTraceMaxBodyCharacters is not null)
+        {
+            builder.UseSetting(
+                $"{Constants.SyncTrace.ConfigurationSection}:MaxBodyCharacters",
+                SyncTraceMaxBodyCharacters.Value.ToString());
+        }
+
+        builder.ConfigureLogging(logging => logging.AddProvider(Logs));
 
         builder.ConfigureServices(services =>
         {
