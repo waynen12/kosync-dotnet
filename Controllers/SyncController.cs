@@ -343,35 +343,41 @@ public class SyncController : ControllerBase
 
         var syncEvent = document?.SyncEvents.Current();
 
+        string json;
+
         if (syncEvent is null)
         {
+            // Still worth recording that nothing was there, but it is not an
+            // error to the caller (Constants.SyncProtocol.EmptyProgressBody,
+            // issue #41). Out through the same ContentResult as a populated
+            // answer - one response mechanism for this endpoint, not two.
             LogInfo($"Document hash [{documentHash}] not found for user [{_userService.Username}].");
-            return StatusCode(502, new
-            {
-                message = "Document not found on server"
-            });
+
+            json = Constants.SyncProtocol.EmptyProgressBody;
         }
-
-        LogInfo($"Received progress request for user [{_userService.Username}] with document hash [{documentHash}].");
-
-        var time = new DateTimeOffset(syncEvent.Timestamp);
-
-        var result = new
+        else
         {
-            device = syncEvent.Device.DeviceName,
-            device_id = syncEvent.Device.DeviceId,
-            document = document!.DocumentHash,
-            percentage = syncEvent.Percentage,
-            progress = syncEvent.Progress,
-            timestamp = time.ToUnixTimeSeconds()
-        };
+            LogInfo($"Received progress request for user [{_userService.Username}] with document hash [{documentHash}].");
 
-        string json = System.Text.Json.JsonSerializer.Serialize(result);
+            var time = new DateTimeOffset(syncEvent.Timestamp);
+
+            var result = new
+            {
+                device = syncEvent.Device.DeviceName,
+                device_id = syncEvent.Device.DeviceId,
+                document = document!.DocumentHash,
+                percentage = syncEvent.Percentage,
+                progress = syncEvent.Progress,
+                timestamp = time.ToUnixTimeSeconds()
+            };
+
+            json = System.Text.Json.JsonSerializer.Serialize(result);
+        }
 
         return new ContentResult()
         {
             Content = json,
-            ContentType = "application/json",
+            ContentType = Constants.SyncProtocol.ProgressContentType,
             StatusCode = 200
         };
     }

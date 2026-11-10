@@ -11,6 +11,22 @@ public static class Constants
         public const string AuthKey = "x-auth-key";
     }
 
+    // The wire shape of `GET /syncs/progress/{hash}`, which is fixed by the
+    // reference server (koreader-sync-server) rather than by us.
+    public static class SyncProtocol
+    {
+        public const string ProgressContentType = "application/json";
+
+        // What a Document with no current progress answers with, at 200.
+        // The reference server's get_progress builds an empty table, fills
+        // it only if progress exists, and returns 200 either way - it has no
+        // document-not-found error at all, so "this reader has not synced
+        // this book yet" is 200 {} there (issue #41). A 502 in its place is
+        // a server-fault code for the first sync of every book, and a client
+        // that pulls before it pushes reads one as fatal and never pushes.
+        public const string EmptyProgressBody = "{}";
+    }
+
     // What the database says when it refuses a write, for the one refusal the
     // server answers rather than reports (DocumentRegistry).
     public static class Sqlite

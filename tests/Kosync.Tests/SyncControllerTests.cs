@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using Kosync.Database;
 using Kosync.Database.Entities;
 using Kosync.Models;
@@ -112,12 +113,79 @@ public class SyncControllerTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    // Was GetProgress_WhenDocumentDoesNotExist_Returns502: kept as the
+    // regression guard rather than replaced, now asserting the contract the
+    // reference server actually has
+    // (Constants.SyncProtocol.EmptyProgressBody, issue #41).
     [Fact]
-    public async Task GetProgress_WhenDocumentDoesNotExist_Returns502()
+    public async Task GetProgress_WhenDocumentDoesNotExist_Returns200WithEmptyBody()
     {
         var response = await GetAsync("/syncs/progress/does-not-exist", "admin", "admin");
+        var body = await BodyAsync(response);
 
-        Assert.Equal((HttpStatusCode)502, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(JsonValueKind.Object, body.ValueKind);
+        Assert.Empty(body.EnumerateObject());
+    }
+
+    // The ordering a client that pulls before it pushes uses: one "sync"
+    // action, pulling first and pushing second. That first pull is every
+    // book's first sync, so a client reading it as a hard failure never
+    // reaches the push - which is how the 502 stopped a reader syncing at
+    // all (issue #41).
+    [Fact]
+    public async Task GetProgress_PullBeforeFirstPush_DoesNotBlockThePush()
+    {
+        var firstPull = await GetAsync("/syncs/progress/hash1", "admin", "admin");
+        var firstPullBody = await BodyAsync(firstPull);
+
+        Assert.Equal(HttpStatusCode.OK, firstPull.StatusCode);
+        Assert.Empty(firstPullBody.EnumerateObject());
+
+        var push = await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1",
+            progress = "p1",
+            percentage = 0.25m,
+            device = "Xteink",
+            device_id = "device-1"
+        }, "admin", "admin");
+
+        Assert.Equal(HttpStatusCode.OK, push.StatusCode);
+
+        var secondPull = await GetAsync("/syncs/progress/hash1", "admin", "admin");
+        var secondPullBody = await BodyAsync(secondPull);
+
+        Assert.Equal(HttpStatusCode.OK, secondPull.StatusCode);
+        Assert.Equal("hash1", secondPullBody.GetProperty("document").GetString());
+        Assert.Equal("p1", secondPullBody.GetProperty("progress").GetString());
+        Assert.Equal(0.25m, secondPullBody.GetProperty("percentage").GetDecimal());
+        Assert.Equal("device-1", secondPullBody.GetProperty("device_id").GetString());
+    }
+
+    // The other way a Document reaches "no current progress": it has synced
+    // before and a Progress Reset cleared the pointer. Same branch, same
+    // answer - a reader who restarts a book is back to the first-sync case,
+    // not looking at a server fault.
+    [Fact]
+    public async Task GetProgress_AfterProgressReset_Returns200WithEmptyBody()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1",
+            progress = "p1",
+            percentage = 0.25m,
+            device = "Kobo",
+            device_id = "device-1"
+        }, "admin", "admin");
+
+        await ResetProgressAsync("hash1");
+
+        var response = await GetAsync("/syncs/progress/hash1", "admin", "admin");
+        var body = await BodyAsync(response);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Empty(body.EnumerateObject());
     }
 
     [Fact]
