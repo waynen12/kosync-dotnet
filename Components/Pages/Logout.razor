@@ -1,0 +1,66 @@
+@* @page requires a literal - keep this in sync with AppRoutes.Logout *@
+@page "/logout"
+@attribute [Authorize]
+@layout LoginLayout
+@inject NavigationManager Navigation
+@inject IPService IPService
+@inject ILogger<Logout> Logger
+
+@* Static SSR, like /login and /change-password: signing out writes to the
+   response, which needs an HttpContext an interactive render does not have
+   (ADR 0003).
+
+   A confirm screen rather than a link that signs you out on GET. A bare GET
+   endpoint is signed out by anything that fetches the URL - a link preview,
+   a prefetching browser - and Blazor's answer to that is a form post with an
+   antiforgery token, which a named form gets for free. The cost is one
+   click, on an action taken rarely.
+
+   It is also the second escape route PasswordChangeGateMiddleware allows, so
+   like /change-password it must not depend on a circuit a gated User would
+   never be let past. *@
+
+<PageTitle>@Constants.Logout.PageTitle</PageTitle>
+
+<div class="hub-login">
+    <div class="hub-login-card">
+        <div class="hub-login-head">
+            <h1 class="hub-login-title">@Constants.Logout.PageTitle</h1>
+            <p class="hub-login-sub">@Constants.Logout.Subheading</p>
+        </div>
+
+        <EditForm Model="this" FormName="logout" OnSubmit="HandleLogout" method="post">
+            <div class="hub-stack-4">
+                <button type="submit" class="hub-btn hub-btn-brand hub-btn-lg hub-btn-block">
+                    @Constants.Logout.SubmitText
+                </button>
+            </div>
+        </EditForm>
+
+        @* Back to wherever the gate puts them, which is the dashboard for a
+           User whose password is their own and the change-password page for
+           one whose is not. Deliberately not a guess at which - the gate is
+           the thing that knows. *@
+        <p class="hub-login-hint">
+            <a class="hub-login-link" href="@AppRoutes.Dashboard">@Constants.Logout.CancelText</a>
+        </p>
+
+        <p class="hub-login-hint">@Constants.Logout.Explanation</p>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private async Task HandleLogout()
+    {
+        var username = HttpContext.User.Identity?.Name;
+
+        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+
+        Logger.LogInformation("[{ip}] User [{username}] signed out of the portal.", IPService.ClientIP, username);
+
+        Navigation.NavigateTo(AppRoutes.Login, forceLoad: true);
+    }
+}
