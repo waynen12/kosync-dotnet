@@ -120,6 +120,33 @@ public class SignOutTests : IntegrationTestBase
         Assert.Equal(AppRoutes.Login, response.Headers.Location!.AbsolutePath);
     }
 
+    // The change-password page's dead end, and the second caller of the
+    // sign-out itself: a cookie naming a User who no longer exists has
+    // nothing to change, and signing out is the only sensible outcome.
+    //
+    // It cannot get there by being sent to the sign-out endpoint, which is a
+    // POST and so is not somewhere a redirect can go - so the page ends the
+    // session itself, and this is what says it really does rather than
+    // merely landing on /login with a live cookie.
+    [Fact]
+    public async Task AChangePasswordPostByADeletedUser_SignsThemOut()
+    {
+        using var client = await Factory.SignedInClientAsync();
+
+        Factory.DeleteStoredUser(Constants.Admin.Username);
+
+        var response = await PortalForms.ChangePasswordAsync(
+            client, Constants.Admin.DefaultPassword, TestPasswords.Chosen);
+
+        Assert.Equal(HttpStatusCode.Found, response.StatusCode);
+        Assert.Equal(AppRoutes.Login, response.Headers.Location!.PathAndQuery);
+
+        // The cookie is gone, not merely unusable: a challenge is what an
+        // anonymous request gets, and leaving the session alive would have
+        // let the next request through to a page that reads a missing User.
+        DashboardLogin.AssertClearedTheSessionCookie(response);
+    }
+
     private static async Task AssertStillSignedIn(HttpClient client)
     {
         var dashboard = await client.GetAsync(AppRoutes.Dashboard);

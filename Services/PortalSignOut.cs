@@ -13,16 +13,23 @@ namespace Kosync.Services;
 // Takes the HttpContext rather than reading one from an accessor: signing out
 // writes a Set-Cookie header to *this* response, so the context is the thing
 // being acted on and not an ambient detail (ADR 0003).
+//
+// Takes a factory rather than a logger, so that the category is this module's
+// and not each caller's. Handed an ILogger, the two callers would write the
+// same sentence under two different categories - Kosync.Logout from the
+// endpoint and Kosync.Components.Pages.ChangePassword from the page - and an
+// operator filtering their log for sign-outs would see half of them.
 public static class PortalSignOut
 {
-    public static async Task EndAsync(HttpContext context, IPService ipService, ILogger logger)
+    public static async Task EndAsync(
+        HttpContext context, IPService ipService, ILoggerFactory loggerFactory)
     {
         // Read before the sign-out, which is what empties it.
         var username = context.User.Identity?.Name;
 
         await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 
-        logger.LogInformation(
+        loggerFactory.CreateLogger(Constants.Logout.LogCategory).LogInformation(
             "[{ip}] User [{username}] signed out of the portal.", ipService.ClientIP, username);
     }
 }

@@ -17,10 +17,28 @@
 <form class="hub-signout" method="post" action="@AppRoutes.Logout">
     <AntiforgeryToken />
 
+    @* aria-label only where there is no visible text to name the button -
+       which is the nav, where the control is an icon. Setting it
+       unconditionally was wrong: it overrides the accessible name, so the
+       button reading "Sign out instead" on /change-password would have been
+       announced as "Sign out", and a visible label has to be contained in
+       the accessible name (WCAG 2.5.3 Label in Name). Blazor omits a null
+       attribute, so the call site that has text simply leaves it unset and
+       the text becomes the name. *@
     <button type="submit" class="@Class"
-            title="@Constants.Logout.ControlTitle" aria-label="@Constants.Logout.ActionLabel">
+            title="@Constants.Logout.ControlTitle"
+            aria-label="@Label"
+            aria-describedby="@Constants.Logout.ExplanationId">
         @ChildContent
     </button>
+
+    @* The Explanation, for everyone rather than only a mouse. It is on the
+       button's `title` too, but a tooltip needs a hover: a screen reader
+       would never reach it, and a touch device has nothing to hover with.
+       Described-by rather than a second label, because it is not what the
+       control is called - it is the reassurance that signing out of the
+       portal is not what stopped a Device syncing. *@
+    <span id="@Constants.Logout.ExplanationId" class="hub-sr-only">@Constants.Logout.Explanation</span>
 </form>
 
 @code {
@@ -30,6 +48,11 @@
     [Parameter]
     public string Class { get; set; } = "";
 
+    // The accessible name, for a call site whose ChildContent is an icon and
+    // so names nothing. Left null by a call site with visible text.
+    [Parameter]
+    public string? Label { get; set; }
+
     [Parameter, EditorRequired]
-    public RenderFragment? ChildContent { get; set; }
+    public RenderFragment ChildContent { get; set; } = default!;
 }

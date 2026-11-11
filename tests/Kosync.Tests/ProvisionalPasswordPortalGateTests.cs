@@ -154,23 +154,29 @@ public class ProvisionalPasswordPortalGateTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    // Reachable, which since issue #43 is a question about the page the gate
-    // sends them to rather than about /logout itself: there is no sign-out
-    // screen to reach any more, only a control, and the nav's copy of it is in
-    // the app shell on the far side of the gate. If the change-password page
-    // did not carry one, a User holding a Provisional Password would be shut
-    // in with no way out - which is what this guards, the post being allowed
-    // through being SigningOut_WithAProvisionalPassword_EndsTheSession's half.
+    // This is issue #24's Logout_WithAProvisionalPassword_IsReachable, kept
+    // and reshaped by issue #43 rather than deleted. "Reachable" is now a
+    // question about the page the gate sends them to rather than about
+    // /logout, which serves no GET at all: there is no sign-out screen any
+    // more, only a control, and the nav's copy of it is in the app shell on
+    // the far side of the gate. If the change-password page did not carry
+    // one, a User holding a Provisional Password would be shut in with no way
+    // out.
+    //
+    // Renamed with the control it now asks about - the glossary's Sign Out
+    // entry keeps "Logout" for the URL and nothing else. That the page itself
+    // answers 200 is ChangePassword_WithAProvisionalPassword_IsReachable's
+    // assertion, above, and that the post is let through is
+    // SigningOut_WithAProvisionalPassword_EndsTheSession's; what is only
+    // asserted here is that the control is on the page.
     [Fact]
-    public async Task Logout_WithAProvisionalPassword_IsReachable()
+    public async Task SigningOut_WithAProvisionalPassword_IsReachable()
     {
         using var client = await Factory.SignedInClientAsync();
 
-        var response = await client.GetAsync(AppRoutes.ChangePassword);
+        var html = await (await client.GetAsync(AppRoutes.ChangePassword)).Content.ReadAsStringAsync();
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-        var form = PortalForms.SignOutFormIn(await response.Content.ReadAsStringAsync());
+        var form = PortalForms.SignOutFormIn(html);
 
         Assert.Contains("type=\"submit\"", form);
         Assert.Contains("name=\"__RequestVerificationToken\"", form);

@@ -88,6 +88,21 @@ public static class TestDb
         return db.Set<TEntity>().Count();
     }
 
+    // Deletes a User out from under a live session, which is the one way to
+    // arrange the state a cookie naming a User who no longer exists is in -
+    // nothing a caller can ask for produces it, and it is what the
+    // change-password page's dead end exists for (issue #43). Deleted
+    // directly rather than through UserAdminService, because that route
+    // refuses to delete the admin and the admin is who the session is.
+    public static void DeleteStoredUser(this KosyncWebApplicationFactory factory, string username)
+    {
+        using var scope = factory.CreateSystemScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+
+        db.Users.Remove(db.Users.Single(u => u.Username == username));
+        db.SaveChanges();
+    }
+
     // Who a test is acting as, for the services that take the acting User's
     // id rather than resolving one ambiently (ADR 0004) - UserAdminService
     // being the first. Throws if the User does not exist, so a typo fails

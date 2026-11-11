@@ -40,7 +40,10 @@
                             <HubIcon Name="@Constants.Icons.KeyRound" Size="@Constants.Icons.ButtonSize" />
                         </a>
 
-                        <SignOutForm Class="hub-icon-btn">
+                        @* Label, because the button's content is an icon and
+                           an icon names nothing. The card's copy of the
+                           control has visible text and needs none. *@
+                        <SignOutForm Class="hub-icon-btn" Label="@Constants.Logout.ActionLabel">
                             <HubIcon Name="@Constants.Icons.LogOut" Size="@Constants.Icons.ButtonSize" />
                         </SignOutForm>
                     </Authorized>

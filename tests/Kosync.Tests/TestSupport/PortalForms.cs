@@ -29,13 +29,13 @@ public static class PortalForms
     // - the token is scraped from whatever page the control is rendered on,
     // and posted to /logout.
     //
-    // /change-password by default, because it is the one page carrying the
-    // control that *every* signed-in User can reach: a User holding a
-    // Provisional Password is gated away from the app shell the nav lives in.
-    public static async Task<HttpResponseMessage> LogOutAsync(
-        HttpClient client, string tokenFrom = AppRoutes.ChangePassword)
+    // The token comes off /change-password, because it is the one page
+    // carrying the control that *every* signed-in User can reach: a User
+    // holding a Provisional Password is gated away from the app shell the nav
+    // lives in.
+    public static async Task<HttpResponseMessage> LogOutAsync(HttpClient client)
     {
-        var html = await (await client.GetAsync(tokenFrom)).Content.ReadAsStringAsync();
+        var html = await (await client.GetAsync(AppRoutes.ChangePassword)).Content.ReadAsStringAsync();
 
         return await client.PostAsync(AppRoutes.Logout, new FormUrlEncodedContent(
             new Dictionary<string, string>
@@ -44,21 +44,11 @@ public static class PortalForms
             }));
     }
 
-    // The sign-out form in a rendered page, found by where it posts. Every
-    // page that carries it also carries a form of its own, so "the form on
-    // the page" is not a thing a test can mean here either.
-    public static string SignOutFormIn(string html)
-    {
-        var form = Regex.Matches(html, "<form.*?</form>", RegexOptions.Singleline)
-            .SingleOrDefault(match => match.Value.Contains($"action=\"{AppRoutes.Logout}\""));
-
-        Assert.NotNull(form);
-
-        return form.Value;
-    }
-
-    public static string AntiforgeryTokenIn(string form) =>
-        Regex.Match(form, "name=\"__RequestVerificationToken\" value=\"([^\"]*)\"").Groups[1].Value;
+    // The sign-out form in a rendered page, found by where it posts rather
+    // than by a form name: it is not a named form, and every page that
+    // carries it also carries a form of its own.
+    public static string SignOutFormIn(string html) =>
+        FormIn(html, $"action=\"{AppRoutes.Logout}\"");
 
     // Scrapes the page's form fields, then posts the given values back to it.
     public static async Task<HttpResponseMessage> SubmitAsync(
@@ -82,14 +72,8 @@ public static class PortalForms
     {
         var html = await (await client.GetAsync(url)).Content.ReadAsStringAsync();
 
-        var form = Regex.Matches(html, "<form.*?</form>", RegexOptions.Singleline)
-            .SingleOrDefault(match => match.Value.Contains($"name=\"_handler\" value=\"{formName}\""));
-
-        Assert.NotNull(form);
-
         values["_handler"] = formName;
-        values["__RequestVerificationToken"] =
-            Regex.Match(form.Value, "name=\"__RequestVerificationToken\" value=\"([^\"]*)\"").Groups[1].Value;
+        values["__RequestVerificationToken"] = AntiforgeryTokenIn(FormIn(html, HandlerField(formName)));
 
         return await client.PostAsync(url, new FormUrlEncodedContent(values));
     }
@@ -99,8 +83,29 @@ public static class PortalForms
         var html = await (await client.GetAsync(url)).Content.ReadAsStringAsync();
 
         var handler = Regex.Match(html, "name=\"_handler\" value=\"([^\"]*)\"").Groups[1].Value;
-        var token = Regex.Match(html, "name=\"__RequestVerificationToken\" value=\"([^\"]*)\"").Groups[1].Value;
 
-        return (handler, token);
+        return (handler, AntiforgeryTokenIn(html));
     }
+
+    // The one form on a page that contains the given marker - the hidden
+    // handler field for a named form, the action for the sign-out control.
+    // Single rather than first, so a marker that matches two forms is a
+    // failed assertion rather than a test quietly submitting the wrong one.
+    private static string FormIn(string html, string marker)
+    {
+        var form = Regex.Matches(html, "<form.*?</form>", RegexOptions.Singleline)
+            .SingleOrDefault(match => match.Value.Contains(marker));
+
+        Assert.NotNull(form);
+
+        return form.Value;
+    }
+
+    private static string HandlerField(string formName) => $"name=\"_handler\" value=\"{formName}\"";
+
+    // Takes a form rather than a page wherever there is more than one, since
+    // every form carries a token of its own and the first in the document is
+    // not necessarily the one being submitted.
+    private static string AntiforgeryTokenIn(string html) =>
+        Regex.Match(html, "name=\"__RequestVerificationToken\" value=\"([^\"]*)\"").Groups[1].Value;
 }

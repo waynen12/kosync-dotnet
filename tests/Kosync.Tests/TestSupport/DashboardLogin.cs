@@ -26,6 +26,17 @@ public static class DashboardLogin
             v => v.StartsWith(SessionCookiePrefix));
     }
 
+    // The other half: that a response really ended the session, rather than
+    // only redirecting somewhere that looks like it did. Signing out writes
+    // the same cookie back empty and expired, which is the only evidence on
+    // the response itself (ADR 0002).
+    public static void AssertClearedTheSessionCookie(HttpResponseMessage response)
+    {
+        Assert.Contains(
+            response.Headers.GetValues("Set-Cookie"),
+            v => v.StartsWith($"{SessionCookiePrefix};") || v.StartsWith($"{SessionCookiePrefix} ;"));
+    }
+
     private const string SessionCookiePrefix = ".AspNetCore.Cookies=";
 
     // A client that has signed in and does not follow redirects, which is

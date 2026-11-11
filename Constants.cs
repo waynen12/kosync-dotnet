@@ -578,22 +578,34 @@ public static class Constants
             "This ends your portal session on this browser. Your KOReader devices are not affected.";
 
         // Issue #43's one deliberate decision: the Explanation outlived the
-        // screen that carried it, as the control's own tooltip, rather than
-        // being dropped with the markup. The trigger point is unchanged - it
-        // is read at the moment of signing out, which is the only moment the
-        // confirm screen was ever read either.
+        // screen that carried it rather than being dropped with the markup,
+        // and it now rides on the control itself. The trigger point is
+        // unchanged - it is read at the moment of signing out, which is the
+        // only moment the confirm screen was ever read either.
         //
-        // The label leads, because on the nav's icon-only button the tooltip
-        // is the whole of what a sighted mouse user has to go on. The short
-        // ActionLabel stays the accessible name: an assistive technology
-        // reads aria-label and ignores title, which is the right split here.
+        // Two places, because neither reaches everybody. This is the tooltip,
+        // where the label leads: on the nav's icon-only button a tooltip is
+        // the whole of what a sighted mouse user has to go on. A hover is
+        // also something a screen reader and a touch device do not have, so
+        // SignOutForm carries the Explanation a second time as the control's
+        // aria-describedby.
         public const string ControlTitle = $"{ActionLabel}. {Explanation}";
 
-        // The sign-out endpoint has no class to name its logger after, unlike
-        // every other writer in the app, so the category is said here rather
-        // than left as a literal in Program.cs. "Kosync.Logout" reads beside
-        // the "Kosync.Components.Pages.Logout" the deleted screen logged
-        // under, so an operator's existing log filters still match.
+        // The element aria-describedby points at. A constant id is safe
+        // because the control renders at most once per page: the nav's copy
+        // is in MainLayout and the card's is on /change-password, which wears
+        // LoginLayout, and no page wears both.
+        public const string ExplanationId = "sign-out-explanation";
+
+        // Every sign-out, from either caller, under one category an operator
+        // can filter on - see PortalSignOut, which is its only reader. Named
+        // here because a MapPost endpoint has no class to name its logger
+        // after, unlike every other writer in the app.
+        //
+        // Note for an operator upgrading: this is a rename. The deleted
+        // screen logged under "Kosync.Components.Pages.Logout", which a
+        // filter written against it will no longer match - only a bare
+        // "Kosync" prefix matches both.
         public const string LogCategory = $"{nameof(Kosync)}.{nameof(Logout)}";
     }
 

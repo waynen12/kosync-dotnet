@@ -64,6 +64,17 @@ so a Stored Credential that has just been verified against a given Auth Key
 is remembered briefly in memory and the KDF skipped on repeat sync pushes.
 _Avoid_: password hash when the distinction from the Auth Key matters
 
+**Sign Out**:
+Ending a User's portal session on one browser, and nothing else — their
+Devices keep syncing, because a Device authenticates per request from its
+own Stored Credential and holds no session to end. Always a POST carrying
+an antiforgery token (ADR 0006): a sign-out that answered GET would be
+performed by anything that merely fetches the URL, so there is no page at
+`/logout` to visit, only the control that posts to it.
+_Avoid_: log out, logout as a verb (the route and the constants keep the
+spelling `Logout` because the URL is part of the portal's surface and
+cannot be renamed; everything that is not the URL says Sign Out)
+
 **Self-Registration**:
 A Device creating its own User through KOReader's own "Register" button
 (`POST /users/create`), with no Administrator involved. The one route whose

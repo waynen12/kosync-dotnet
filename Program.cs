@@ -143,7 +143,7 @@ app.MapPost(AppRoutes.Logout, async (
     IPService ipService,
     ILoggerFactory loggerFactory) =>
 {
-    await PortalSignOut.EndAsync(context, ipService, loggerFactory.CreateLogger(Constants.Logout.LogCategory));
+    await PortalSignOut.EndAsync(context, ipService, loggerFactory);
 
     return Results.Redirect(AppRoutes.Login);
 }).RequireAuthorization();
