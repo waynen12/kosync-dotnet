@@ -23,9 +23,14 @@
                    anonymous visitor is shown. Neither account action means
                    anything to them.
 
-                   Links rather than buttons, because both destinations are
-                   Static SSR pages (issue #24) and a page that must work
-                   without a circuit cannot be reached by one. *@
+                   A link rather than a button for the password change, because
+                   its destination is a Static SSR page (issue #24) and a page
+                   that must work without a circuit cannot be reached by one.
+
+                   Sign-out is the exception, and for the same reason read the
+                   other way round: it has no page to go to any more (issue
+                   #43), so it posts to an endpoint. Still not a circuit - see
+                   SignOutForm. *@
                 <AuthorizeView>
                     <Authorized>
                         <span class="hub-nav-user">@context.User.Identity!.Name</span>
@@ -35,10 +40,9 @@
                             <HubIcon Name="@Constants.Icons.KeyRound" Size="@Constants.Icons.ButtonSize" />
                         </a>
 
-                        <a class="hub-icon-btn" href="@AppRoutes.Logout"
-                           title="@Constants.Logout.PageTitle" aria-label="@Constants.Logout.PageTitle">
+                        <SignOutForm Class="hub-icon-btn">
                             <HubIcon Name="@Constants.Icons.LogOut" Size="@Constants.Icons.ButtonSize" />
-                        </a>
+                        </SignOutForm>
                     </Authorized>
                 </AuthorizeView>
 

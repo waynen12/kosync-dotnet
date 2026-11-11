@@ -562,22 +562,39 @@ public static class Constants
         public const string CreateFormName = "users-create";
     }
 
-    // The portal's sign-out screen (AppRoutes.Logout).
+    // The portal's sign-out control (SignOutForm, posting to
+    // AppRoutes.Logout). Not a screen since issue #43: the confirm screen's
+    // own copy - its subheading and its "Stay signed in" way out - went with
+    // the interstitial, because one click in the nav has nothing to cancel.
     public static class Logout
     {
-        public const string PageTitle = "Sign out";
-
-        public const string Subheading = "Sign out of the portal?";
+        public const string ActionLabel = "Sign out";
 
         // What signing out of the portal does and does not touch. A User
         // whose devices have just stopped syncing is the one most likely to
-        // be here, so the screen says plainly that this is not that.
+        // be reaching for sign-out, so this says plainly that this is not
+        // that.
         public const string Explanation =
             "This ends your portal session on this browser. Your KOReader devices are not affected.";
 
-        public const string SubmitText = "Sign out";
+        // Issue #43's one deliberate decision: the Explanation outlived the
+        // screen that carried it, as the control's own tooltip, rather than
+        // being dropped with the markup. The trigger point is unchanged - it
+        // is read at the moment of signing out, which is the only moment the
+        // confirm screen was ever read either.
+        //
+        // The label leads, because on the nav's icon-only button the tooltip
+        // is the whole of what a sighted mouse user has to go on. The short
+        // ActionLabel stays the accessible name: an assistive technology
+        // reads aria-label and ignores title, which is the right split here.
+        public const string ControlTitle = $"{ActionLabel}. {Explanation}";
 
-        public const string CancelText = "Stay signed in";
+        // The sign-out endpoint has no class to name its logger after, unlike
+        // every other writer in the app, so the category is said here rather
+        // than left as a literal in Program.cs. "Kosync.Logout" reads beside
+        // the "Kosync.Components.Pages.Logout" the deleted screen logged
+        // under, so an operator's existing log filters still match.
+        public const string LogCategory = $"{nameof(Kosync)}.{nameof(Logout)}";
     }
 
     // The settings the app reads straight from the process environment rather

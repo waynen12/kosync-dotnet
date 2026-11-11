@@ -25,6 +25,10 @@ public static class AppRoutes
     // cookie-authenticated route here while a User's Password is Provisional.
     public const string ChangePassword = "/change-password";
 
+    // POST only, and not a page at all since issue #43 - the SignOutForm
+    // control in the chrome posts straight here. A GET of this URL serves
+    // nothing, deliberately: a sign-out that answers GET is performed by
+    // anything that merely fetches the URL.
     public const string Logout = "/logout";
 
     // The Users administration page (issue #28). A top-level route rather

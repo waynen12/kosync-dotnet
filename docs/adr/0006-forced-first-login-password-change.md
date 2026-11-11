@@ -123,10 +123,20 @@ this decision entirely, on a server intended to face the internet.
   page (issue #28) and `PUT /manage/users/password`, which today enforces
   only "not blank". It deliberately does not constrain the Provisional
   Passwords an Administrator hands over, which exist to be replaced.
-- Logout is a confirm screen with a form post, not a link that signs you
-  out on GET. A GET sign-out is triggered by anything that merely fetches
-  the URL, and the antiforgery token a Blazor named form carries is the
-  standard answer to that. It costs one click on an action taken rarely.
+- Logout is a form post carrying an antiforgery token, not a link that
+  signs you out on GET. A GET sign-out is triggered by anything that
+  merely fetches the URL, and is performed by any page that can get a
+  browser to follow a link.
+
+  This was first built as a confirm screen, because a Blazor named form
+  gets the token for free and the cost was one click on an action taken
+  rarely. Issue #43 removed the screen and kept the post: the control in
+  the chrome (`SignOutForm`) is a plain `<form method="post">` against a
+  `MapPost` endpoint, so signing out is one click and still not something
+  a link preview can do. The escape route the gate allows is therefore a
+  POST, and the page the gate sends a User to carries a copy of the
+  control — the nav's copy is inside the app shell, which is on the far
+  side of the gate.
 - The sync refusal sits on all three authenticated protocol endpoints
   rather than on a filter or middleware. The protocol surface is four
   endpoints that each already hand-roll their own auth and active checks

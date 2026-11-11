@@ -131,7 +131,11 @@ public class ProvisionalPasswordPortalGateTests : IntegrationTestBase
         var response = await PortalForms.LogOutAsync(client);
 
         Assert.Equal(HttpStatusCode.Found, response.StatusCode);
-        Assert.Equal(AppRoutes.Login, response.Headers.Location!.PathAndQuery);
+        // Relative, like the gate's own redirect and unlike the absolute one
+        // NavigationManager used to write from the deleted confirm screen - so
+        // read as the original string rather than through PathAndQuery, which
+        // only an absolute URI has.
+        Assert.Equal(AppRoutes.Login, response.Headers.Location!.OriginalString);
 
         // Signed out rather than merely redirected: the dashboard now
         // challenges, where a still-live session would have been gated.
@@ -150,14 +154,26 @@ public class ProvisionalPasswordPortalGateTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
+    // Reachable, which since issue #43 is a question about the page the gate
+    // sends them to rather than about /logout itself: there is no sign-out
+    // screen to reach any more, only a control, and the nav's copy of it is in
+    // the app shell on the far side of the gate. If the change-password page
+    // did not carry one, a User holding a Provisional Password would be shut
+    // in with no way out - which is what this guards, the post being allowed
+    // through being SigningOut_WithAProvisionalPassword_EndsTheSession's half.
     [Fact]
     public async Task Logout_WithAProvisionalPassword_IsReachable()
     {
         using var client = await Factory.SignedInClientAsync();
 
-        var response = await client.GetAsync(AppRoutes.Logout);
+        var response = await client.GetAsync(AppRoutes.ChangePassword);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var form = PortalForms.SignOutFormIn(await response.Content.ReadAsStringAsync());
+
+        Assert.Contains("type=\"submit\"", form);
+        Assert.Contains("name=\"__RequestVerificationToken\"", form);
     }
 
     // What the gated User actually lands on. Signing in points at the

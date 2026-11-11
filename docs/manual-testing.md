@@ -95,8 +95,12 @@ setting before concluding the feature is broken.
 - [ ] **Theme toggle** survives navigation between pages
 - [ ] Switching Devices/Books is a **navigation** — the back button works, and
       it is not a round trip (ADR 0003)
-- [ ] Signing out — **re-check after [#43](https://github.com/waynen12/kosync-dotnet/issues/43) lands**, which removes the
-      confirmation step and changes this flow
+- [ ] **Signing out** is one click in the nav with no page in between
+      ([#43](https://github.com/waynen12/kosync-dotnet/issues/43)), and lands on `/login`. Hovering the button says what
+      signing out does and does not touch — the one thing no test can check is
+      whether that tooltip is where a worried User actually finds it
+- [ ] Signing out from `/change-password` works the same way, which is the
+      only copy of the control a Provisional-Password User can reach
 
 ---
 
@@ -105,7 +109,6 @@ setting before concluding the feature is broken.
 - [#42](https://github.com/waynen12/kosync-dotnet/issues/42) — a wrong password on `/users/auth` answers "User could not be
   found", which both leaks whether an account exists and misleads anyone
   debugging a typo
-- [#43](https://github.com/waynen12/kosync-dotnet/issues/43) — the logout confirmation step is being removed
 
 ## If a device will not sync
 

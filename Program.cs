@@ -121,6 +121,33 @@ app.UseAntiforgery();
 
 app.MapControllers();
 
+// Sign-out (issue #43). An endpoint rather than a page, because there is no
+// screen left: the SignOutForm control in the chrome posts straight here, so
+// one click signs out with nothing in between.
+//
+// POST only, which is the whole point. A GET sign-out is performed by
+// anything that merely fetches the URL - a link preview, a prefetching
+// browser - and by any page that can get a browser to follow a link, which is
+// logout-by-CSRF. The confirm screen this replaced existed to make signing
+// out a post; removing the screen does not remove that.
+//
+// The unused IFormCollection is what enforces it. UseAntiforgery validates
+// only endpoints carrying antiforgery metadata, and a minimal API endpoint
+// gets that metadata from binding form data - so binding the posted form is
+// how this endpoint asks to be checked. Without the parameter the middleware
+// finds no metadata and waves every post through, token or not
+// (SignOutTests).
+app.MapPost(AppRoutes.Logout, async (
+    HttpContext context,
+    IFormCollection form,
+    IPService ipService,
+    ILoggerFactory loggerFactory) =>
+{
+    await PortalSignOut.EndAsync(context, ipService, loggerFactory.CreateLogger(Constants.Logout.LogCategory));
+
+    return Results.Redirect(AppRoutes.Login);
+}).RequireAuthorization();
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

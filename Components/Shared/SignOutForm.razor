@@ -1,0 +1,35 @@
+@* The portal's sign-out control, wherever it appears (issue #43). One click
+   signs out, with no interstitial - but still by posting, which is the part
+   that matters and the part the deleted confirm screen actually existed for.
+
+   A bare GET endpoint is signed out by anything that merely fetches the URL -
+   a link preview, a prefetching browser - so this is a real form submit
+   carrying an antiforgery token, and AppRoutes.Logout answers POST only.
+
+   Deliberately *not* a Blazor named form, unlike every other form in the
+   portal. A named form posts back to the page it is rendered on and is
+   dispatched by the component that declared it, and this control is rendered
+   in the chrome: its page is whichever one the User happens to be looking at.
+   Posting to one endpoint instead keeps the sign-out in one place and keeps
+   it out of a circuit - SignOutAsync writes to the response, which needs an
+   HttpContext an interactive render does not have (ADR 0003). *@
+
+<form class="hub-signout" method="post" action="@AppRoutes.Logout">
+    <AntiforgeryToken />
+
+    <button type="submit" class="@Class"
+            title="@Constants.Logout.ControlTitle" aria-label="@Constants.Logout.ActionLabel">
+        @ChildContent
+    </button>
+</form>
+
+@code {
+    // The look of the button, which is the call site's business: the nav wants
+    // a round icon button on the gradient band, and a login card wants the
+    // same understated link its other way-out wears.
+    [Parameter]
+    public string Class { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public RenderFragment? ChildContent { get; set; }
+}

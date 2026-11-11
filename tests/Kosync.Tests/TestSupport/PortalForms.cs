@@ -23,13 +23,42 @@ public static class PortalForms
         });
     }
 
-    // The sign-out screen's only field is the hidden pair every named form
-    // carries, which is exactly what makes it a post rather than a link: a
-    // GET sign-out is triggered by anything that merely fetches the URL.
-    public static async Task<HttpResponseMessage> LogOutAsync(HttpClient client)
+    // Sign-out is the one portal form that is not a Static SSR named form and
+    // has no page of its own (issue #43): it is a plain <form method="post">
+    // in the chrome, posting to an endpoint. So the round trip is a page apart
+    // - the token is scraped from whatever page the control is rendered on,
+    // and posted to /logout.
+    //
+    // /change-password by default, because it is the one page carrying the
+    // control that *every* signed-in User can reach: a User holding a
+    // Provisional Password is gated away from the app shell the nav lives in.
+    public static async Task<HttpResponseMessage> LogOutAsync(
+        HttpClient client, string tokenFrom = AppRoutes.ChangePassword)
     {
-        return await SubmitAsync(client, AppRoutes.Logout, new Dictionary<string, string>());
+        var html = await (await client.GetAsync(tokenFrom)).Content.ReadAsStringAsync();
+
+        return await client.PostAsync(AppRoutes.Logout, new FormUrlEncodedContent(
+            new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = AntiforgeryTokenIn(SignOutFormIn(html)),
+            }));
     }
+
+    // The sign-out form in a rendered page, found by where it posts. Every
+    // page that carries it also carries a form of its own, so "the form on
+    // the page" is not a thing a test can mean here either.
+    public static string SignOutFormIn(string html)
+    {
+        var form = Regex.Matches(html, "<form.*?</form>", RegexOptions.Singleline)
+            .SingleOrDefault(match => match.Value.Contains($"action=\"{AppRoutes.Logout}\""));
+
+        Assert.NotNull(form);
+
+        return form.Value;
+    }
+
+    public static string AntiforgeryTokenIn(string form) =>
+        Regex.Match(form, "name=\"__RequestVerificationToken\" value=\"([^\"]*)\"").Groups[1].Value;
 
     // Scrapes the page's form fields, then posts the given values back to it.
     public static async Task<HttpResponseMessage> SubmitAsync(

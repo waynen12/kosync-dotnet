@@ -54,6 +54,10 @@ public class ChangePasswordPageTests : IntegrationTestBase
     // `hub-` class app.css does not define renders as unstyled markup, and no
     // markup assertion can see it. Both states, because the error block only
     // exists on a refused post.
+    //
+    // This page is also where the sign-out control's own classes are covered
+    // in a login card: the nav's copy of it wears `hub-icon-btn`, and the
+    // understated `hub-login-link` the card wants is only rendered here.
     [Fact]
     public async Task Page_RendersOnlyClassesThatAppCssDefines()
     {
@@ -61,8 +65,7 @@ public class ChangePasswordPageTests : IntegrationTestBase
 
         var html = await (await client.GetAsync(AppRoutes.ChangePassword)).Content.ReadAsStringAsync()
             + await (await PortalForms.ChangePasswordAsync(client, "wrong", TestPasswords.Chosen))
-                .Content.ReadAsStringAsync()
-            + await (await client.GetAsync(AppRoutes.Logout)).Content.ReadAsStringAsync();
+                .Content.ReadAsStringAsync();
 
         var rendered = HubClasses.RenderedIn(html);
 
@@ -176,16 +179,19 @@ public class ChangePasswordPageTests : IntegrationTestBase
 
     // A page nothing links to is a page only the gate can reach, which would
     // leave a User who chose their own password no way to change it. The nav
-    // held placeholders for both of these until the destinations existed
-    // (MainLayout.razor).
+    // held a placeholder until the destination existed (MainLayout.razor).
+    //
+    // Only this page now. Its neighbour in the nav is no longer a link to a
+    // page at all (issue #43) - what the shell carries there is asserted in
+    // SignOutTests, where the fact that it is a form and not an href is the
+    // subject rather than an incidental spelling.
     [Fact]
-    public async Task TheAppShell_LinksToBothPages()
+    public async Task TheAppShell_LinksToThisPage()
     {
         using var client = await Factory.SignedInClientAsync();
 
         var html = await (await client.GetAsync(AppRoutes.DeviceDetail(1))).Content.ReadAsStringAsync();
 
         Assert.Contains($"href=\"{AppRoutes.ChangePassword}\"", html);
-        Assert.Contains($"href=\"{AppRoutes.Logout}\"", html);
     }
 }
