@@ -30,20 +30,52 @@ public class SyncControllerTests : IntegrationTestBase
         Assert.Equal("OK", body.GetProperty("state").GetString());
     }
 
+    // Asserts the message as well as the status, like the two below it: all
+    // three ways a credential can fail now answer in the same words, and that
+    // is the whole of issue #42.
     [Fact]
     public async Task Auth_WithoutCredentials_Returns401()
     {
         var response = await Client.GetAsync("/users/auth");
+        var body = await BodyAsync(response);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(
+            Constants.UserAdmin.InvalidCredentials, body.GetProperty("message").GetString());
     }
 
+    // The message, not just the status: this branch answered "User could not
+    // be found" to a User who was there and healthy and had simply mistyped
+    // their password, which is an answer that sends them to register a second
+    // account rather than retype (issue #42). KOReader shows the server's
+    // sentence verbatim, so here the sentence *is* the behaviour - which is
+    // why there was nothing to fail when it was wrong.
     [Fact]
-    public async Task Auth_WithInvalidCredentials_Returns401()
+    public async Task Auth_WithAWrongAuthKey_Returns401_WithoutClaimingTheUserIsAbsent()
     {
-        var response = await GetAsync("/users/auth", "admin", "wrong-password");
+        var response = await GetAsync("/users/auth", Constants.Admin.Username, "wrong-password");
+        var body = await BodyAsync(response);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(
+            Constants.UserAdmin.InvalidCredentials, body.GetProperty("message").GetString());
+    }
+
+    // The other half of issue #42, for the reason given at the constant.
+    // Asserted as "these two answers are indistinguishable" rather than
+    // against the constant twice, because that is the property: a later branch
+    // that told the two apart would still pass two separate equality
+    // assertions.
+    [Fact]
+    public async Task Auth_WithAnUnknownUsername_IsAnsweredLikeAWrongAuthKey()
+    {
+        var unknownUser = await GetAsync("/users/auth", "nobody-by-that-name", "any-password");
+        var wrongKey = await GetAsync("/users/auth", Constants.Admin.Username, "wrong-password");
+
+        Assert.Equal(wrongKey.StatusCode, unknownUser.StatusCode);
+        Assert.Equal(
+            (await BodyAsync(wrongKey)).GetProperty("message").GetString(),
+            (await BodyAsync(unknownUser)).GetProperty("message").GetString());
     }
 
     [Fact]
@@ -56,15 +88,29 @@ public class SyncControllerTests : IntegrationTestBase
         Assert.Equal("admin", body.GetProperty("username").GetString());
     }
 
+    // Issue #42 left this message alone on purpose: an Inactive User is
+    // something the server does know, and it is only told to a caller whose
+    // credential already checked out. Asserted to the letter so that
+    // flattening the three refusals into one sentence fails here.
     [Fact]
-    public async Task Auth_WithInactiveUser_Returns401()
+    public async Task Auth_WithInactiveUser_Returns401_SayingTheUserIsInactive()
     {
-        await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
-        await PutAsync<object?>("/manage/users/active?username=reader", null, "admin", "admin");
+        await PostAsync(
+            "/manage/users",
+            new UserCreateRequest { username = "reader", password = "pw" },
+            Constants.Admin.Username,
+            Constants.Admin.DefaultPassword);
+        await PutAsync<object?>(
+            "/manage/users/active?username=reader",
+            null,
+            Constants.Admin.Username,
+            Constants.Admin.DefaultPassword);
 
         var response = await GetAsync("/users/auth", "reader", "pw");
+        var body = await BodyAsync(response);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(Constants.UserAdmin.UserInactive, body.GetProperty("message").GetString());
     }
 
     // `POST /users/create` has its own file - SelfRegistrationTests - because

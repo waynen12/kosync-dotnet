@@ -319,6 +319,15 @@ public static class Constants
     // it does (issue #28). These sentences are the wire messages of
     // /manage/* as well as the portal's own, so the two cannot drift: one
     // service answers both (ADR 0003).
+    //
+    // Since issue #42 it also holds what `GET /users/auth` refuses with,
+    // which the controller answers itself rather than through that service.
+    // They live here anyway, and the charter above says so rather than
+    // letting the contents quietly outgrow it: every sentence the /users/*
+    // and /manage/* endpoints send is in one place, which is the property
+    // that stopped "User could not be found" from going unnoticed - it was
+    // the one refusal written inline, where nothing listed it beside the
+    // others.
     public static class UserAdmin
     {
         // The three wire messages /manage/* already returned, kept to the
@@ -353,6 +362,27 @@ public static class Constants
         public const string UsernameRequired = "Username cannot be empty or whitespace";
 
         public const string NotAnAdministrator = "Only an Administrator can manage Users";
+
+        // One sentence for all three ways a credential fails on
+        // `GET /users/auth` - no headers at all, an unknown username, and a
+        // wrong Auth Key (issue #42). It has to be one sentence because the
+        // server cannot tell the last two apart without the answer becoming
+        // an oracle for which usernames exist, and because the branch that
+        // tried said "User could not be found" to a User who was there and
+        // healthy - naming a cause it had no way to know.
+        //
+        // The reference server (koreader-sync-server) answers a bare 401
+        // "Unauthorized" to all three and has no not-found error on this
+        // route at all. This says the same thing in words KOReader can put
+        // in front of the person holding the device.
+        public const string InvalidCredentials = "Invalid credentials";
+
+        // The one refusal this endpoint can name, and the reason issue #42
+        // did not flatten all three into InvalidCredentials: an Inactive User
+        // is something the server does know, and it is only ever told to a
+        // caller whose credential has already checked out - so it leaks
+        // nothing that credential did not already prove.
+        public const string UserInactive = "User is inactive";
 
         public const string Promoted = "User is now an Administrator";
 

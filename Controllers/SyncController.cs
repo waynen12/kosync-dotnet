@@ -92,7 +92,7 @@ public class SyncController : ControllerBase
 
             return StatusCode(401, new
             {
-                message = "Invalid credentials"
+                message = Constants.UserAdmin.InvalidCredentials
             });
         }
 
@@ -102,7 +102,7 @@ public class SyncController : ControllerBase
 
             return StatusCode(401, new
             {
-                message = "User could not be found"
+                message = Constants.UserAdmin.InvalidCredentials
             });
         }
 
@@ -112,7 +112,7 @@ public class SyncController : ControllerBase
 
             return StatusCode(401, new
             {
-                message = "User is inactive"
+                message = Constants.UserAdmin.UserInactive
             });
         }
 
