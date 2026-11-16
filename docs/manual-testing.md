@@ -19,7 +19,20 @@ the per-endpoint logging cannot show you (GLOSSARY: Sync Trace).
 
 ## Confirmed working
 
-Verified 2026-11-09 against an aipaper reader and an Xteink running CrossPoint.
+Verified 2026-11-09 and 2026-11-16 against an aipaper reader, an Xteink 3 and
+an Xteink 4 Pro, the last two running CrossPoint.
+
+- [x] **A push on one device arrives on another** — the point of the whole
+      tool. Pushed from the Xteink 3 and pulled it down on both others;
+      pushed from the aipaper and pulled it onto the Xteink 4 Pro
+- [x] **Regression protection** — `1924aa71…` went to 0.9409 from CrossPoint,
+      and two later aipaper pushes at 0.9283 and 0.9315 were recorded without
+      being promoted. The Book's progress did not go backwards
+- [x] **Observed metadata arrives** — Documents now carry real titles
+      ("They return at evening", "OLD MAN'S BEARD"), so at least one device is
+      on KOReader 2026.07+ with the setting on
+- [x] **Curated metadata outranks observed** — Book 2 carries a hand-typed
+      "They Return at evening" over an observed "They return at evening"
 
 - [x] **Fresh install** — 9 migrations onto an empty database, `admin` seeded
       with a Provisional Password and a bcrypt credential, never a bare MD5
@@ -39,28 +52,24 @@ Verified 2026-11-09 against an aipaper reader and an Xteink running CrossPoint.
 
 ### A. Sync actually syncing
 
-The point of the tool, and still unproven: a push on one device has not yet
-been shown to arrive on the other.
+Cross-device sync and regression protection are both confirmed above. What is
+left is how the regression *reads* in the portal, which only an eye can judge.
 
-- [ ] Read on device 1, push. On device 2 open the **same book** and pull —
-      it should offer device 1's position
-- [ ] Push a **lower** percentage from device 2. The server keeps it in history
-      but must not promote it; the Book's progress should not go backwards
-- [ ] On that Document's detail page, **only the blocked push** carries the
-      Progress Regression flag — not the ordinary pushes before it (#38)
+- [ ] Open Book `1924aa71…` in the portal. It already holds a real blocked
+      regression from testing — the two aipaper pushes behind CrossPoint's
+      0.9409. **Only those two** should carry the Progress Regression flag,
+      and the pushes that were promoted at the time should not (#38)
 
 ### B. Metadata
 
-Needs KOReader **2026.07 or newer** with **Send document metadata** switched
-on, per device. The first push stored carried no metadata at all, so check the
-setting before concluding the feature is broken.
+Arriving and curation works (above). What is left is the absent case and
+whether a later push can trample a hand-typed title.
 
-- [ ] A Book shows a **real title** rather than `Book #N`
-- [ ] A Book with no metadata shows the **hint** telling you to enable that
-      setting — this is the thing that stops it looking broken
-- [ ] Edit a Book's title and author by hand
-- [ ] Push again afterwards: the edit must **survive**. Curated always beats
-      observed (ADR 0007)
+- [ ] Book 1 still has **no observed title**, so it should be showing the
+      **hint** telling you to switch the setting on for that device — the one
+      thing stopping the feature looking broken rather than off
+- [ ] Push again to a Book you have **curated**, from a device that sends
+      metadata. The hand-typed title must survive it (ADR 0007)
 
 ### C. Split Books, merging, resets
 
@@ -108,6 +117,25 @@ setting before concluding the feature is broken.
       puts it
 
 ---
+
+## Known limitation: two CrossPoint readers are one Device
+
+Observed 2026-11-16 with an Xteink 3 and an Xteink 4 Pro both running
+CrossPoint. The portal shows **one** Device for the two of them.
+
+CrossPoint sends the literal string `crosspoint-reader` as its `device_id`,
+the same on every installation, where stock KOReader sends a per-install GUID
+(the aipaper's is `FC4C8C61…`). A Device *is* its `device_id` (GLOSSARY:
+Device), so two readers reporting the same one are the same Device here.
+
+Nothing the server can do about it: both units also report the display name
+`CrossPoint`, so they are indistinguishable on the wire. Worth knowing because
+"last synced" for that Device means whichever of the two synced most recently,
+and its per-Device progress conflates both.
+
+If CrossPoint exposes an editable device name or id in its sync settings,
+setting them differently per reader would separate them. Tracked as
+[#44](https://github.com/waynen12/kosync-dotnet/issues/44).
 
 ## Known, already raised — don't re-report
 
