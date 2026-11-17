@@ -1,8 +1,10 @@
 # Roadmap: Dashboard & Beyond
 
-Status: **Phases 0-2 implemented, code-reviewed, and merged to `main`**
-(issues [#2](https://github.com/waynen12/kosync-dotnet/issues/2)-[#13](https://github.com/waynen12/kosync-dotnet/issues/13),
-spec [#1](https://github.com/waynen12/kosync-dotnet/issues/1)).
+Status: **Phases 0-3 implemented, code-reviewed, and merged to `main`**
+(issues [#2](https://github.com/waynen12/kosync-dotnet/issues/2)-[#44](https://github.com/waynen12/kosync-dotnet/issues/44),
+specs [#1](https://github.com/waynen12/kosync-dotnet/issues/1) and
+[#14](https://github.com/waynen12/kosync-dotnet/issues/14)). No open
+issues; 475 tests green. **Next is Phase 5 — deployment.**
 
 A design pass after that merge reframed the project substantially: the
 dashboard is **not** a single-operator monitoring tool but a multi-tenant
@@ -26,8 +28,10 @@ only three real readers could find
 sync, regression protection and metadata are all confirmed working —
 see [manual-testing.md](manual-testing.md).
 
-All of it lives on the **`design/portal-redesign`** branch, **53 commits
-ahead of `main` and unmerged**. Branch from there, not from `main`.
+All of it is **merged to `main`** (PR
+[#45](https://github.com/waynen12/kosync-dotnet/pull/45), 2026-11-17).
+`main` is now the full portal — branch from it. `design/portal-redesign`
+is fully contained in `main` and only survives as history.
 
 **Next is Phase 5 — deployment to the droplet**, below. Phase 4 (AI) comes
 after it.

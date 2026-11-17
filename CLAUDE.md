@@ -13,10 +13,9 @@ into with the same credentials their devices sync with.
    ones touching your area before changing it; several look surprising until
    you read why (ADR 0005's bcrypt-over-MD5 especially).
 
-**Where the code is.** Phases 0-3 are complete but live on the
-`design/portal-redesign` branch, **53 commits ahead of `main` and unmerged**.
-`main` is the pre-redesign server plus the design docs. Branch from
-`design/portal-redesign`, not `main`, until that merge happens.
+**Where the code is.** `main`. Phases 0-3 are complete and merged there
+(PR #45, 2026-11-17); `design/portal-redesign` is fully contained in `main`
+and survives only as history. Branch from `main`.
 
 **What is verified.** `docs/manual-testing.md` — what three real readers have
 actually proved, and what has not been tried. A green suite cannot tell you
