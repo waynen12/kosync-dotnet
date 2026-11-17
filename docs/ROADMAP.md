@@ -325,48 +325,74 @@ Source is now decided (ADR 0007): KOReader's own opt-in metadata push.
   submitted straight past the confirmation.
 - Later, not now: fill metadata from an entered title or ISBN.
 
-### Phase 5 — Deployment to the droplet — next, not started
+### Phase 5 — Deployment to the droplet — in progress
 
 Numbered after Phase 4 only because AI already had that number; this comes
 **first**. The goal is a version actually in daily use, on
 `kosync.notrauto.org`, that can take future feature updates without
 losing data.
 
-Start a fresh session for it — this phase is an investigation before it is
-an implementation, and it begins with questions nobody has answered yet.
-What is already decided is under "Deployment target" below; don't
-re-litigate the subdomain or the container.
+This phase is an investigation before it is an implementation. Step 1 is
+done and step 2 is decided; what remains is building it. The findings are
+in [deploy/phase5-droplet-survey.md](deploy/phase5-droplet-survey.md) (the
+box) and [deploy/phase5-findings.md](deploy/phase5-findings.md) (the repo),
+and the data-safety rules every future deploy inherits are
+[ADR 0009](adr/0009-what-a-deploy-may-cost.md). Don't re-litigate the
+subdomain or the container — see "Deployment target" below.
 
-**1. Survey the droplet before designing anything.** It already runs ai-hub
-and n8n, so the question is what can be reused rather than what to build.
-What is on it now, what is in front of those apps (a reverse proxy of some
-kind must be, since both answer on subdomains), how TLS is issued and
-renewed, whether Docker is installed and what else uses it, and how much
-room is left. Everything in point 2 depends on these answers, so resist
-designing the pipeline first.
+**1. Survey the droplet before designing anything — ✅ done (2026-11-17).**
+The question was what could be reused rather than what to build, and the
+answer was most of it. In short, with the full survey linked above:
 
-**2. Updates must never cost data.** This is the requirement that makes the
-phase more than "copy a container up". Once real reading history lives on
-that box, every subsequent deploy has to be survivable. Unanswered:
+- **The proxy is containerised Caddy**, not the Nginx Proxy Manager the
+  README claims — that mention is confirmed inherited from the upstream
+  repo and needs replacing. Adding kosync is a three-line Caddyfile block
+  plus a Cloudflare DNS record (grey cloud, matching `hub` and `n8n`).
+- **Two pre-deployment requirements come free.** Caddy proxies WebSocket
+  upgrades transparently with no idle timeout, which is what ADR 0003's
+  circuit needs, and TLS is Caddy's built-in ACME — no certbot, no renewal
+  cron to maintain.
+- **The shape: a separate compose project at `/opt/kosync`, joined to the
+  existing `n8n_demo` network as external, publishing no host port.** Caddy
+  reaches it by container name. Publishing a port would expose it, because
+  the box has no firewall — see below.
+- **The real constraint is one vCPU.** Disk is a non-issue (31 GB free).
+  bcrypt work factor 12 (ADR 0005) is paid per uncached sync auth and
+  contends with Next.js, n8n and Postgres for the only core, so the work
+  factor wants measuring on that hardware rather than on a dev machine.
+- **Not ours, but it shapes ours:** there is no firewall and ai-hub is
+  reachable over plain HTTP on port 3000, bypassing Caddy and TLS. On this
+  box any host-published port is public by default. Docker also has no log
+  rotation (a trap for an accidental `SyncTrace__Enabled`) and `Live
+  Restore` is off, so a daemon upgrade bounces every container.
 
-- Where SQLite actually lives, so a redeploy replaces the container and
-  not the database. A volume that a `docker compose down -v` can take with
-  it is the obvious trap.
-- Backup *before* migrating, automatically, not as a thing to remember.
-  The first deploy is the easy case — an empty database, nine migrations
-  applying to nothing. Every one after it is the real problem.
-- Whether a destructive migration may ever run unattended. There is a
-  precedent in the tree already: `AddDocumentHashUniqueIndex` collapses
-  duplicate Documents before it can apply its index (ADR 0008). It is
-  correct, it is tested, and it still deletes rows.
-- The rollback story when a migration is one-way. EF Core migrations have
-  `Down` methods; the data they would need to reconstruct may be gone.
-- What happens to an open Blazor circuit mid-deploy. A reader with the
-  portal open gets a dead page (ADR 0003) — acceptable, but it should be a
-  decision rather than a surprise.
-- SQLite with WAL inside a container: the `-wal` and `-shm` files are part
-  of the database, as `run-local.sh --fresh` has to account for. Any
-  backup or volume strategy that copies only `kosync.sqlite3` is wrong.
+**2. Updates must never cost data — ✅ decided, not yet built.** This is the
+requirement that makes the phase more than "copy a container up". The rules
+are [ADR 0009](adr/0009-what-a-deploy-may-cost.md), which answers the
+questions this section used to list:
+
+- **A deploy may cost a portal session and may never cost reading
+  history** — history is the only thing here nobody can retype.
+- **Back up before migrating, in the app, ahead of the `Migrate()` call** —
+  not in a deploy script, where it would be a thing to remember. The
+  database is three files (WAL), and a copy of only `kosync.sqlite3`
+  restores with recent pushes silently missing. `sqlite3` is in neither the
+  runtime image nor the host, so the image gains it.
+- **A destructive migration never runs unattended.** The deploy backs up,
+  refuses to start, and says so; an explicit flag is the attended override.
+  Destructiveness is *declared* in the repo, not detected — EF Core cannot
+  tell you whether a migration deletes rows.
+- **Portal sessions are not protected**, deliberately: Data Protection keys
+  are unpersisted, so a deploy signs portal users out. Devices hold no
+  session and keep syncing. Already mortal anyway, since `Live Restore` is
+  off on that box.
+
+Still to build, in rough order: the configurable data path (it is hardcoded
+twice today, `Program.cs:40` and `KosyncDbContextFactory.cs:13`, which the
+no-hardcoding standard forbids), `sqlite3` in the runtime stage, the
+backup-and-gate in `KosyncDbInitializer`, a backup retention rule, the
+`/opt/kosync` compose file and Caddyfile block, and the README's proxy
+section.
 
 **3. Then ask whether GitHub Actions can own it end to end.** Build, test,
 image, deploy, migrate, verify. Worth wanting, but it is downstream of 1
