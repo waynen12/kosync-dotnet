@@ -15,12 +15,22 @@ Three prototyping sessions settled the UI: layouts and design language
 (ai-hub branding, dense tables over card grids), the framework question
 (Blazor stays, ADR 0003), and the two detail pages.
 
-**Phases 2.5 and 3 are now implemented**, along with the UI fold-in —
-spec [#14](https://github.com/waynen12/kosync-dotnet/issues/14) and its
-23 tickets, all closed. The whole of it lives on the
-`design/portal-redesign` branch and **has not been merged to `main`**;
-that merge, and the manual testing that should precede it, is the next
-piece of work. Phase 4 (AI) has not started.
+**Phases 2.5 and 3 are implemented and tested on real hardware.** Spec
+[#14](https://github.com/waynen12/kosync-dotnet/issues/14) and its 23
+tickets are closed, along with five bugs the reviews caught
+([#35](https://github.com/waynen12/kosync-dotnet/issues/35)-[#38](https://github.com/waynen12/kosync-dotnet/issues/38),
+[#40](https://github.com/waynen12/kosync-dotnet/issues/40)) and two that
+only three real readers could find
+([#41](https://github.com/waynen12/kosync-dotnet/issues/41),
+[#42](https://github.com/waynen12/kosync-dotnet/issues/42)). Cross-device
+sync, regression protection and metadata are all confirmed working —
+see [manual-testing.md](manual-testing.md).
+
+All of it lives on the **`design/portal-redesign`** branch, **53 commits
+ahead of `main` and unmerged**. Branch from there, not from `main`.
+
+**Next is Phase 5 — deployment to the droplet**, below. Phase 4 (AI) comes
+after it.
 
 This doc exists to get the plan out of chat and into the repo so it
 survives between sessions. Domain vocabulary lives in
@@ -310,6 +320,66 @@ Source is now decided (ADR 0007): KOReader's own opt-in metadata push.
   `<form>` for the same reason: Enter in its last field would have
   submitted straight past the confirmation.
 - Later, not now: fill metadata from an entered title or ISBN.
+
+### Phase 5 — Deployment to the droplet — next, not started
+
+Numbered after Phase 4 only because AI already had that number; this comes
+**first**. The goal is a version actually in daily use, on
+`kosync.notrauto.org`, that can take future feature updates without
+losing data.
+
+Start a fresh session for it — this phase is an investigation before it is
+an implementation, and it begins with questions nobody has answered yet.
+What is already decided is under "Deployment target" below; don't
+re-litigate the subdomain or the container.
+
+**1. Survey the droplet before designing anything.** It already runs ai-hub
+and n8n, so the question is what can be reused rather than what to build.
+What is on it now, what is in front of those apps (a reverse proxy of some
+kind must be, since both answer on subdomains), how TLS is issued and
+renewed, whether Docker is installed and what else uses it, and how much
+room is left. Everything in point 2 depends on these answers, so resist
+designing the pipeline first.
+
+**2. Updates must never cost data.** This is the requirement that makes the
+phase more than "copy a container up". Once real reading history lives on
+that box, every subsequent deploy has to be survivable. Unanswered:
+
+- Where SQLite actually lives, so a redeploy replaces the container and
+  not the database. A volume that a `docker compose down -v` can take with
+  it is the obvious trap.
+- Backup *before* migrating, automatically, not as a thing to remember.
+  The first deploy is the easy case — an empty database, nine migrations
+  applying to nothing. Every one after it is the real problem.
+- Whether a destructive migration may ever run unattended. There is a
+  precedent in the tree already: `AddDocumentHashUniqueIndex` collapses
+  duplicate Documents before it can apply its index (ADR 0008). It is
+  correct, it is tested, and it still deletes rows.
+- The rollback story when a migration is one-way. EF Core migrations have
+  `Down` methods; the data they would need to reconstruct may be gone.
+- What happens to an open Blazor circuit mid-deploy. A reader with the
+  portal open gets a dead page (ADR 0003) — acceptable, but it should be a
+  decision rather than a surprise.
+- SQLite with WAL inside a container: the `-wal` and `-shm` files are part
+  of the database, as `run-local.sh --fresh` has to account for. Any
+  backup or volume strategy that copies only `kosync.sqlite3` is wrong.
+
+**3. Then ask whether GitHub Actions can own it end to end.** Build, test,
+image, deploy, migrate, verify. Worth wanting, but it is downstream of 1
+and 2: a pipeline that automates an unsafe migration just makes the unsafe
+thing happen faster and unattended. Also decide what it does when the
+smoke test fails after a migration has already applied.
+
+Settings that must be right per environment, and are silent when wrong —
+both have already cost a local session:
+
+| Setting | Why |
+|---|---|
+| `Portal__BaseUrl` | The refusal a Provisional-Password device gets names this URL (ADR 0006). Wrong, and the reader is sent somewhere unreachable. Default is `http://localhost:8080`. |
+| `ASPNETCORE_URLS` | Must bind `0.0.0.0`, not localhost, or nothing outside the container reaches it. |
+| `ADMIN_PASSWORD` | Seed-only — it applies when the admin row is created and never again (ADR 0006). The first boot is the only chance; `ADMIN_PASSWORD_RESET` is the way back. |
+| `SyncTrace__Enabled` | Logs reading positions and document hashes verbatim (GLOSSARY: Sync Trace). Fine while diagnosing, not as a standing setting once other people's books are on the box. |
+| `SELF_REGISTRATION_ENABLED` | Off by default and should stay off on a public address (ADR 0006). |
 
 ### Phase 4 — AI integration
 - Summaries of in-progress books.
