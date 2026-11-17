@@ -138,6 +138,10 @@ A single KOReader installation, identified by the opaque `device_id` it
 sends with every sync. `device` (the display label, e.g. "Kobo_nova") is
 mutable and not part of its identity. A reinstall or cleared settings
 produces a new Device — there is no automatic merging with a prior one.
+Identity is only as trustworthy as the id a client chooses to send:
+stock KOReader generates one per installation, but a client is free to
+send a constant, and one that does makes every installation of itself a
+single Device here. Nothing in this server can tell them apart.
 _Avoid_: device_id alone
 
 **SyncEvent**:

@@ -86,7 +86,7 @@ response.
 | Self-registration | `POST /users/create` disabled by default; Administrators provision Users (ADR 0006) | Firm |
 | Book metadata source | KOReader's opt-in `metadata` push, observed per Document; manual curation per Book; ISBN/title lookup later (ADR 0007) | Firm |
 | Test framework | xUnit + `WebApplicationFactory` integration tests | Firm |
-| Device identity | `device_id` only; a reinstall is a brand-new Device, no auto-merge | Firm |
+| Device identity | `device_id` only; a reinstall is a brand-new Device, no auto-merge. Only as trustworthy as the id the client sends — CrossPoint hardcodes one, so its installations collapse into a single Device (#44) | Firm, with a known limitation |
 | Book/Document split | Modeled from the first migration, not deferred to metadata phase (ADR 0001) | Firm |
 | Book/Document assignment | New Document auto-creates its own 1:1 Book; "same book" merges are a manual dashboard action | Firm |
 | Document identity | One Document per `(UserId, DocumentHash)`, enforced by a unique index; a push that loses the insert race lands on the Document that won (ADR 0008) | Firm |
