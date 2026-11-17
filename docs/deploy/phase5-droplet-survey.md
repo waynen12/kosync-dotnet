@@ -126,14 +126,15 @@ exposed-port finding below, since the origin IP is already public in DNS.
 
 Recorded rather than acted on, per the brief's read-only scope.
 
-1. **There is no firewall, and ai-hub's port 3000 is exposed to the
-   internet.** `ufw` is inactive and the `iptables` INPUT policy is `ACCEPT`.
-   Verified from outside the droplet: `http://104.248.168.202:3000/` answers
-   HTTP 307. ai-hub is therefore reachable over plain HTTP, bypassing Caddy
-   and TLS. This shapes kosync's own deployment: on this box *any*
-   host-published port is public by default. DigitalOcean cloud firewalls are
-   configured outside the droplet and are invisible from inside it, so the DO
-   panel should be checked before concluding nothing filters traffic.
+1. **~~There is no firewall~~ — corrected 2026-11-17: there is a DO cloud
+   firewall.** The operator supplied its inbound rules; see "The firewall"
+   below, which supersedes this item. What was read off the box was accurate
+   (`ufw` inactive, `iptables` INPUT policy `ACCEPT`, port 3000 answering
+   HTTP 307 from outside) and the conclusion drawn from it was wrong. A DO
+   cloud firewall is enforced upstream of the droplet, so it is invisible to
+   both `ufw` and `iptables` from inside — and, unlike `ufw`, it is not
+   bypassed by Docker's own iptables rules. The exposure of port 3000 is
+   real but deliberate: it is an explicit allow rule.
 2. **Docker has no log rotation.** There is no `/etc/docker/daemon.json`, so
    `json-file` runs with no `max-size`. Current logs are small (4 MB worst
    case) on a 48 GB disk, but this is a standing trap for an accidental
@@ -144,6 +145,56 @@ Recorded rather than acted on, per the brief's read-only scope.
    bears directly on ROADMAP's "what does a reader with the portal open see
    mid-deploy" question: the answer is that something *other than a deploy*
    can also kill their circuit, so the decision cannot be scoped to deploys.
+
+## The firewall — and why port 80 being shut matters
+
+Supplied by the operator 2026-11-17, not read off the box (a DO cloud
+firewall cannot be). Inbound, all sources, IPv4 and IPv6:
+
+| Port | What |
+|---|---|
+| 22 | SSH |
+| 443 | HTTPS |
+| 3000 | ai-hub, directly — plain HTTP, bypassing Caddy |
+
+**Port 80 is not open.** That is the fact with consequences, and it is good
+news twice before it is a constraint.
+
+- **TLS still works, via a different challenge.** Caddy has *smart challenge
+  selection*: "if port 80 is blocked, it will learn to prefer the TLS-ALPN
+  challenge which does not use port 80." HTTP-01 requires port 80 to be
+  externally reachable and cannot succeed here. So `hub` and `n8n` hold valid
+  certificates because they were issued over **TLS-ALPN-01 on 443**, and
+  `kosync.notrauto.org` will be issued the same way — **no firewall change is
+  needed to add it.**
+- **It means there is no plaintext path to the portal at all.** Caddy listens
+  on `0.0.0.0:80` inside the box, but nothing outside can reach it.
+
+The constraint, and it is a real one:
+
+- **`http://` does not redirect to `https://` — it times out.** Caddy's
+  automatic HTTP-to-HTTPS redirect lives on port 80, which is filtered, so a
+  client using an `http://` URL gets no answer rather than a redirect. For
+  kosync this is the sharp edge: **`Portal__BaseUrl` must be
+  `https://kosync.notrauto.org`**, and devices must be pointed at `https://`
+  too. ADR 0006's refusal message names that URL to a reader whose password
+  is Provisional, so an `http://` value sends them somewhere that hangs — the
+  exact silent-misconfiguration failure `run-local.sh` exists to prevent
+  locally.
+- **The grey-cloud DNS decision above is now load-bearing, not a
+  preference.** TLS-ALPN-01 requires that Caddy be the thing terminating TLS
+  for the hostname. Switching `kosync` to Cloudflare's orange cloud would put
+  Cloudflare's TLS terminator in front of it, breaking TLS-ALPN-01 — and
+  HTTP-01 is unavailable as a fallback because port 80 is shut. That would
+  break renewal, silently, up to 60 days after it was changed. The escape
+  hatch, if proxying is ever wanted, is the DNS-01 challenge, which needs no
+  open ports but does need a Caddy built with the Cloudflare DNS plugin
+  (`xcaddy` + `caddy-dns/cloudflare`) and an API token — a different
+  deployment than the stock image running there today.
+
+Worth verifying once from the Caddy logs rather than inferring: that the
+issued certificates name the `tls-alpn-01` challenge. The reasoning above is
+sound but it was not read off the box.
 
 ## The backup picture is empty
 
@@ -195,19 +246,32 @@ Why this over the alternatives:
 The decided own-subdomain routing and containerisation are unchanged by any
 of this; both are confirmed workable as specified.
 
-## The real constraint is the single CPU
+## Capacity — a non-issue at this traffic, memory the one to watch
 
-Disk is a non-issue (31 GB free for a database measured in megabytes). Memory
-is adequate but not generous: ~1.19 GiB available, against a .NET 10 Blazor
-Server container wanting roughly 100-250 MB alongside Next.js, n8n, Postgres
-and dockerd.
+Disk is nowhere near a constraint: 31 GB free for a database measured in
+megabytes.
 
-**What should be measured on this box before deploying is bcrypt work factor
-12 on one shared core.** Per ADR 0005 that cost is paid on every uncached
-sync auth, and here it contends with ai-hub and n8n for the only vCPU. The
-work factor is configurable and the verified-credential cache exists for
-exactly this reason — but the number should come from this hardware rather
-than from a development machine.
+**The single-vCPU concern is retired.** It was raised against unknown
+traffic; the operator has since confirmed the box serves **one user and
+little to no traffic**. bcrypt work factor 12 (ADR 0005) is paid per
+*uncached* sync auth, and `VerifiedCredentialCacheSeconds` is 300
+(`appsettings.json`), so a reader syncing a book costs one KDF every five
+minutes at worst. One hash on one shared core is tens to a few hundred
+milliseconds, against a device that syncs on opening and closing a book.
+There is nothing here to tune and no reason to lower the work factor — which
+ADR 0005 rejected on its own merits anyway.
+
+Keep it in mind only if this ever stops being a single-reader server: the
+cost is per authenticating device, not per user, and it is the one thing in
+this system that deliberately burns CPU.
+
+**Memory is the tighter resource, and still adequate.** ~1.19 GiB available
+against a .NET 10 Blazor Server container wanting roughly 100-250 MB,
+alongside Next.js, n8n, Postgres and dockerd. The 2 GiB swapfile is
+currently unused, so there is headroom behind the headroom. A memory limit
+on the kosync container is worth setting — not because it is expected to
+need one, but because on a 1.9 GiB box the failure mode of *not* having one
+is the OOM killer choosing between kosync and Postgres.
 
 ## Still open after this survey
 

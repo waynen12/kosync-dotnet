@@ -356,15 +356,24 @@ answer was most of it. In short, with the full survey linked above:
   existing `n8n_demo` network as external, publishing no host port.** Caddy
   reaches it by container name. Publishing a port would expose it, because
   the box has no firewall — see below.
-- **The real constraint is one vCPU.** Disk is a non-issue (31 GB free).
-  bcrypt work factor 12 (ADR 0005) is paid per uncached sync auth and
-  contends with Next.js, n8n and Postgres for the only core, so the work
-  factor wants measuring on that hardware rather than on a dev machine.
-- **Not ours, but it shapes ours:** there is no firewall and ai-hub is
-  reachable over plain HTTP on port 3000, bypassing Caddy and TLS. On this
-  box any host-published port is public by default. Docker also has no log
-  rotation (a trap for an accidental `SyncTrace__Enabled`) and `Live
-  Restore` is off, so a daemon upgrade bounces every container.
+- **Port 80 is firewalled shut, so `http://` times out rather than
+  redirecting.** Certificates are fine — Caddy falls back to the TLS-ALPN-01
+  challenge on 443, and adding a hostname needs no firewall change. But
+  **`Portal__BaseUrl` must be `https://`** and devices must be pointed at
+  `https://`, or ADR 0006's refusal sends a reader to a URL that hangs. It
+  also makes the grey-cloud DNS choice load-bearing: proxying through
+  Cloudflare would break TLS-ALPN-01 with no HTTP-01 fallback available.
+- **Capacity is not a constraint at one reader.** 31 GB disk free, and the
+  single-vCPU bcrypt concern is retired — work factor 12 is paid per
+  *uncached* auth against a 300-second credential cache. Memory is the
+  tighter resource (~1.19 GiB available) and still adequate; set a container
+  memory limit so the OOM killer never has to choose between kosync and
+  Postgres.
+- **Not ours, but it shapes ours:** ai-hub is deliberately reachable over
+  plain HTTP on port 3000, bypassing Caddy and TLS — the one unencrypted
+  path into the box. Docker has no log rotation (a trap for an accidental
+  `SyncTrace__Enabled`) and `Live Restore` is off, so a daemon upgrade
+  bounces every container.
 
 **2. Updates must never cost data — ✅ decided, not yet built.** This is the
 requirement that makes the phase more than "copy a container up". The rules
