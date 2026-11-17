@@ -1,5 +1,7 @@
 using System.Net;
+using System.Text.Json;
 using Kosync.Database;
+using Kosync.Database.Entities;
 using Kosync.Models;
 using Kosync.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
@@ -28,20 +30,52 @@ public class SyncControllerTests : IntegrationTestBase
         Assert.Equal("OK", body.GetProperty("state").GetString());
     }
 
+    // Asserts the message as well as the status, like the two below it: all
+    // three ways a credential can fail now answer in the same words, and that
+    // is the whole of issue #42.
     [Fact]
     public async Task Auth_WithoutCredentials_Returns401()
     {
         var response = await Client.GetAsync("/users/auth");
+        var body = await BodyAsync(response);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(
+            Constants.UserAdmin.InvalidCredentials, body.GetProperty("message").GetString());
     }
 
+    // The message, not just the status: this branch answered "User could not
+    // be found" to a User who was there and healthy and had simply mistyped
+    // their password, which is an answer that sends them to register a second
+    // account rather than retype (issue #42). KOReader shows the server's
+    // sentence verbatim, so here the sentence *is* the behaviour - which is
+    // why there was nothing to fail when it was wrong.
     [Fact]
-    public async Task Auth_WithInvalidCredentials_Returns401()
+    public async Task Auth_WithAWrongAuthKey_Returns401_WithoutClaimingTheUserIsAbsent()
     {
-        var response = await GetAsync("/users/auth", "admin", "wrong-password");
+        var response = await GetAsync("/users/auth", Constants.Admin.Username, "wrong-password");
+        var body = await BodyAsync(response);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(
+            Constants.UserAdmin.InvalidCredentials, body.GetProperty("message").GetString());
+    }
+
+    // The other half of issue #42, for the reason given at the constant.
+    // Asserted as "these two answers are indistinguishable" rather than
+    // against the constant twice, because that is the property: a later branch
+    // that told the two apart would still pass two separate equality
+    // assertions.
+    [Fact]
+    public async Task Auth_WithAnUnknownUsername_IsAnsweredLikeAWrongAuthKey()
+    {
+        var unknownUser = await GetAsync("/users/auth", "nobody-by-that-name", "any-password");
+        var wrongKey = await GetAsync("/users/auth", Constants.Admin.Username, "wrong-password");
+
+        Assert.Equal(wrongKey.StatusCode, unknownUser.StatusCode);
+        Assert.Equal(
+            (await BodyAsync(wrongKey)).GetProperty("message").GetString(),
+            (await BodyAsync(unknownUser)).GetProperty("message").GetString());
     }
 
     [Fact]
@@ -54,52 +88,34 @@ public class SyncControllerTests : IntegrationTestBase
         Assert.Equal("admin", body.GetProperty("username").GetString());
     }
 
+    // Issue #42 left this message alone on purpose: an Inactive User is
+    // something the server does know, and it is only told to a caller whose
+    // credential already checked out. Asserted to the letter so that
+    // flattening the three refusals into one sentence fails here.
     [Fact]
-    public async Task Auth_WithInactiveUser_Returns401()
+    public async Task Auth_WithInactiveUser_Returns401_SayingTheUserIsInactive()
     {
-        await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
-        await PutAsync<object?>("/manage/users/active?username=reader", null, "admin", "admin");
+        await PostAsync(
+            "/manage/users",
+            new UserCreateRequest { username = "reader", password = "pw" },
+            Constants.Admin.Username,
+            Constants.Admin.DefaultPassword);
+        await PutAsync<object?>(
+            "/manage/users/active?username=reader",
+            null,
+            Constants.Admin.Username,
+            Constants.Admin.DefaultPassword);
 
         var response = await GetAsync("/users/auth", "reader", "pw");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task CreateUser_WhenRegistrationDisabled_Returns402()
-    {
-        using var scope = new EnvironmentVariableScope("REGISTRATION_DISABLED", "true");
-
-        var response = await PostAsync("/users/create", new UserCreateRequest { username = "newuser", password = "hash" });
-
-        Assert.Equal((HttpStatusCode)402, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task CreateUser_Success_Returns201_AndCanAuthenticateWithRawKey()
-    {
-        var response = await PostAsync("/users/create", new UserCreateRequest { username = "newuser", password = "some-hashed-key" });
         var body = await BodyAsync(response);
 
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        Assert.Equal("newuser", body.GetProperty("username").GetString());
-
-        var authRequest = new HttpRequestMessage(HttpMethod.Get, "/users/auth");
-        authRequest.SetCredentialsWithRawKey("newuser", "some-hashed-key");
-        var authResponse = await Client.SendAsync(authRequest);
-
-        Assert.Equal(HttpStatusCode.OK, authResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(Constants.UserAdmin.UserInactive, body.GetProperty("message").GetString());
     }
 
-    [Fact]
-    public async Task CreateUser_WithExistingUsername_Returns402()
-    {
-        await PostAsync("/users/create", new UserCreateRequest { username = "dupe", password = "hash" });
-
-        var response = await PostAsync("/users/create", new UserCreateRequest { username = "dupe", password = "hash2" });
-
-        Assert.Equal((HttpStatusCode)402, response.StatusCode);
-    }
+    // `POST /users/create` has its own file - SelfRegistrationTests - because
+    // every one of its cases now turns on whether the installer opted in
+    // (issue #23).
 
     [Fact]
     public async Task SyncProgress_Unauthenticated_Returns401()
@@ -143,12 +159,79 @@ public class SyncControllerTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    // Was GetProgress_WhenDocumentDoesNotExist_Returns502: kept as the
+    // regression guard rather than replaced, now asserting the contract the
+    // reference server actually has
+    // (Constants.SyncProtocol.EmptyProgressBody, issue #41).
     [Fact]
-    public async Task GetProgress_WhenDocumentDoesNotExist_Returns502()
+    public async Task GetProgress_WhenDocumentDoesNotExist_Returns200WithEmptyBody()
     {
         var response = await GetAsync("/syncs/progress/does-not-exist", "admin", "admin");
+        var body = await BodyAsync(response);
 
-        Assert.Equal((HttpStatusCode)502, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(JsonValueKind.Object, body.ValueKind);
+        Assert.Empty(body.EnumerateObject());
+    }
+
+    // The ordering a client that pulls before it pushes uses: one "sync"
+    // action, pulling first and pushing second. That first pull is every
+    // book's first sync, so a client reading it as a hard failure never
+    // reaches the push - which is how the 502 stopped a reader syncing at
+    // all (issue #41).
+    [Fact]
+    public async Task GetProgress_PullBeforeFirstPush_DoesNotBlockThePush()
+    {
+        var firstPull = await GetAsync("/syncs/progress/hash1", "admin", "admin");
+        var firstPullBody = await BodyAsync(firstPull);
+
+        Assert.Equal(HttpStatusCode.OK, firstPull.StatusCode);
+        Assert.Empty(firstPullBody.EnumerateObject());
+
+        var push = await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1",
+            progress = "p1",
+            percentage = 0.25m,
+            device = "Xteink",
+            device_id = "device-1"
+        }, "admin", "admin");
+
+        Assert.Equal(HttpStatusCode.OK, push.StatusCode);
+
+        var secondPull = await GetAsync("/syncs/progress/hash1", "admin", "admin");
+        var secondPullBody = await BodyAsync(secondPull);
+
+        Assert.Equal(HttpStatusCode.OK, secondPull.StatusCode);
+        Assert.Equal("hash1", secondPullBody.GetProperty("document").GetString());
+        Assert.Equal("p1", secondPullBody.GetProperty("progress").GetString());
+        Assert.Equal(0.25m, secondPullBody.GetProperty("percentage").GetDecimal());
+        Assert.Equal("device-1", secondPullBody.GetProperty("device_id").GetString());
+    }
+
+    // The other way a Document reaches "no current progress": it has synced
+    // before and a Progress Reset cleared the pointer. Same branch, same
+    // answer - a reader who restarts a book is back to the first-sync case,
+    // not looking at a server fault.
+    [Fact]
+    public async Task GetProgress_AfterProgressReset_Returns200WithEmptyBody()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1",
+            progress = "p1",
+            percentage = 0.25m,
+            device = "Kobo",
+            device_id = "device-1"
+        }, "admin", "admin");
+
+        await ResetProgressAsync("hash1");
+
+        var response = await GetAsync("/syncs/progress/hash1", "admin", "admin");
+        var body = await BodyAsync(response);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Empty(body.EnumerateObject());
     }
 
     [Fact]
@@ -331,7 +414,7 @@ public class SyncControllerTests : IntegrationTestBase
             device_id = "device-1"
         }, "admin", "admin");
 
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var events = await db.SyncEvents
             .Where(e => e.Document.DocumentHash == "hash1")

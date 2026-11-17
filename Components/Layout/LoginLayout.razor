@@ -1,0 +1,8 @@
+@* The login screen is a full-bleed gradient to the edges of the viewport
+   (docs/ROADMAP.md, "/login layout"), so it cannot sit inside MainLayout's
+   app shell - there is no signed-in User for the shell to be about, and
+   issue #17 turns that header into the authenticated nav. A layout with no
+   chrome at all is what the design asks for. *@
+@inherits LayoutComponentBase
+
+@Body

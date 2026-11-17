@@ -8,16 +8,29 @@ A design pass after that merge reframed the project substantially: the
 dashboard is **not** a single-operator monitoring tool but a multi-tenant
 portal every reader logs into with their own sync credentials (ADR 0004).
 That, plus a forced first-login password change (ADR 0006), real password
-storage (ADR 0005), and the discovery that KOReader can now push book
-metadata (ADR 0007), are designed and specified but **not yet
-implemented**. Phase 2.5 and Phase 3 below carry that work.
+storage (ADR 0005), and KOReader's new metadata push (ADR 0007), became
+Phase 2.5 and Phase 3.
 
-Two prototyping sessions then settled the UI: layouts and design language
-(ai-hub branding, dense tables over card grids), and the framework
-question — Blazor stays. The prototype itself lives on the
-`design/portal-redesign` branch. **Folding that UI in is the next piece of
-work**, ahead of Phase 2.5, since all of it except the Users page is
-backend-independent.
+Three prototyping sessions settled the UI: layouts and design language
+(ai-hub branding, dense tables over card grids), the framework question
+(Blazor stays, ADR 0003), and the two detail pages.
+
+**Phases 2.5 and 3 are implemented and tested on real hardware.** Spec
+[#14](https://github.com/waynen12/kosync-dotnet/issues/14) and its 23
+tickets are closed, along with five bugs the reviews caught
+([#35](https://github.com/waynen12/kosync-dotnet/issues/35)-[#38](https://github.com/waynen12/kosync-dotnet/issues/38),
+[#40](https://github.com/waynen12/kosync-dotnet/issues/40)) and two that
+only three real readers could find
+([#41](https://github.com/waynen12/kosync-dotnet/issues/41),
+[#42](https://github.com/waynen12/kosync-dotnet/issues/42)). Cross-device
+sync, regression protection and metadata are all confirmed working —
+see [manual-testing.md](manual-testing.md).
+
+All of it lives on the **`design/portal-redesign`** branch, **53 commits
+ahead of `main` and unmerged**. Branch from there, not from `main`.
+
+**Next is Phase 5 — deployment to the droplet**, below. Phase 4 (AI) comes
+after it.
 
 This doc exists to get the plan out of chat and into the repo so it
 survives between sessions. Domain vocabulary lives in
@@ -28,11 +41,17 @@ SyncEvent, Split Book, Observed/Curated Metadata, Progress Reset).
 Decisions with real reasoning behind them are recorded as ADRs in
 [docs/adr/](adr/) rather than repeated here.
 
-**Implementation tickets** for everything below that isn't done live under
+**Implementation tickets** for the Phase 2.5/3 work lived under
 [#14](https://github.com/waynen12/kosync-dotnet/issues/14) — the spec
 issue, with each phase's tickets as sub-issues and blocking recorded as
-native GitHub issue dependencies. The ready-to-start frontier is whichever
-of them has no open blocker.
+native GitHub issue dependencies. All 23 are closed; the issue history is
+the record of how each decision below was actually built, including the
+four bugs the reviews caught along the way
+([#35](https://github.com/waynen12/kosync-dotnet/issues/35),
+[#36](https://github.com/waynen12/kosync-dotnet/issues/36),
+[#37](https://github.com/waynen12/kosync-dotnet/issues/37),
+[#38](https://github.com/waynen12/kosync-dotnet/issues/38),
+[#40](https://github.com/waynen12/kosync-dotnet/issues/40)).
 
 ## Guiding constraint
 
@@ -67,9 +86,10 @@ response.
 | Self-registration | `POST /users/create` disabled by default; Administrators provision Users (ADR 0006) | Firm |
 | Book metadata source | KOReader's opt-in `metadata` push, observed per Document; manual curation per Book; ISBN/title lookup later (ADR 0007) | Firm |
 | Test framework | xUnit + `WebApplicationFactory` integration tests | Firm |
-| Device identity | `device_id` only; a reinstall is a brand-new Device, no auto-merge | Firm |
+| Device identity | `device_id` only; a reinstall is a brand-new Device, no auto-merge. Only as trustworthy as the id the client sends — CrossPoint hardcodes one, so its installations collapse into a single Device (#44) | Firm, with a known limitation |
 | Book/Document split | Modeled from the first migration, not deferred to metadata phase (ADR 0001) | Firm |
 | Book/Document assignment | New Document auto-creates its own 1:1 Book; "same book" merges are a manual dashboard action | Firm |
+| Document identity | One Document per `(UserId, DocumentHash)`, enforced by a unique index; a push that loses the insert race lands on the Document that won (ADR 0008) | Firm |
 | Automatic Book-matching (metadata-based) | Now viable on real metadata, but **suggestions only** — exact case-insensitive match on title *and* author, never an automatic merge (ADR 0007) | Firm |
 | Regression protection | Document-scoped only (not across a Book's merged Documents) | Firm |
 | Regression mechanism | Every push recorded as a SyncEvent; only promotes to current if percentage ≥ current. No auto-detected "restart" carve-out. | Firm |
@@ -89,8 +109,11 @@ response.
 - Introduce EF Core + SQLite. Schema shape, as built:
   - `Users` — migrated as-is.
   - `Books` — new. A Document always belongs to exactly one Book.
-  - `Documents` — hash, belongs to a Book. Also carries `LastResetAt`
-    for Progress Reset (see Phase 2).
+  - `Documents` — hash, belongs to a Book. Carried a single `LastResetAt`
+    for Progress Reset (see Phase 2) until
+    [#40](https://github.com/waynen12/kosync-dotnet/issues/40) replaced it
+    with `ProgressResets`.
+  - `ProgressResets` — one row per Progress Reset of a Document.
   - `Devices` (new) — identity is `device_id`; `device` label is mutable.
   - `SyncEvents` (new) — append-only: Device, Document, percentage,
     progress, timestamp, `IsCurrent`. This is the full history sync-issue
@@ -156,22 +179,31 @@ response.
   first version could partially apply on failure).
 - Progress Reset: a "delete progress" dashboard action distinct from a
   SyncEvent (see GLOSSARY.md) — clears a Document's current-progress
-  pointer, keeps its SyncEvent history intact, recorded as `LastResetAt`.
+  pointer, keeps its SyncEvent history intact, recorded as a
+  `ProgressResets` row per occurrence
+  ([#40](https://github.com/waynen12/kosync-dotnet/issues/40); originally a
+  single `LastResetAt` timestamp, which could remember only the newest
+  reset and left the push after an earlier one falsely flagged).
 
 **Hardening after the initial build:** issues
 [#10](https://github.com/waynen12/kosync-dotnet/issues/10)-[#13](https://github.com/waynen12/kosync-dotnet/issues/13)
 were opened from code review — a merge transaction gap, duplicated tab
 markup, hardcoded strings bypassing `Constants.cs`, and a couple of minor
-text/naming nits. #10, #11 and #12 are closed;
-[**#13 is still open**](https://github.com/waynen12/kosync-dotnet/issues/13)
-(`NoDeviceDocumentsSyncedText` still reads "No books synced yet", and the
-login error string is still not in `Constants.cs`). It is now also a
-blocker for deleting the prototype — see the fold-in ordering constraint.
+text/naming nits. #10, #11 and #12 are closed, and
+[#13](https://github.com/waynen12/kosync-dotnet/issues/13) is implemented
+on `design/portal-redesign`.
+
+#13 landed after the prototype did, so its two strings resolved slightly
+differently than the issue describes: `NoDeviceDocumentsSyncedText` now
+reads "No documents synced yet", and the login error — which by then had
+moved from `Login.razor` into `PrototypeConstants.cs` — is
+`Constants.LoginErrorText`, rendered by all three login variants. That
+discharges the fold-in ordering constraint below.
 
 Note [#1](https://github.com/waynen12/kosync-dotnet/issues/1), the
 Phases 0-2 spec, is also still open despite that work having shipped.
 
-### Phase 2.5 — Accounts, passwords and tenancy — designed, not started
+### Phase 2.5 — Accounts, passwords and tenancy — ✅ Done ([#20](https://github.com/waynen12/kosync-dotnet/issues/20)-[#28](https://github.com/waynen12/kosync-dotnet/issues/28))
 
 Numbered 2.5 rather than 3 only to keep the existing Phase 3/4 references
 stable. In scope and effort this is the largest change since Phase 0: it
@@ -195,7 +227,11 @@ can't be designed until the credential story is settled.
 - Middleware redirects a Provisional-Password User to the change-password
   page from every authenticated route but that page and logout.
 - One-shot `ADMIN_PASSWORD_RESET` recovery, returning admin to Provisional.
-- `POST /users/create` disabled by default; invert the env var.
+- `POST /users/create` disabled by default; invert the env var. **Done
+  (#23):** the opt-in is `SELF_REGISTRATION_ENABLED`, a new name rather
+  than `REGISTRATION_DISABLED` with its default flipped — which would have
+  left compose files reading `REGISTRATION_DISABLED=false` on a server that
+  refuses registration.
 - The change-password page is built in the folded-in design language (hub
   primitives), matching `/login`. No styling decisions remain here — the
   UI fold-in lands before this phase and `/login` arrives already done,
@@ -224,25 +260,126 @@ depend on `ADMIN_PASSWORD` being applied at boot. Forced password change
 breaks all of them; the shared test fixture needs to seed a non-Provisional
 admin.
 
-### Phase 3 — Book metadata — designed, not started
+### Phase 3 — Book metadata — ✅ Done ([#29](https://github.com/waynen12/kosync-dotnet/issues/29), [#30](https://github.com/waynen12/kosync-dotnet/issues/30), [#31](https://github.com/waynen12/kosync-dotnet/issues/31), [#32](https://github.com/waynen12/kosync-dotnet/issues/32))
 
 Source is now decided (ADR 0007): KOReader's own opt-in metadata push.
 
-- Extend `DocumentRequest` with an optional `metadata` object
+- **Done (#29):** `DocumentRequest` takes an optional `metadata` object
   (`filename`, `title`, `authors` — `authors` is a single string, not a
-  list). It is currently dropped silently at model binding. Requires
-  KOReader ≥ 2026.07 with "Send document metadata" enabled; absent
-  metadata must never clear previously stored metadata.
-- Observed metadata on Document; curated title/author on Book; display
-  resolves curated → most recent observation → `Book #N`.
-- Manual title/author editing on the Book detail page.
-- Observed filename replaces raw hashes as the Document label **on the
-  detail pages**, hash still shown alongside. The dashboard table shows a
-  Document count and labels no Documents, so nothing changes there.
-- Inline hint on metadata-less Books telling the reader to enable the
-  KOReader setting.
-- Exact title+author merge *suggestions*, scoped within one User.
+  list), stored as Observed Metadata on the Document. Requires
+  KOReader ≥ 2026.07 with "Send document metadata" enabled. Absent
+  metadata never clears what is stored, and neither does a blank field —
+  an empty `title` is a Device reporting it found none, not a correction.
+  Each observation also records `MetadataObservedAt`, because the
+  most-recent-observation rule below cannot recover that afterwards.
+- **Done (#30):** curated title/author on the Book, set and cleared from
+  its detail page, with display resolving curated → most recent
+  observation → `Book #N` in `BookMetadataRule`. A push writes only to the
+  Document, so it can never overwrite a curated value. The edit form binds
+  to what was curated rather than to what is displayed: prefilling it with
+  an observation would curate a device's guess on the next save. Where
+  observations disagree the most recent wins (not the furthest-along
+  Document, which is the Book-progress rule), tie-broken by Document id so
+  a Book's title never depends on row order. A merge carries a curated
+  value onto the surviving Book only where that Book has none of its own —
+  the one piece of metadata a removed Book cannot leave behind on its
+  Documents (ADR 0007).
+- **Done (#31):** observed filename is the Document's label on the two
+  detail pages, resolved in `DocumentLabelRule`, falling back to the
+  hash's first 8 characters where no Device reported one. The full hash
+  stays beside it — it is what tells a Split Book's files apart. The
+  dashboard is untouched: its table shows a Document count and labels no
+  Documents, so a filename has nothing to replace there. The same change
+  carries the inline hint on a Book nothing has ever reported a title for,
+  naming KOReader's "Send document metadata" setting, since that setting
+  is off by default and the Book otherwise looks broken rather than
+  switched off. `BookMetadataRule.NeedsMetadataHint` holds the hint to its
+  own wording: withheld from a Book whose Documents observed anything (that
+  reader's setting is already on, so there is nothing to enable) and from
+  one with a curated title (there *is* a title), but shown on a Book with
+  only a curated author, which is still called `Book #N`.
+- **Done (#32):** exact title+author merge *suggestions*, scoped within
+  one User, in `BookMergeSuggestionRule`. Case-insensitive and trimmed, on
+  both fields, among Books that have metadata at all — matched on what a
+  Book is *called*, so a curated title participates and a `Book #N` label
+  never does. Surfaced inline on both Books it concerns, with the
+  suggested Book named by id (both have the same title, so the id is all
+  that tells them apart) and one button that runs the merge action that
+  already existed. Nothing merges on a match: `MergeBooksAsync` is
+  transactional but not undoable, so a false positive would be manual
+  cleanup (ADR 0007). The Books table carries a `Merge suggestion` flag
+  beside the Split Book one — independent flags, because a Book can be
+  both and they mean opposite things: one is a Book already gone wrong,
+  the other a Book that might be two. The typed "merge Book #" control
+  stays: the rule is narrow enough that most real Split Books (no
+  metadata, or a title only one device read) will never be suggested at
+  all. Both ways of starting a merge now ask twice, as a `<details>`
+  disclosure rather than as round-tripped state (ADR 0003) — a suggested
+  pair came from a rule and a typed id can be a typo, and neither is worth
+  one click when nothing can undo it. The typed control stopped being a
+  `<form>` for the same reason: Enter in its last field would have
+  submitted straight past the confirmation.
 - Later, not now: fill metadata from an entered title or ISBN.
+
+### Phase 5 — Deployment to the droplet — next, not started
+
+Numbered after Phase 4 only because AI already had that number; this comes
+**first**. The goal is a version actually in daily use, on
+`kosync.notrauto.org`, that can take future feature updates without
+losing data.
+
+Start a fresh session for it — this phase is an investigation before it is
+an implementation, and it begins with questions nobody has answered yet.
+What is already decided is under "Deployment target" below; don't
+re-litigate the subdomain or the container.
+
+**1. Survey the droplet before designing anything.** It already runs ai-hub
+and n8n, so the question is what can be reused rather than what to build.
+What is on it now, what is in front of those apps (a reverse proxy of some
+kind must be, since both answer on subdomains), how TLS is issued and
+renewed, whether Docker is installed and what else uses it, and how much
+room is left. Everything in point 2 depends on these answers, so resist
+designing the pipeline first.
+
+**2. Updates must never cost data.** This is the requirement that makes the
+phase more than "copy a container up". Once real reading history lives on
+that box, every subsequent deploy has to be survivable. Unanswered:
+
+- Where SQLite actually lives, so a redeploy replaces the container and
+  not the database. A volume that a `docker compose down -v` can take with
+  it is the obvious trap.
+- Backup *before* migrating, automatically, not as a thing to remember.
+  The first deploy is the easy case — an empty database, nine migrations
+  applying to nothing. Every one after it is the real problem.
+- Whether a destructive migration may ever run unattended. There is a
+  precedent in the tree already: `AddDocumentHashUniqueIndex` collapses
+  duplicate Documents before it can apply its index (ADR 0008). It is
+  correct, it is tested, and it still deletes rows.
+- The rollback story when a migration is one-way. EF Core migrations have
+  `Down` methods; the data they would need to reconstruct may be gone.
+- What happens to an open Blazor circuit mid-deploy. A reader with the
+  portal open gets a dead page (ADR 0003) — acceptable, but it should be a
+  decision rather than a surprise.
+- SQLite with WAL inside a container: the `-wal` and `-shm` files are part
+  of the database, as `run-local.sh --fresh` has to account for. Any
+  backup or volume strategy that copies only `kosync.sqlite3` is wrong.
+
+**3. Then ask whether GitHub Actions can own it end to end.** Build, test,
+image, deploy, migrate, verify. Worth wanting, but it is downstream of 1
+and 2: a pipeline that automates an unsafe migration just makes the unsafe
+thing happen faster and unattended. Also decide what it does when the
+smoke test fails after a migration has already applied.
+
+Settings that must be right per environment, and are silent when wrong —
+both have already cost a local session:
+
+| Setting | Why |
+|---|---|
+| `Portal__BaseUrl` | The refusal a Provisional-Password device gets names this URL (ADR 0006). Wrong, and the reader is sent somewhere unreachable. Default is `http://localhost:8080`. |
+| `ASPNETCORE_URLS` | Must bind `0.0.0.0`, not localhost, or nothing outside the container reaches it. |
+| `ADMIN_PASSWORD` | Seed-only — it applies when the admin row is created and never again (ADR 0006). The first boot is the only chance; `ADMIN_PASSWORD_RESET` is the way back. |
+| `SyncTrace__Enabled` | Logs reading positions and document hashes verbatim (GLOSSARY: Sync Trace). Fine while diagnosing, not as a standing setting once other people's books are on the box. |
+| `SELF_REGISTRATION_ENABLED` | Off by default and should stay off on a public address (ADR 0006). |
 
 ### Phase 4 — AI integration
 - Summaries of in-progress books.
@@ -334,14 +471,21 @@ and where it goes:
 | Prototype | Folds into | Notes |
 |---|---|---|
 | `LoginVariantA.razor` | `Components/Pages/Login.razor` | Strings move to `Constants.cs`, not `PrototypeConstants.cs` |
-| `DashboardVariantB.razor` + `HubSidebar.razor` | `Components/Pages/Dashboard.razor` | Replaces `Components/Shared/CardGrid.razor`, which then has no caller |
-| `UsersVariantB.razor` | a new Users page | **Blocked on Phase 2.5** — no account service, no tenancy |
-| `HubNav.razor` | `Components/Layout/MainLayout.razor` | Replaces `.ks-shell-header` |
-| `prototype.css` token block + primitives | `wwwroot/css/app.css` | **Does not delete the `--ks-*` tokens** — see "the detail pages" below |
+| `DashboardVariantB.razor` + `HubSidebar.razor` | `Components/Pages/Dashboard.razor` | **Done (#18):** `CardGrid.razor` and `CardGridItem.cs` are deleted, and their rules are out of `app.css`. Section selection is a `?tab=` link, so it costs no circuit message; the table's search is `wwwroot/js/dashboard-filter.js`, client-only for the same reason the theme toggle is. The sidebar carries the Library group only — its Administration group pointed at the prototype Users route, and #28/#24 build the real destinations |
+| `UsersVariantB.razor` | a new Users page | **Done (#28):** `Components/Pages/Users.razor`, over `UserAdminService`. Was blocked on Phase 2.5 for an account service and tenancy, which is why #19 waited on it — the variant was the design source and had to outlive the deletion |
+| `HubNav.razor` | `Components/Layout/MainLayout.razor` | **Done (#17):** replaced `.ks-shell-*` outright — those rules and the `--ks-shell-bg` alias are gone, and the nav rules are app.css section 6. The nav carries brand, Username and the theme toggle only; the prototype's "Manage accounts", "Change password" and "Sign out" buttons land with #28, #24 and a sign-out endpoint respectively, rather than shipping as dead chrome. The sign-out endpoint is #43: the button is a `<form method="post">` in the nav rather than a link, because a link that signs you out is followed by link previews and prefetchers too |
+| `prototype.css` token block + primitives | `wwwroot/css/app.css` | **Done (#15), and finished by #39:** the `--ks-*` aliases it had to keep are gone, along with every `.ks-*` rule that read them. `app.css` is hub tokens and hub rules throughout — see "the detail pages" below |
 | `HubIcon.razor` | keep as-is | Or take a real icon dependency — decide then |
-| *(nothing)* | `Components/Pages/BookDetail.razor`, `DeviceDetail.razor` | **No prototype exists for these** — see below |
+| `detail-pages-mockup.html` variant A | `Components/Pages/BookDetail.razor`, `DeviceDetail.razor` | **Done (#39):** variant A, "Ledger", over the real services and tests. Both pages are `.hub-main` with a `hub-table` of Documents; the row expander is `wwwroot/js/row-expand.js`, client-only for the reason the dashboard filter is. See "The detail pages" below |
 
-#### The detail pages were never prototyped
+#### The detail pages were never prototyped — *superseded, see below*
+
+> Kept as written because it is the reasoning that produced the `--ks-*`
+> aliases. Both the session it calls for and the implementation have since
+> run — #33 chose the design, #39 built it — so nothing below is still true
+> of the code: the aliases and every rule that read them are gone. The
+> "21 `.ks-*` classes" figure was already stale before that, #30, #31 and
+> #32 having added to these pages since it was written.
 
 Neither session produced a variant for `/dashboard/books/{id}` or
 `/dashboard/devices/{id}`, and they depend on 21 `.ks-*` classes
@@ -366,6 +510,154 @@ The detail pages are therefore **the next UI pass** (a third prototyping
 session), not part of the fold-in. They will look slightly off-brand
 until then: new colours, old radii and spacing.
 
+#### The detail pages — decided and built (decided 2026-11-01, issue [#33](https://github.com/waynen12/kosync-dotnet/issues/33); built 2026-11-04, issue [#39](https://github.com/waynen12/kosync-dotnet/issues/39))
+
+The third prototyping session ran. Three structurally different variants are
+in [prototype/detail-pages-mockup.html](prototype/detail-pages-mockup.html)
+(`?variant=A|B|C`, with Book/Device and data-case switchers), built over the
+real `app.css` so they were judged in the actual design language rather than
+against a hand-rolled palette — which is what `dashboard-mockup.html` could
+not do, predating app.css having hub tokens.
+
+**Both halves have landed.** The bug the session found was
+[#38](https://github.com/waynen12/kosync-dotnet/issues/38) — which exposed
+[#40](https://github.com/waynen12/kosync-dotnet/issues/40), the one case the
+derived flag could not get right on the old schema — and both went in ahead
+of the rebuild, so the new markup renders a correct flag rather than
+reproducing the bug. #39 then built variant A and deleted the `--ks-*`
+aliases with it, which was the last of the pre-hub styling: `app.css` is hub
+tokens and hub rules throughout.
+
+**Decision: variant A, "Ledger".** Documents are a `hub-table`; a row
+expands into its full hash, its SyncEvent history and the reset action. The
+metadata editor and the merge controls are closed `<details>` disclosures in
+a strip under the header.
+
+**As built.** The one deliberate departure from the mockup is that the
+mockup's two spellings of the reset warning (a quiet `hub-guard` on the Book
+page, a red aside on the merge beside it) became one: `.hub-aside-danger`
+carries both confirmations and all three error messages, because "this
+cannot be undone" and "it was not done" are the same claim at different
+moments and the retired rules had spent three near-identical classes telling
+them apart. Otherwise: the `.v-*`/`.va-*` candidate names became `.hub-*`
+and joined the existing sections rather than forming one of their own, the
+shared disclosure-marker removal is now a single rule covering the Users
+page's two disclosures as well, and `--hub-maxw-narrow` went with
+`.ks-detail` — its only reader — since variant A put a table on both pages
+and was measured at the full width.
+
+**Why.** The deciding argument is the same one that chose the dashboard's
+table over the card grid, one level down: *the drill-in should not be a
+different design language from the page that links to it.* A Book's
+Documents are the same kind of list as the dashboard's Books — scanned for
+the one that went wrong — and a table aligns every progress bar and every
+flag into one column. Variant A also lands the page on evidence rather than
+on inputs: today both forms are permanently open above the Documents, which
+puts an irreversible merge control between the reader and the thing they
+came to look at.
+
+Measured content heights at 1440px, on the Split Book case (4 Documents, 12
+SyncEvents) and the busy Device (7 Documents). Measured by driving the
+mockup headlessly and reading the `.hub-main` box, excluding the prototype's
+own furniture (the switcher bar and the on-screen note); reproduce by
+loading `?variant=<A|B|C>&page=<book|device>&case=<split|busy>` at a 1440px
+viewport:
+
+| | Book detail | Device detail |
+|---|---|---|
+| A — Ledger | **677px** (945px with one row open, 1484px with all four) | **673px** |
+| B — Workbench | 1289px | 1074px |
+| C — Stream | 1096px | 824px |
+
+A is the shortest closed and the tallest fully open, which is the point:
+it is progressive disclosure, and diagnosing a Split Book means opening one
+Document, not four. B and C pay their full height whether you need it or not.
+
+**What the losers were right about, and what to keep from them.**
+
+- **B's sticky identity rail.** Scrolling a long Document list means
+  checking each row against a Book whose title has scrolled away. Worth
+  revisiting if the Document count on real data runs long; A keeps the
+  identity in a header that scrolls off.
+- **C's interleaved timeline is the better diagnosis and the worse page.**
+  A Split Book *is* a disagreement between Documents over time, and
+  interleaving makes the fork visible as a fork — A's per-row drawers keep
+  the two histories apart, which is exactly the comparison you want. It
+  lost on generality: `DeviceDocumentSummary` carries no SyncEvent history
+  at all, so the Device page can only imitate C, and a layout that only
+  works on one of the two pages reintroduces the split this session existed
+  to close. If a Split Book turns out to be hard to read in A, C's stream
+  is the thing to bring back — as a view on the Book, not as the page.
+- **Documents are keyed `D1`/`D2`/`D3` rather than by colour** in all three
+  variants, and that survives into A. The hub ramp is achromatic with one
+  brand orange; a per-Document colour key would be the first chromatic
+  thing in the system.
+
+**Also settled by the session:**
+
+- **A Document's label.** Observed filename (or truncated hash) in the
+  Document column; the **full** hash inside the expanded row, not on it.
+  The hash is reference material you fetch when diagnosing, and keeping it
+  out of the collapsed row is what lets the table stay a table — it was
+  ~32 monospace characters per row competing with the filename.
+- **The reset action** moves inside the expanded row, behind the same
+  two-press `<details>` confirmation the merge uses. It was a button on
+  every Document row, one press from an irreversible action, sitting in a
+  column you scan past.
+- **The metadata hint and the Split Book flag** stay inline on the Book,
+  as they are now — that part of ADR 0007 was right and is unchanged.
+- **Merge Suggestions move behind the same disclosure as the merge form**,
+  with the count on the summary (`Merge (1 suggested)`). This is a real
+  change from today, where the suggestion list renders unconditionally
+  above the Documents, and it is in tension with the "Issue surfacing UX —
+  inline flags on the thing they belong to" row above, so it is called out
+  rather than left to be discovered. The reconciliation: the *flag* stays
+  inline and unconditional — the Book still wears `Merge suggestion` in its
+  header and in the dashboard's Flags column — and only the *action* is one
+  press away. A suggestion is an offer to do something irreversible, which
+  is the thing the session decided should not sit permanently between the
+  reader and the evidence. Nothing about the flag's visibility changes.
+- **The regression flag rolls up to the Document row**, so a collapsed
+  table still shows which Document has something wrong in its history —
+  otherwise A's progressive disclosure would hide the one thing the page
+  exists to surface. There is deliberately **no** Progress Reset roll-up:
+  a reset is a deliberate restart, flagged neutrally precisely because
+  nothing went wrong (issue #9), so it has nothing to summon anybody into
+  a row for. It still shows in the history once opened.
+- **The `--ks-*` aliases and every `.ks-*` rule are gone**, deleted by
+  [#39](https://github.com/waynen12/kosync-dotnet/issues/39) — the last of
+  the pre-hub styling. The count they went out on, since the "21 classes"
+  above is stale (it was written before #30, #31 and #32 added to these
+  pages): **33** distinct `.ks-*` class names in `app.css`, of which the two
+  pages rendered **31**, over **11** `--ks-*` aliases. The replacement rules
+  drop the pre-hub geometry the fold-in left behind (the ad-hoc 8px/12px
+  radii and 12.5px/13.5px font sizes) for `--hub-radius-*` and the hub's
+  type steps — which was most of what "off-brand" meant on these two pages.
+  `DesignSystemTests` guarded the aliases while they existed and now asserts
+  their absence, along with the presence of what replaced them.
+
+**One bug found, and it is not a styling one.** `BookDetail.razor` flags
+every SyncEvent with `!IsCurrent` as a Progress Regression. `IsCurrent` is
+the Document's single current-progress *pointer*, not a verdict on a push:
+`SyncController` promotes each qualifying push and clears the previous
+one's flag, so every superseded-but-ordinary push ends up `!IsCurrent` too.
+A Document with five pushes of which one regressed renders **four** flags —
+verified against the running app, not only read off the code. The existing
+test uses two pushes, where "not current" and "was blocked" coincide, which
+is why it never caught this. The fix needs no schema change: replaying the
+promotion rule over the history the service already returns recovers which
+pushes were actually blocked, and the mockup does exactly that. Filed as
+[#38](https://github.com/waynen12/kosync-dotnet/issues/38) so it could land
+on its own schedule — ahead of #39, which re-renders that flag.
+
+**Both done**, and #38's own spec review turned up a second bug underneath
+it: `Document.LastResetAt` was a single last-one-wins timestamp, so a
+Document reset twice had lost its first reset and the replay judged the push
+that followed it against a ceiling that reset had cleared. Filed as
+[#40](https://github.com/waynen12/kosync-dotnet/issues/40) and fixed by
+recording a Progress Reset per occurrence, which also gave the timeline #39
+rebuilds every reset to render rather than only the newest.
+
 #### The dashboard stops listing documents
 
 `CardGrid` rendered a hash row per Document inside every card; the
@@ -376,30 +668,66 @@ that for the ~20 single-document Books the card was mostly one md5 hash,
 filename becomes a Document's label on the **detail pages**, not on the
 dashboard, which no longer labels Documents at all.
 
+**Done (#18)**, with one thing the fold-in had to keep. The hashes are
+still in each row's `data-ks-text`, which is what the toolbar's filter
+matches against, so "search by device, book or hash" still finds the Book
+whose hash KOReader just showed you — the lookup is the reason you have
+the hash in the first place. They are in no column. Two knock-ons:
+`Constants.NoDeviceDocumentsSyncedText` (issue #13) moved to
+`DeviceDetail.razor`, since the table shows an empty Device as a plain `0`
+and has no per-Device empty state to put it in; and `.ks-card-meta` and
+`.ks-doc-card` survived the card-grid deletion because `BookDetail.razor`
+still rendered them — until #39 rebuilt that page and they went too.
+
 Delete the rest: `PrototypeConstants.cs`, `PrototypeRoutes.cs`,
 `PrototypeDemoData.cs`, `PrototypeSwitcher.razor`, `PrototypeUsers.razor`,
 `PrototypeEmptyLayout.razor`, `PrototypeDashboardItem.cs`, the losing
 variants, and `prototype.js`.
 
+**Done (#19).** `Components/Prototype/`, `prototype.css` and `prototype.js`
+are gone in full — `UsersVariantB.razor` with them, since #28 had already
+landed the real Users page it was the design source for. The variants are
+recoverable from this branch's history, as this section always intended.
+`PrototypeRemovalTests` is what notices them coming back: nothing references
+the folder any more, so a reinstated variant would otherwise sit there
+compiling and unread.
+
 **Four** files in main were touched for the prototype and must be reverted
 or made permanent:
 
 - `Components/Pages/Login.razor` — `LoginModel` was made `public` and the
-  page took `@layout PrototypeEmptyLayout`.
+  page took `@layout PrototypeEmptyLayout`. **Done (#16):** `LoginModel` is
+  private again, and the page now takes `LoginLayout` — a permanent
+  chromeless layout, not a revert to `MainLayout`. `/login` is a full-bleed
+  gradient to the viewport edges, so it cannot sit inside the app shell, and
+  #17 turns that shell into the *authenticated* nav. Do not "revert" this
+  one further.
 - `Components/Pages/Dashboard.razor` — also took
   `@layout PrototypeEmptyLayout`, a three-way variant switch and a
   `<PrototypeSwitcher>`, and lost its two `<CardGrid>` calls. Easy to miss:
   this one was absent from the list until a later review caught it.
+  **Done (#18):** all three are gone and the page takes `MainLayout` again.
+  It does not get its `<CardGrid>` calls back — the table replaced them, and
+  `PrototypeDashboardItem` became `Components/Shared/DashboardRow.cs`.
 - `Components/_Imports.razor` — two `@using` lines marked as throwaway.
-- `tests/Kosync.Tests/DashboardAuthTests.cs` — two assertions re-pointed
-  at prototype copy (`">admin<"`, and `PrototypeConstants.LoginErrorText`).
-  These must move to `Constants.cs` or go back to literals.
+  **Done (#19):** both removed. `Kosync.Components.Pages` went with the
+  prototype namespace — it was only ever there so the switcher could name
+  the real pages, and the solution builds without it.
+- `tests/Kosync.Tests/DashboardAuthTests.cs` — one assertion left
+  re-pointed at prototype copy (`">admin<"`); it should assert against
+  whatever the folded-in nav actually renders. The login-error assertion is
+  already on `Constants.LoginErrorText` — see the ordering constraint.
+  **Done (#19):** the loose `">admin<"` is now
+  `<span class="hub-nav-user">admin</span>`, the element #17's nav actually
+  renders. It was loose because the copy around the Username was in flux
+  while the prototype ran; it has been settled since #17.
 
-**Ordering constraint on the deletions.** `DashboardAuthTests.cs`
-references `PrototypeConstants.LoginErrorText` at *compile* time, so the
-test project stops building the moment `PrototypeConstants.cs` is removed.
-Move that string into `Constants.cs` and re-point the assertion **before**
-deleting anything under `Components/Prototype/`.
+**Ordering constraint on the deletions — discharged by #13.**
+`DashboardAuthTests.cs` used to reference `PrototypeConstants.LoginErrorText`
+at *compile* time, so the test project would have stopped building the
+moment `PrototypeConstants.cs` was removed. #13 moved that string to
+`Constants.LoginErrorText` and re-pointed both the assertion and all three
+login variants, so nothing now blocks deleting `Components/Prototype/`.
 
 ### Framework — decided (item 4)
 
@@ -465,11 +793,6 @@ other people's reading history, not just the operator's own.
 
 ## Open questions
 
-- **Detail-page design.** `BookDetail`/`DeviceDetail` were never
-  prototyped and keep the old `.ks-*` styling via token aliases after the
-  fold-in. A third prototyping session is the next UI pass — and it is the
-  one that should settle how the merge form, reset action and SyncEvent
-  history timeline look in the hub language.
 - Filling book metadata from an entered title or ISBN — wanted, shape not
   designed (ADR 0007 covers only the push and manual curation).
 - Password expiry — anticipated but not designed. ADR 0006 notes that
@@ -487,3 +810,7 @@ first-login flow (ADR 0006).
 language (above), and the UI framework question — Blazor stays, ADR 0003
 amended rather than superseded, Tailwind CLI rejected
 ([ui-tech-review.md](ui-tech-review.md#resolved-2026-10-13)).
+
+*Resolved by the third prototyping session:* detail-page design — variant
+A, "Ledger", built by #39, which deleted the `--ks-*` aliases alongside it
+(above, "The detail pages — decided and built").

@@ -1,38 +1,57 @@
-using System.Text.RegularExpressions;
-
 namespace Kosync.Tests.TestSupport;
 
-// Shared cookie-login flow for tests exercising pages past the /login
-// wall. The login form is a Static SSR "named form" (Blazor's non-JS
-// form-post mechanism), so a real browser round trip is simulated: GET
-// /login to scrape the antiforgery token and form handler name, then POST
-// them back like the rendered form would submit them.
+// Shared cookie-login flow for tests exercising pages past the /login wall.
+// The scraping and posting of a Static SSR named form is PortalForms'
+// business - every portal form works that way; what lives here is the one
+// thing specific to /login, which is the pair of fields it carries.
 public static class DashboardLogin
 {
     public static async Task<HttpResponseMessage> LogInAsync(HttpClient client, string username, string password)
     {
-        var fields = await GetLoginFormFields(client);
-        return await client.PostAsync(AppRoutes.Login, BuildLoginForm(fields, username, password));
-    }
-
-    public static async Task<(string Handler, string AntiforgeryToken)> GetLoginFormFields(HttpClient client)
-    {
-        var html = await (await client.GetAsync(AppRoutes.Login)).Content.ReadAsStringAsync();
-
-        var handler = Regex.Match(html, "name=\"_handler\" value=\"([^\"]*)\"").Groups[1].Value;
-        var token = Regex.Match(html, "name=\"__RequestVerificationToken\" value=\"([^\"]*)\"").Groups[1].Value;
-
-        return (handler, token);
-    }
-
-    public static FormUrlEncodedContent BuildLoginForm((string Handler, string AntiforgeryToken) fields, string username, string password)
-    {
-        return new FormUrlEncodedContent(new Dictionary<string, string>
+        return await PortalForms.SubmitAsync(client, AppRoutes.Login, new Dictionary<string, string>
         {
-            ["_handler"] = fields.Handler,
-            ["__RequestVerificationToken"] = fields.AntiforgeryToken,
             ["Input.Username"] = username,
             ["Input.Password"] = password,
         });
+    }
+
+    // That a sign-in actually issued a session, which is the half of "logged
+    // in" a redirect to the dashboard does not prove. Lives here rather than
+    // in any one test class because the cookie's name is the authentication
+    // scheme's business (ADR 0002), not any single test's.
+    public static void AssertIssuedASessionCookie(HttpResponseMessage response)
+    {
+        Assert.Contains(
+            response.Headers.GetValues("Set-Cookie"),
+            v => v.StartsWith(SessionCookiePrefix));
+    }
+
+    // The other half: that a response really ended the session, rather than
+    // only redirecting somewhere that looks like it did. Signing out writes
+    // the same cookie back empty and expired, which is the only evidence on
+    // the response itself (ADR 0002).
+    public static void AssertClearedTheSessionCookie(HttpResponseMessage response)
+    {
+        Assert.Contains(
+            response.Headers.GetValues("Set-Cookie"),
+            v => v.StartsWith($"{SessionCookiePrefix};") || v.StartsWith($"{SessionCookiePrefix} ;"));
+    }
+
+    private const string SessionCookiePrefix = ".AspNetCore.Cookies=";
+
+    // A client that has signed in and does not follow redirects, which is
+    // what a test asserting on a redirect needs - and every test past the
+    // login wall needs the first half.
+    public static async Task<HttpClient> SignedInClientAsync(
+        this KosyncWebApplicationFactory factory, string? username = null, string? password = null)
+    {
+        var client = factory.NoRedirectClient();
+
+        await LogInAsync(
+            client,
+            username ?? Constants.Admin.Username,
+            password ?? Constants.Admin.DefaultPassword);
+
+        return client;
     }
 }

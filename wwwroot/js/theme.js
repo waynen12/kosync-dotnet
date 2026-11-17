@@ -13,15 +13,14 @@
         return storedTheme() || (systemPrefersDark() ? "dark" : "light");
     }
 
-    function updateToggleLabels(theme) {
-        document.querySelectorAll("[data-theme-toggle]").forEach(function (el) {
-            el.textContent = theme === "dark" ? "☀ Light" : "🌙 Dark";
-        });
-    }
-
+    // The single attribute this whole file exists to set. Every toggle in the
+    // app reflects the theme in CSS off it - the hub nav's toggle renders a
+    // moon and a sun and hides one under :root[data-theme="dark"] - so this
+    // script deliberately does not touch any toggle's own contents. The
+    // pre-hub shell's text toggle had its label rewritten from here, which
+    // would delete an inline SVG; issue #17 replaced that toggle.
     function applyTheme(theme) {
         document.documentElement.setAttribute("data-theme", theme);
-        updateToggleLabels(theme);
     }
 
     function setTheme(theme) {

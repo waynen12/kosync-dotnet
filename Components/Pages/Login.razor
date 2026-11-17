@@ -1,55 +1,108 @@
 @* @page requires a literal - keep this in sync with AppRoutes.Login *@
 @page "/login"
 @attribute [AllowAnonymous]
+@layout LoginLayout
 @inject KosyncDbContext Db
 @inject NavigationManager Navigation
 @inject IPService IPService
+@inject PasswordHasher PasswordHasher
 @inject ILogger<Login> Logger
 
-<PageTitle>Log in</PageTitle>
+@* Static SSR, deliberately (ADR 0003): a plain form POST with no circuit.
+   Nothing here may take a @rendermode - the sign-in below needs an
+   HttpContext, which an interactive render does not have. *@
 
-<h1>Log in</h1>
+<PageTitle>@Constants.LoginPageTitle</PageTitle>
 
-@if (showError)
-{
-    <p class="ks-flag-regression ks-login-error">Invalid username or password.</p>
-}
+@* Deliberately not .hub-root: that is the nav-plus-main shell every other
+   page wraps itself in, and .hub-login would have to re-declare half of it
+   to override the background. *@
+<div class="hub-login">
+    <div class="hub-login-card">
+        <div class="hub-login-head">
+            <h1 class="hub-login-title">@Constants.BrandName</h1>
+            <p class="hub-login-sub">@Constants.LoginHeading</p>
+        </div>
 
-<EditForm Model="Input" FormName="login" OnSubmit="HandleLogin" method="post">
-    <div>
-        <label>
-            Username
-            <InputText @bind-Value="Input.Username" />
-        </label>
+        @* ai-hub raises a failed sign-in as a sonner toast, which needs a
+           live client. This screen is Static SSR, so the error renders
+           inline where the toast would have been. *@
+        @if (showError)
+        {
+            <div class="hub-login-error" role="alert">
+                <HubIcon Name="@Constants.Icons.Alert" Size="@Constants.Icons.InlineSize" />
+                <span>@Constants.LoginErrorText</span>
+            </div>
+        }
+
+        <EditForm Model="Input" FormName="login" OnSubmit="HandleLogin" method="post">
+            <div class="hub-stack-4">
+                <div class="hub-field">
+                    <label class="hub-label" for="login-username">@Constants.LoginUsernameLabel</label>
+                    <InputText id="login-username" class="hub-input" @bind-Value="Input!.Username"
+                               placeholder="@Constants.LoginUsernamePlaceholder" autocomplete="username" />
+                </div>
+
+                <div class="hub-field">
+                    <label class="hub-label" for="login-password">@Constants.LoginPasswordLabel</label>
+                    <InputText id="login-password" type="password" class="hub-input" @bind-Value="Input!.Password"
+                               placeholder="@Constants.LoginPasswordPlaceholder" autocomplete="current-password" />
+                </div>
+
+                <button type="submit" class="hub-btn hub-btn-brand hub-btn-lg hub-btn-block">
+                    @Constants.LoginSubmitText
+                </button>
+            </div>
+        </EditForm>
+
+        <p class="hub-login-hint">@Constants.LoginSyncHint</p>
     </div>
-    <div>
-        <label>
-            Password
-            <InputText type="password" @bind-Value="Input.Password" />
-        </label>
-    </div>
-    <button type="submit">Log in</button>
-</EditForm>
+</div>
 
 @code {
+    @* No property initializer: one on a [SupplyParameterFromForm] property
+       is what raises BL0008 (issue #36). The form's model is restored from
+       the post, so the only time this needs an instance of its own is the
+       first GET - and a post carrying none of the form's fields binds it to
+       null, which on an unauthenticated endpoint would be a 500 for the
+       asking. *@
     [SupplyParameterFromForm]
-    private LoginModel Input { get; set; } = new();
+    private LoginModel? Input { get; set; }
 
     private bool showError;
 
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
 
+    protected override void OnInitialized()
+    {
+        Input ??= new LoginModel();
+    }
+
     private async Task HandleLogin()
     {
-        var user = Db.Users.FirstOrDefault(u => u.Username == Input.Username);
+        var input = Input ?? new LoginModel();
 
+        var user = Db.Users.FirstOrDefault(u => u.Username == input.Username);
+
+        // The portal has plaintext, so it does the MD5 the sync client would
+        // have done before verifying against the one stored credential
+        // (ADR 0005).
         var passwordMatches = user is not null
-            && user.PasswordHash == Utility.HashPassword(Input.Password ?? string.Empty);
+            && PasswordHasher.VerifyPlainText(input.Password ?? string.Empty, user.PasswordHash);
 
-        if (user is null || !user.IsAdministrator || !user.IsActive || !passwordMatches)
+        // No IsAdministrator check, deliberately (ADR 0004): the portal is
+        // where every User reads their own library, and Administrator is a
+        // capability for managing other Users rather than a precondition for
+        // logging in. What still refuses a session is an inactive account.
+        //
+        // Nothing here asks about a Provisional Password either. Such a User
+        // may log in and then reaches only the change-password page, which is
+        // PasswordChangeGateMiddleware's business (ADR 0006) - refusing the
+        // sign-in would leave them with no way to replace the password.
+        if (user is null || !user.IsActive || !passwordMatches)
         {
-            Logger.LogWarning("[{ip}] Failed dashboard login attempt for [{username}].", IPService.ClientIP, Input.Username);
+            Logger.LogWarning("[{ip}] Failed dashboard login attempt for [{username}].", IPService.ClientIP, input.Username);
             showError = true;
             return;
         }
@@ -67,9 +120,13 @@
         Navigation.NavigateTo(AppRoutes.Dashboard, forceLoad: true);
     }
 
+    @* Nullable, like ChangePasswordModel: a post can carry the model without
+       carrying every field, so "" is a claim about the body that the binder
+       never made. It is what the ?? above is guarding. *@
     private class LoginModel
     {
-        public string Username { get; set; } = "";
-        public string Password { get; set; } = "";
+        public string? Username { get; set; }
+
+        public string? Password { get; set; }
     }
 }

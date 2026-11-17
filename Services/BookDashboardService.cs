@@ -1,10 +1,42 @@
 namespace Kosync.Services;
 
-public record SyncEventSummary(string DeviceName, decimal Percentage, DateTime Timestamp, bool IsCurrent, bool IsReset = false);
+// IsCurrent is the Document's single current-progress pointer: at most one
+// entry in a history has it. BlockedRegression is the separate, derived
+// statement that this push was refused promotion when it arrived - see
+// ProgressRegressionRule, which is the only thing that sets it. A view
+// wanting the Progress Regression flag wants BlockedRegression; !IsCurrent
+// is every push that has since been superseded, which is most of a healthy
+// Document's history (issue #38).
+public record SyncEventSummary(string DeviceName, decimal Percentage, DateTime Timestamp, bool IsCurrent, bool IsReset = false, bool BlockedRegression = false);
 
-public record BookDocumentSummary(int DocumentId, string DocumentHash, string DeviceName, decimal Percentage, DateTime Timestamp, bool HasCurrentProgress, IReadOnlyList<SyncEventSummary> History);
+// Label is what to *call* this Document, resolved through DocumentLabelRule -
+// the filename a Device observed, or a truncated hash. DocumentHash is the
+// full hash regardless: it is what you need to diagnose a Split Book, so the
+// label never replaces it (ADR 0007).
+public record BookDocumentSummary(int DocumentId, string DocumentHash, string Label, string DeviceName, decimal Percentage, DateTime Timestamp, bool HasCurrentProgress, IReadOnlyList<SyncEventSummary> History);
 
-public record BookSummary(int Id, decimal Percentage, DateTime? LastSyncedAt, bool IsSplitBook, IReadOnlyList<BookDocumentSummary> Documents);
+// Title and Author are what to *show* for this Book, already resolved
+// through BookMetadataRule - curated, then observed, then `Book #N`. The
+// Curated* pair is what the owning User actually typed, which an edit form
+// needs separately: it has to come up blank where the displayed title is
+// only an observation showing through, or saving would silently curate it.
+//
+// MergeSuggestionBookIds is ids and nothing else, because a suggested Book
+// has the same title and author as this one by construction (ADR 0007) -
+// naming it by its title would say "Dune looks like Dune", and its id is the
+// only thing that tells the two apart on screen.
+public record BookSummary(
+    int Id,
+    string Title,
+    string? Author,
+    string? CuratedTitle,
+    string? CuratedAuthor,
+    decimal Percentage,
+    DateTime? LastSyncedAt,
+    bool IsSplitBook,
+    bool NeedsMetadataHint,
+    IReadOnlyList<int> MergeSuggestionBookIds,
+    IReadOnlyList<BookDocumentSummary> Documents);
 
 public enum MergeBooksResult
 {
@@ -17,6 +49,12 @@ public enum ResetProgressResult
 {
     Success,
     DocumentNotFound
+}
+
+public enum CurateBookResult
+{
+    Success,
+    BookNotFound
 }
 
 // Backs the Books dashboard view (issue #6): a Book card grid and its
@@ -39,10 +77,15 @@ public class BookDashboardService
             .Include(b => b.Documents)
                 .ThenInclude(d => d.SyncEvents)
                     .ThenInclude(s => s.Device)
+            .Include(b => b.Documents)
+                .ThenInclude(d => d.ProgressResets)
             .ToListAsync();
 
         return books
-            .Select(Summarize)
+            // Each Book is suggested against the same list it came from: it
+            // already holds every Book of this User's, so the rule needs
+            // nothing fetched for it here.
+            .Select(book => Summarize(book, books))
             .OrderByDescending(b => b.LastSyncedAt)
             .ToList();
     }
@@ -53,15 +96,35 @@ public class BookDashboardService
             .Include(b => b.Documents)
                 .ThenInclude(d => d.SyncEvents)
                     .ThenInclude(s => s.Device)
+            .Include(b => b.Documents)
+                .ThenInclude(d => d.ProgressResets)
             .FirstOrDefaultAsync(b => b.Id == id);
 
-        return book is null ? null : Summarize(book);
+        if (book is null)
+        {
+            return null;
+        }
+
+        // Merge suggestions compare this Book against the User's others, so
+        // the others have to be loaded too - with their Documents, which is
+        // where an Observed title lives, but not their SyncEvents, which
+        // say nothing about what a Book is called.
+        var otherBooks = await _db.Books
+            .Include(b => b.Documents)
+            .ToListAsync();
+
+        return Summarize(book, otherBooks);
     }
 
     // Manual Split Book merge action (issue #8): repoints every Document
     // from mergeBookId onto keepBookId - the resulting Book's Documents are
-    // the union of both - then removes the now-orphaned Book. Discovery of
-    // merge candidates is fully manual; there is no auto-suggestion here.
+    // the union of both - then removes the now-orphaned Book.
+    //
+    // Still the only thing that merges anything. A Merge Suggestion can now
+    // point two Books out to the reader (BookMergeSuggestionRule), but it
+    // reaches here only when the reader presses the button: this is
+    // transactional and not undoable, so a false positive would be manual
+    // cleanup (ADR 0007).
     public async Task<MergeBooksResult> MergeBooksAsync(int keepBookId, int mergeBookId)
     {
         if (keepBookId == mergeBookId)
@@ -89,6 +152,17 @@ public class BookDashboardService
         {
             document.BookId = keepBook.Id;
         }
+
+        // Observations survive a merge by staying on their own Documents
+        // (ADR 0007), but a Curated title lives on the Book about to be
+        // removed and nothing can reproduce it - no Document observed it and
+        // no push will bring it back. So it moves where the surviving Book
+        // has no answer of its own, and never over one it has: two curated
+        // titles are two human answers, and nothing here can tell which is
+        // better than the Book its owner chose to keep.
+        keepBook.CuratedTitle ??= mergeBook.CuratedTitle;
+        keepBook.CuratedAuthor ??= mergeBook.CuratedAuthor;
+
         await _db.SaveChangesAsync();
 
         _db.Books.Remove(mergeBook);
@@ -122,24 +196,58 @@ public class BookDashboardService
             current.IsCurrent = false;
         }
 
-        document.LastResetAt = DateTime.UtcNow;
+        // A record per reset, not a last-one-wins timestamp on the Document:
+        // a Document reset twice has two distinct events in its history, and
+        // the replay in ProgressRegressionRule has to see both or it judges
+        // the push after the earlier one against a ceiling that reset had
+        // cleared (issue #40).
+        _db.ProgressResets.Add(new ProgressReset { Document = document, ResetAt = DateTime.UtcNow });
         await _db.SaveChangesAsync();
 
         return ResetProgressResult.Success;
     }
 
-    private static BookSummary Summarize(Book book)
+    // Sets a Book's Curated Metadata, or clears it (issue #30): a blank
+    // title or author is "I have nothing to say about this", which drops the
+    // Book back to whatever its Documents observed. One method for both,
+    // because the form that sets a title is the same form that empties it.
+    //
+    // Scoped by the caller's tenant like every other read here (ADR 0004):
+    // another User's Book id filters out and comes back BookNotFound, which
+    // is also this action's whole authorisation check.
+    public async Task<CurateBookResult> CurateBookAsync(int bookId, string? title, string? author)
+    {
+        var book = await _db.Books.FirstOrDefaultAsync(b => b.Id == bookId);
+
+        if (book is null)
+        {
+            return CurateBookResult.BookNotFound;
+        }
+
+        // Blank is stored as no value at all (MetadataText), so "   " clears
+        // rather than curating a Book whose title is three spaces.
+        book.CuratedTitle = MetadataText.TrimmedOrNull(title);
+        book.CuratedAuthor = MetadataText.TrimmedOrNull(author);
+        await _db.SaveChangesAsync();
+
+        return CurateBookResult.Success;
+    }
+
+    // otherBooks is every Book the caller's tenant can see, this one
+    // included: a Merge Suggestion *is* another Book, so summarizing one
+    // needs the rest (BookMergeSuggestionRule).
+    private static BookSummary Summarize(Book book, IReadOnlyCollection<Book> otherBooks)
     {
         var documents = book.Documents
-            .Select(d => new { d.Id, d.DocumentHash, History = BuildHistory(d) })
+            .Select(d => new { d.Id, d.DocumentHash, Label = DocumentLabelRule.Resolve(d), History = BuildHistory(d) })
             .Where(x => x.History.Count > 0)
-            .Select(x => new { x.Id, x.DocumentHash, x.History, Current = x.History.FirstOrDefault(h => h.IsCurrent) })
+            .Select(x => new { x.Id, x.DocumentHash, x.Label, x.History, Current = x.History.FirstOrDefault(h => h.IsCurrent) })
             .Select(x => x.Current is not null
-                ? new BookDocumentSummary(x.Id, x.DocumentHash, x.Current.DeviceName, x.Current.Percentage, x.Current.Timestamp, HasCurrentProgress: true, x.History)
+                ? new BookDocumentSummary(x.Id, x.DocumentHash, x.Label, x.Current.DeviceName, x.Current.Percentage, x.Current.Timestamp, HasCurrentProgress: true, x.History)
                 // No current push - either freshly reset, or (in principle)
                 // never synced. Stays visible in its Book at 0% (rather than
                 // being hidden entirely) until the next push lands.
-                : new BookDocumentSummary(x.Id, x.DocumentHash, string.Empty, 0m, x.History[0].Timestamp, HasCurrentProgress: false, x.History))
+                : new BookDocumentSummary(x.Id, x.DocumentHash, x.Label, string.Empty, 0m, x.History[0].Timestamp, HasCurrentProgress: false, x.History))
             .OrderByDescending(d => d.Percentage)
             .ToList();
 
@@ -147,28 +255,53 @@ public class BookDashboardService
         var lastSyncedAt = documents.Count == 0 ? (DateTime?)null : documents.Max(d => d.Timestamp);
         var isSplitBook = SplitBookRule.IsSplit(book);
 
-        return new BookSummary(book.Id, percentage, lastSyncedAt, isSplitBook, documents);
+        return new BookSummary(
+            book.Id,
+            BookMetadataRule.ResolveTitle(book),
+            BookMetadataRule.ResolveAuthor(book),
+            book.CuratedTitle,
+            book.CuratedAuthor,
+            percentage,
+            lastSyncedAt,
+            isSplitBook,
+            BookMetadataRule.NeedsMetadataHint(book),
+            BookMergeSuggestionRule.Suggest(book, otherBooks),
+            documents);
     }
 
-    // Merges a Document's push history with its reset marker (issue #9)
-    // into one timeline. The reset marker isn't a SyncEvent - CONTEXT.md
-    // ties SyncEvent to a Device push - but it still needs to appear
-    // alongside them as a distinct, identifiable entry rather than a
-    // separate view.
+    // Merges a Document's push history with its reset markers (issue #9)
+    // into one timeline. A reset marker isn't a SyncEvent - GLOSSARY.md ties
+    // SyncEvent to a Device push - but it still needs to appear alongside
+    // them as a distinct, identifiable entry rather than a separate view.
+    //
+    // Every reset appears, not only the newest: resets are recorded one row
+    // each (ProgressReset, issue #40), so a Document reset twice renders two
+    // markers and the replay below sees both.
+    //
+    // Ordered newest first on three stated keys, because
+    // ProgressRegressionRule replays promotion over this sequence and a pair
+    // handed back the other way round is judged against the wrong ceiling:
+    //
+    //  - the timestamp, which is the real order nearly always;
+    //  - then a reset ahead of a push stamped in the same instant, because
+    //    ResetProgressAsync reads a push that already existed, so a reset
+    //    sharing its instant happened after it (issue #38);
+    //  - then the row id, which makes this arrival order rather than merely
+    //    timestamp order: two pushes stamped in the same instant have no
+    //    "more recent" between them to sort on.
     private static List<SyncEventSummary> BuildHistory(Document document)
     {
-        var pushes = document.SyncEvents.History()
-            .Select(s => new SyncEventSummary(s.Device.DeviceName, s.Percentage, s.Timestamp, s.IsCurrent))
-            .ToList();
+        var pushes = document.SyncEvents
+            .Select(s => (s.Id, Entry: new SyncEventSummary(s.Device.DeviceName, s.Percentage, s.Timestamp, s.IsCurrent)));
 
-        if (document.LastResetAt is not DateTime resetAt)
-        {
-            return pushes;
-        }
+        var resets = document.ProgressResets
+            .Select(r => (r.Id, Entry: new SyncEventSummary(string.Empty, 0m, r.ResetAt, IsCurrent: false, IsReset: true)));
 
-        return pushes
-            .Append(new SyncEventSummary(string.Empty, 0m, resetAt, IsCurrent: false, IsReset: true))
-            .OrderByDescending(h => h.Timestamp)
-            .ToList();
+        return ProgressRegressionRule.Annotate(pushes
+            .Concat(resets)
+            .OrderByDescending(x => x.Entry.Timestamp)
+            .ThenByDescending(x => x.Entry.IsReset)
+            .ThenByDescending(x => x.Id)
+            .Select(x => x.Entry));
     }
 }

@@ -23,7 +23,18 @@ namespace Kosync.Database.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("CuratedAuthor")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CuratedTitle")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("Books");
                 });
@@ -66,7 +77,16 @@ namespace Kosync.Database.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime?>("LastResetAt")
+                    b.Property<DateTime?>("MetadataObservedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ObservedAuthors")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ObservedFilename")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ObservedTitle")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("UserId")
@@ -76,9 +96,43 @@ namespace Kosync.Database.Migrations
 
                     b.HasIndex("BookId");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId", "DocumentHash")
+                        .IsUnique();
 
                     b.ToTable("Documents");
+                });
+
+            modelBuilder.Entity("Kosync.Database.Entities.ProgressReset", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DocumentId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("ResetAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId");
+
+                    b.ToTable("ProgressResets");
+                });
+
+            modelBuilder.Entity("Kosync.Database.Entities.ServerSetting", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("ServerSettings");
                 });
 
             modelBuilder.Entity("Kosync.Database.Entities.SyncEvent", b =>
@@ -131,6 +185,9 @@ namespace Kosync.Database.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("PasswordState")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Username")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -141,6 +198,17 @@ namespace Kosync.Database.Migrations
                         .IsUnique();
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("Kosync.Database.Entities.Book", b =>
+                {
+                    b.HasOne("Kosync.Database.Entities.User", "User")
+                        .WithMany("Books")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Kosync.Database.Entities.Device", b =>
@@ -171,6 +239,17 @@ namespace Kosync.Database.Migrations
                     b.Navigation("Book");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Kosync.Database.Entities.ProgressReset", b =>
+                {
+                    b.HasOne("Kosync.Database.Entities.Document", "Document")
+                        .WithMany("ProgressResets")
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Document");
                 });
 
             modelBuilder.Entity("Kosync.Database.Entities.SyncEvent", b =>
@@ -204,11 +283,15 @@ namespace Kosync.Database.Migrations
 
             modelBuilder.Entity("Kosync.Database.Entities.Document", b =>
                 {
+                    b.Navigation("ProgressResets");
+
                     b.Navigation("SyncEvents");
                 });
 
             modelBuilder.Entity("Kosync.Database.Entities.User", b =>
                 {
+                    b.Navigation("Books");
+
                     b.Navigation("Devices");
 
                     b.Navigation("Documents");

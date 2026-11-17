@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Kosync.Database;
+using Kosync.Database.Entities;
 using Kosync.Database.Legacy;
 using Kosync.Tests.TestSupport;
 using LiteDB;
@@ -64,6 +65,70 @@ public class LiteDbMigrationTests
         }
     }
 
+    // A legacy LiteDB row holds a bare md5(password) - the inner step of the
+    // current scheme - so the import has to wrap it rather than copy it
+    // across, or a credential-equivalent would be carried into the new
+    // database verbatim (ADR 0005).
+    [Fact]
+    public void MigrateIfNeeded_WrapsTheLegacyPasswordHash_WithoutInvalidatingIt()
+    {
+        var fixturePath = Path.Combine(Path.GetTempPath(), $"kosync-legacy-{Guid.NewGuid()}.db");
+        try
+        {
+            SeedLegacyFixture(fixturePath);
+
+            using var connection = new SqliteConnection("DataSource=:memory:");
+            connection.Open();
+            var options = new DbContextOptionsBuilder<KosyncDbContext>().UseSqlite(connection).Options;
+            using var db = TestDb.CreateSystemContext(options);
+            db.Database.Migrate();
+
+            var hasher = TestPasswords.CreateHasher();
+            LiteDbMigrator.MigrateIfNeeded(db, fixturePath, hasher, NullLogger.Instance);
+
+            var stored = db.Users.Single(u => u.Username == "legacyuser").PasswordHash;
+
+            Assert.NotEqual("raw-hashed-key", stored);
+            Assert.True(hasher.VerifyAuthKey("raw-hashed-key", stored));
+        }
+        finally
+        {
+            File.Delete(fixturePath);
+        }
+    }
+
+    // An imported User has been syncing with this password for however long
+    // the legacy server ran. Importing is not somebody choosing it for them,
+    // so it comes across as their own and the import does not lock anybody
+    // out of an account they already had (ADR 0006).
+    [Fact]
+    public void MigrateIfNeeded_ImportsEachUsersPasswordAsTheirOwn()
+    {
+        var fixturePath = Path.Combine(Path.GetTempPath(), $"kosync-legacy-{Guid.NewGuid()}.db");
+        try
+        {
+            SeedLegacyFixture(fixturePath);
+
+            using var connection = new SqliteConnection("DataSource=:memory:");
+            connection.Open();
+            var options = new DbContextOptionsBuilder<KosyncDbContext>().UseSqlite(connection).Options;
+            using var db = TestDb.CreateSystemContext(options);
+            db.Database.Migrate();
+
+            LiteDbMigrator.MigrateIfNeeded(db, fixturePath, TestPasswords.CreateHasher(), NullLogger.Instance);
+
+            Assert.All(db.Users.ToList(), user =>
+            {
+                Assert.Equal(PasswordState.UserChosen, user.PasswordState);
+                Assert.False(user.MustChangePassword);
+            });
+        }
+        finally
+        {
+            File.Delete(fixturePath);
+        }
+    }
+
     [Fact]
     public void MigrateIfNeeded_DoesNotDuplicateData_WhenRunTwice()
     {
@@ -75,15 +140,15 @@ public class LiteDbMigrationTests
             using var connection = new SqliteConnection("DataSource=:memory:");
             connection.Open();
             var options = new DbContextOptionsBuilder<KosyncDbContext>().UseSqlite(connection).Options;
-            using var db = new KosyncDbContext(options);
+            using var db = TestDb.CreateSystemContext(options);
             db.Database.Migrate();
 
-            LiteDbMigrator.MigrateIfNeeded(db, fixturePath, NullLogger.Instance);
+            LiteDbMigrator.MigrateIfNeeded(db, fixturePath, TestPasswords.CreateHasher(), NullLogger.Instance);
             Assert.Equal(2, db.Users.Count());
             Assert.Equal(3, db.Documents.Count());
             Assert.Equal(3, db.SyncEvents.Count());
 
-            LiteDbMigrator.MigrateIfNeeded(db, fixturePath, NullLogger.Instance);
+            LiteDbMigrator.MigrateIfNeeded(db, fixturePath, TestPasswords.CreateHasher(), NullLogger.Instance);
             Assert.Equal(2, db.Users.Count());
             Assert.Equal(3, db.Documents.Count());
             Assert.Equal(3, db.SyncEvents.Count());
@@ -92,6 +157,104 @@ public class LiteDbMigrationTests
         {
             File.Delete(fixturePath);
         }
+    }
+
+    // The legacy server had the same unguarded check-then-insert the push
+    // path did, so its file can hold the pair the unique index now forbids
+    // (ADR 0008, issue #37). Two legacy records for one hash are one file
+    // twice: the import has to make them one Document with a push each,
+    // rather than failing on the index and taking startup with it.
+    [Fact]
+    public void MigrateIfNeeded_TwoLegacyRecordsWithOneHash_ImportAsOneDocument()
+    {
+        var fixturePath = Path.Combine(Path.GetTempPath(), $"kosync-legacy-{Guid.NewGuid()}.db");
+        try
+        {
+            SeedLegacyFixtureWithDuplicateHash(fixturePath);
+
+            using var connection = new SqliteConnection("DataSource=:memory:");
+            connection.Open();
+            var options = new DbContextOptionsBuilder<KosyncDbContext>().UseSqlite(connection).Options;
+            using var db = TestDb.CreateSystemContext(options);
+            db.Database.Migrate();
+
+            LiteDbMigrator.MigrateIfNeeded(db, fixturePath, TestPasswords.CreateHasher(), NullLogger.Instance);
+
+            var document = Assert.Single(db.Documents.Include(d => d.SyncEvents).ToList());
+
+            Assert.Equal("book1hash", document.DocumentHash);
+            Assert.Equal(2, document.SyncEvents.Count);
+
+            // One current-progress pointer, held by the furthest-along push -
+            // the same rule the collapsing migration applies to a pair it
+            // finds in an already-migrated database.
+            var current = Assert.Single(document.SyncEvents, s => s.IsCurrent);
+            Assert.Equal(0.6m, current.Percentage);
+        }
+        finally
+        {
+            File.Delete(fixturePath);
+        }
+    }
+
+    // Each duplicate record would have brought its own 1:1 Book across, and
+    // a Book with no Documents is a phantom in the reader's library
+    // (ADR 0001).
+    [Fact]
+    public void MigrateIfNeeded_TwoLegacyRecordsWithOneHash_ImportAsOneBook()
+    {
+        var fixturePath = Path.Combine(Path.GetTempPath(), $"kosync-legacy-{Guid.NewGuid()}.db");
+        try
+        {
+            SeedLegacyFixtureWithDuplicateHash(fixturePath);
+
+            using var connection = new SqliteConnection("DataSource=:memory:");
+            connection.Open();
+            var options = new DbContextOptionsBuilder<KosyncDbContext>().UseSqlite(connection).Options;
+            using var db = TestDb.CreateSystemContext(options);
+            db.Database.Migrate();
+
+            LiteDbMigrator.MigrateIfNeeded(db, fixturePath, TestPasswords.CreateHasher(), NullLogger.Instance);
+
+            Assert.Single(db.Books.ToList());
+        }
+        finally
+        {
+            File.Delete(fixturePath);
+        }
+    }
+
+    private static void SeedLegacyFixtureWithDuplicateHash(string fixturePath)
+    {
+        using var liteDb = new LiteDatabase($"Filename={fixturePath};Connection=direct");
+
+        liteDb.GetCollection<LegacyUser>("users").Insert(new LegacyUser
+        {
+            Username = "legacyuser",
+            PasswordHash = "raw-hashed-key",
+            IsActive = true,
+            Documents = new List<LegacyDocument>
+            {
+                new LegacyDocument
+                {
+                    DocumentHash = "book1hash",
+                    Progress = "60%",
+                    Percentage = 0.6m,
+                    Device = "OldKobo",
+                    DeviceId = "old-device-1",
+                    Timestamp = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc),
+                },
+                new LegacyDocument
+                {
+                    DocumentHash = "book1hash",
+                    Progress = "20%",
+                    Percentage = 0.2m,
+                    Device = "OldNook",
+                    DeviceId = "old-device-2",
+                    Timestamp = new DateTime(2025, 1, 2, 9, 0, 0, DateTimeKind.Utc),
+                }
+            }
+        });
     }
 
     private static void SeedLegacyFixture(string fixturePath)

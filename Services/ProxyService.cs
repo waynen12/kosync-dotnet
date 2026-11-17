@@ -150,7 +150,7 @@ public class ProxyService
 
     private void Log(LogLevel level, string text)
     {
-        text = $"[{DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")}] {text}";
+        text = $"[{DateTime.Now.ToString(Constants.Logging.TimestampFormat)}] {text}";
         _logger?.Log(level, text);
     }
 }

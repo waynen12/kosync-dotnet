@@ -16,9 +16,14 @@ public class SyncEvent
 
     public DateTime Timestamp { get; set; }
 
-    // True if this push was at least as far along as the Document's current
-    // progress at the time it was received, and so became the current
-    // progress pointer. False for a blocked regression - still recorded in
-    // history, just never promoted.
+    // The Document's current-progress pointer, and nothing more: exactly one
+    // SyncEvent per Document holds it. Set when this push was at least as far
+    // along as the then-current progress, and cleared again the moment a
+    // later push supersedes it.
+    //
+    // So false does *not* mean this push was a Progress Regression - most of
+    // a healthy Document's history is false (GLOSSARY.md, issue #38). Whether
+    // a push was blocked when it arrived is ProgressRegressionRule's answer,
+    // replayed over the history; nothing stores it.
     public bool IsCurrent { get; set; }
 }

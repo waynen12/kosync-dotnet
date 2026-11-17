@@ -1,0 +1,616 @@
+@* @page requires a literal - keep this in sync with AppRoutes.Users *@
+@page "/users"
+@attribute [Authorize(Policy = Constants.Authorization.Administrator)]
+@inject UserAdminService UserAdmin
+@inject KosyncDbContext Db
+@inject IPService IPService
+@inject ILogger<Users> Logger
+
+@* The Users administration screen (issue #28), folded in from the
+   prototype's UsersVariantB: a dense table behind the app shell, with a
+   slide-over panel carrying the per-User detail and the actions. Why a table
+   and not ai-hub's modal is the ticket's own business - an user here
+   carries role, active state, Provisional-Password state, device and book
+   counts and a last-sync time, which is table-shaped.
+
+   Static SSR, deliberately, and nothing here may take a @rendermode:
+
+     - Every action is a write that needs an HttpContext-shaped request
+       (a form post), the way /login and /change-password are (ADR 0003).
+     - The interactions that are *not* writes must not round-trip at all,
+       which ADR 0003's amendment requires: filtering the table is the
+       dashboard's own client-side filter, and the slide-over is a link to a
+       URL fragment plus one `:target` rule (AppRoutes.UsersPanel). No
+       circuit, no @@onclick, no JavaScript of this page's own.
+
+   The design's "Created" row is the one thing not folded in: a User has no
+   creation timestamp in the schema, and adding a column (plus a meaning for
+   every row that predates it) is a migration this ticket does not need. *@
+
+<PageTitle>@Constants.Users.PageTitle</PageTitle>
+
+<div class="hub-shell">
+    <nav class="hub-sidebar">
+        <p class="hub-sidebar-group hub-section-label">@Constants.Dashboard.NavGroupLibrary</p>
+
+        @* Plain links back to the signed-in Administrator's own library.
+           Counted nowhere, deliberately: this page reads no library at all,
+           and a 0 beside Devices would be a statement about their reading
+           rather than about this screen. *@
+        <a class="hub-nav-item" href="@AppRoutes.Dashboard">
+            <HubIcon Name="@Constants.Icons.Device" Size="@Constants.Icons.SidebarSize" />
+            <span>@Constants.Dashboard.DevicesLabel</span>
+        </a>
+
+        <a class="hub-nav-item" href="@AppRoutes.DashboardBooksTab">
+            <HubIcon Name="@Constants.Icons.BookOpen" Size="@Constants.Icons.SidebarSize" />
+            <span>@Constants.Dashboard.BooksLabel</span>
+        </a>
+
+        <UsersNavGroup Current="true" />
+    </nav>
+
+    <main class="hub-shell-main">
+        <div class="hub-page-head">
+            <h1 class="hub-page-title">@Constants.Users.PageTitle</h1>
+            <p class="hub-page-sub">@Constants.Users.Subtitle</p>
+        </div>
+
+        @* The result of the last post. A refusal and a confirmation share one
+           slot because they answer the same click; they differ in the icon
+           and in how a screen reader is told (alert interrupts, status does
+           not). *@
+        @if (statusMessage is not null)
+        {
+            <div class="hub-notice" role="@(statusIsRefusal ? "alert" : "status")">
+                <HubIcon Name="@(statusIsRefusal ? Constants.Icons.Alert : Constants.Icons.UserCheck)"
+                         Size="@Constants.Icons.InlineSize" />
+                <span>@statusMessage</span>
+            </div>
+        }
+
+        @* Native disclosure rather than a dialog or an @@onclick-toggled
+           field: showing a form is UI state, and ADR 0003's amendment puts
+           that in the browser. *@
+        <details class="hub-card hub-create">
+            <summary class="hub-btn hub-btn-brand">
+                <HubIcon Name="@Constants.Icons.UserPlus" Size="@Constants.Icons.InlineSize" />
+                @Constants.Users.NewUserSummaryText
+            </summary>
+
+            <EditForm Model="CreateInput" FormName="@Constants.Users.CreateFormName" OnSubmit="HandleCreate" method="post">
+                <div class="hub-stack-3">
+                    <div class="hub-grid-2">
+                        <div class="hub-field">
+                            <label class="hub-label" for="create-username">@Constants.Users.ColumnUsername</label>
+                            <InputText id="create-username" class="hub-input" @bind-Value="CreateInput!.Username"
+                                       placeholder="@Constants.Users.UsernamePlaceholder" autocomplete="off" />
+                        </div>
+
+                        <div class="hub-field">
+                            <label class="hub-label" for="create-role">@Constants.Users.RoleLabel</label>
+                            @* ADR 0006: an Administrator may create another
+                               Administrator directly, rather than creating a
+                               User and promoting them afterwards. *@
+                            <InputSelect id="create-role" class="hub-select" @bind-Value="CreateInput!.IsAdministrator">
+                                <option value="false">@Constants.Users.RoleUser</option>
+                                <option value="true">@Constants.Users.RoleAdministrator</option>
+                            </InputSelect>
+                        </div>
+                    </div>
+
+                    <div class="hub-field">
+                        <label class="hub-label" for="create-password">@Constants.Users.PasswordLabel</label>
+                        <InputText id="create-password" type="password" class="hub-input" @bind-Value="CreateInput!.Password"
+                                   placeholder="@Constants.LoginPasswordPlaceholder" autocomplete="new-password" />
+                    </div>
+
+                    <p class="hub-guard">@Constants.Users.ProvisionalPasswordHint</p>
+
+                    <div class="hub-form-actions">
+                        <button type="submit" class="hub-btn hub-btn-brand hub-btn-sm">
+                            @Constants.Users.CreateUserSubmitText
+                        </button>
+                    </div>
+                </div>
+            </EditForm>
+        </details>
+
+        <div class="hub-toolbar">
+            <span class="hub-sm hub-muted">
+                @DashboardFormatting.Pluralize(users.Count, Constants.Users.UserNoun)
+                <span> · </span>
+                @DashboardFormatting.Pluralize(ActiveAdministratorCount, Constants.Users.AdministratorNoun)
+            </span>
+
+            @* The dashboard's filter, pointed at this page's table: a plain
+               input over a per-row index, filtered by
+               wwwroot/js/dashboard-filter.js in the browser (ADR 0003). *@
+            <input class="hub-input hub-input-sm hub-toolbar-search"
+                   type="search"
+                   placeholder="@Constants.Users.SearchPlaceholder"
+                   aria-label="@Constants.Users.SearchPlaceholder"
+                   data-ks-filter="#@Constants.Users.TableId" />
+        </div>
+
+        @if (users.Count == 0)
+        {
+            <p class="hub-empty">@Constants.Users.NoUsersText</p>
+        }
+        else
+        {
+            <div class="hub-table-wrap" id="@Constants.Users.TableId">
+                <table class="hub-table">
+                    <thead>
+                        <tr>
+                            <th>@Constants.Users.ColumnUsername</th>
+                            <th>@Constants.Users.ColumnRole</th>
+                            <th>@Constants.Users.ColumnStatus</th>
+                            <th class="hub-table-num">@Constants.Users.ColumnDevices</th>
+                            <th class="hub-table-num">@Constants.Users.ColumnBooks</th>
+                            <th>@Constants.Dashboard.ColumnLastSynced</th>
+                            <th class="hub-table-actions"><span class="hub-sr-only">@Constants.Users.ColumnActions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in users)
+                        {
+                            <tr data-ks-text="@SearchText(user)" class="@(user.IsActive ? null : "inactive")">
+                                @* A link to the panel, not a button: a button
+                                   in a Blazor component can only act by
+                                   reaching the server, and a panel whose
+                                   contents are already in the page has
+                                   nothing to ask it. *@
+                                <td class="hub-table-name">
+                                    <a class="hub-table-link" href="@PanelHref(user)" data-enhance-nav="false">
+                                        <HubIcon Name="@Constants.Icons.User" Size="@Constants.Icons.InlineSize" Class="hub-muted" />
+                                        @user.Username
+                                        @* Inside the link, because the link
+                                           is a flex row and a sibling of it
+                                           would sit on a line of its own. *@
+                                        @if (IsSelf(user))
+                                        {
+                                            <span class="hub-user-self">@Constants.Users.SelfSuffix</span>
+                                        }
+                                    </a>
+                                </td>
+                                <td>
+                                    @if (user.IsAdministrator)
+                                    {
+                                        <span class="hub-badge hub-badge-admin">
+                                            <HubIcon Name="@Constants.Icons.Shield" Size="@Constants.Icons.BadgeSize" />
+                                            @Constants.Users.RoleAdministrator
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="hub-badge hub-badge-outline">@Constants.Users.RoleUser</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="hub-table-badges">
+                                        <span class="hub-badge @(user.IsActive ? "hub-badge-ok" : "hub-badge-muted")">
+                                            @StatusText(user)
+                                        </span>
+                                        @if (user.HasProvisionalPassword)
+                                        {
+                                            <span class="hub-badge hub-badge-warn">
+                                                <HubIcon Name="@Constants.Icons.Alert" Size="@Constants.Icons.BadgeSize" />
+                                                @Constants.Users.PasswordProvisional
+                                            </span>
+                                        }
+                                    </div>
+                                </td>
+                                <td class="hub-table-num">@user.DeviceCount</td>
+                                <td class="hub-table-num">@user.BookCount</td>
+                                <td class="hub-muted hub-xs">@DashboardFormatting.RelativeTime(user.LastSyncedAt, DateTime.UtcNow)</td>
+                                <td class="hub-table-actions">
+                                    <a class="hub-btn hub-btn-outline hub-btn-sm" href="@PanelHref(user)" data-enhance-nav="false">
+                                        @Constants.Users.ManageAction
+                                        <HubIcon Name="@Constants.Icons.ChevronRight" Size="@Constants.Icons.BadgeSize" />
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                <p class="hub-list-none">@Constants.Users.NoMatchesText</p>
+            </div>
+        }
+
+        @* The slide-overs. Each is the target of the fragment its row links
+           to, so the one on screen is whichever the URL names - which makes
+           "only one open at a time" and "the back button closes it" fall out
+           of the browser rather than out of any state we keep.
+
+           data-enhance-nav="false" on every link into and out of a panel is
+           load-bearing, not tidiness: Blazor's enhanced navigation answers a
+           click by patching the DOM and pushing history itself, and a
+           pushState does not recompute `:target` - so with it left on, the
+           URL changed and the panel stayed shut. Found by opening the page
+           in a browser; no server-side test can see it. *@
+        @foreach (var user in users)
+        {
+            <div class="hub-panel-wrap" id="@PanelId(user)">
+                @* Not role="dialog" with aria-modal, which the prototype
+                   reached for: without script there is no focus trap to back
+                   that claim up, and a lie to a screen reader is worse than
+                   an honest region. *@
+                <a class="hub-panel-backdrop" href="@AppRoutes.UsersPanelClosed"
+                   aria-label="@Constants.Users.CloseText" data-enhance-nav="false"></a>
+
+                <aside class="hub-panel" aria-label="@user.Username">
+                    <div class="hub-panel-head">
+                        <h2 class="hub-panel-title">@user.Username</h2>
+                        <a class="hub-icon-btn" href="@AppRoutes.UsersPanelClosed"
+                           aria-label="@Constants.Users.CloseText" data-enhance-nav="false">
+                            <HubIcon Name="@Constants.Icons.Close" Size="@Constants.Icons.ButtonSize" />
+                        </a>
+                    </div>
+                    <p class="hub-panel-sub">@RoleText(user) · @StatusText(user)</p>
+
+                    @if (user.HasProvisionalPassword)
+                    {
+                        <div class="hub-notice">
+                            <HubIcon Name="@Constants.Icons.KeyRound" Size="@Constants.Icons.InlineSize" />
+                            <span>@Constants.Users.ProvisionalHint</span>
+                        </div>
+                    }
+
+                    <p class="hub-section-label">@Constants.Users.PanelSectionUser</p>
+                    <div class="hub-kv">
+                        <span class="hub-kv-key">@Constants.Users.RoleLabel</span>
+                        <span>@RoleText(user)</span>
+                    </div>
+                    <div class="hub-kv">
+                        <span class="hub-kv-key">@Constants.Users.ColumnStatus</span>
+                        <span>@StatusText(user)</span>
+                    </div>
+                    <div class="hub-kv">
+                        <span class="hub-kv-key">@Constants.Users.PasswordLabel</span>
+                        <span class="hub-badge @(user.HasProvisionalPassword ? "hub-badge-warn" : "hub-badge-ok")">
+                            @(user.HasProvisionalPassword ? Constants.Users.PasswordProvisional : Constants.Users.PasswordSet)
+                        </span>
+                    </div>
+
+                    <p class="hub-section-label">@Constants.Users.PanelSectionLibrary</p>
+                    <div class="hub-kv">
+                        <span class="hub-kv-key">@Constants.Users.ColumnDevices</span>
+                        <span>@user.DeviceCount</span>
+                    </div>
+                    <div class="hub-kv">
+                        <span class="hub-kv-key">@Constants.Users.ColumnBooks</span>
+                        <span>@user.BookCount</span>
+                    </div>
+                    <div class="hub-kv">
+                        <span class="hub-kv-key">@Constants.Dashboard.ColumnDocuments</span>
+                        <span>@user.DocumentCount</span>
+                    </div>
+                    <div class="hub-kv">
+                        <span class="hub-kv-key">@Constants.Dashboard.ColumnLastSynced</span>
+                        <span>@DashboardFormatting.RelativeTime(user.LastSyncedAt, DateTime.UtcNow)</span>
+                    </div>
+                    <p class="hub-guard">@Constants.Users.CountsOnlyNote</p>
+
+                    <p class="hub-section-label">@Constants.Users.PanelSectionActions</p>
+                    @if (GuardReason(user) is string guardReason)
+                    {
+                        <p class="hub-guard">@guardReason</p>
+                    }
+
+                    @* One form per User, which is what makes each form name
+                       unique - and the name is also how the post finds its
+                       target, so no field has to be trusted for that. Every
+                       button in it is a submit carrying the action it means.
+
+                       A plain <form> rather than an <EditForm>: the create
+                       form above has one static name and a model worth
+                       binding, this one is rendered per User and its only
+                       field is a password posted by name. *@
+                    <form method="post" @formname="@ActionFormName(user)" @onsubmit="() => HandleAction(user)">
+                        <AntiforgeryToken />
+
+                        <div class="hub-panel-actions">
+                            <div class="hub-field">
+                                <label class="hub-label" for="@ResetFieldId(user)">@Constants.Users.ResetPasswordAction</label>
+                                <input id="@ResetFieldId(user)" class="hub-input" type="password"
+                                       name="@NewPasswordFieldName" autocomplete="new-password"
+                                       placeholder="@Constants.LoginPasswordPlaceholder" />
+                            </div>
+
+                            <button type="submit" class="hub-btn hub-btn-outline"
+                                    name="@ActionFieldName" value="@UserAction.ResetPassword">
+                                <HubIcon Name="@Constants.Icons.KeyRound" Size="@Constants.Icons.InlineSize" />
+                                @Constants.Users.ResetPasswordSubmitText
+                            </button>
+
+                            @* The disabled attributes are a courtesy, not the
+                               rule: UserAdminService refuses each of these
+                               whatever the markup said, which is what makes
+                               the guard a guard rather than a greyed-out
+                               button. *@
+                            @if (user.IsAdministrator)
+                            {
+                                <button type="submit" class="hub-btn hub-btn-outline" disabled="@IsGuarded(user)"
+                                        name="@ActionFieldName" value="@UserAction.Demote">
+                                    <HubIcon Name="@Constants.Icons.Shield" Size="@Constants.Icons.InlineSize" />
+                                    @Constants.Users.DemoteAction
+                                </button>
+                            }
+                            else
+                            {
+                                <button type="submit" class="hub-btn hub-btn-outline"
+                                        name="@ActionFieldName" value="@UserAction.Promote">
+                                    <HubIcon Name="@Constants.Icons.Shield" Size="@Constants.Icons.InlineSize" />
+                                    @Constants.Users.PromoteAction
+                                </button>
+                            }
+
+                            @if (user.IsActive)
+                            {
+                                <button type="submit" class="hub-btn hub-btn-danger" disabled="@IsGuarded(user)"
+                                        name="@ActionFieldName" value="@UserAction.Deactivate">
+                                    <HubIcon Name="@Constants.Icons.UserX" Size="@Constants.Icons.InlineSize" />
+                                    @Constants.Users.DeactivateAction
+                                </button>
+                            }
+                            else
+                            {
+                                <button type="submit" class="hub-btn hub-btn-outline"
+                                        name="@ActionFieldName" value="@UserAction.Reactivate">
+                                    <HubIcon Name="@Constants.Icons.UserCheck" Size="@Constants.Icons.InlineSize" />
+                                    @Constants.Users.ReactivateAction
+                                </button>
+                            }
+
+                            @* Deletion takes the User's whole library with
+                               them, so it asks twice - and asks in a
+                               <details>, because a confirmation is disclosure
+                               and must not round-trip either.
+
+                               A guarded user gets the plain disabled
+                               button instead: a <summary> cannot be
+                               disabled, so offering the disclosure would
+                               show an enabled-looking control over a refusal
+                               two clicks later. *@
+                            @if (IsGuarded(user))
+                            {
+                                <button type="submit" class="hub-btn hub-btn-danger" disabled
+                                        name="@ActionFieldName" value="@UserAction.Delete">
+                                    <HubIcon Name="@Constants.Icons.Trash" Size="@Constants.Icons.InlineSize" />
+                                    @Constants.Users.DeleteAction
+                                </button>
+                            }
+                            else
+                            {
+                                <details>
+                                    <summary class="hub-btn hub-btn-danger">
+                                        <HubIcon Name="@Constants.Icons.Trash" Size="@Constants.Icons.InlineSize" />
+                                        @Constants.Users.DeleteAction
+                                    </summary>
+
+                                    <p class="hub-guard">@Constants.Users.DeleteConfirmWarning</p>
+
+                                    <button type="submit" class="hub-btn hub-btn-danger hub-btn-sm"
+                                            name="@ActionFieldName" value="@UserAction.Delete">
+                                        @Constants.Users.DeleteConfirmSubmitText
+                                    </button>
+                                </details>
+                            }
+                        </div>
+                    </form>
+                </aside>
+            </div>
+        }
+    </main>
+</div>
+
+@code {
+    // What a posted action button means. An enum rather than loose strings so
+    // that the switch below cannot be handed a value no button renders.
+    private enum UserAction
+    {
+        None,
+        ResetPassword,
+        Promote,
+        Demote,
+        Deactivate,
+        Reactivate,
+        Delete,
+    }
+
+    @* No property initializers on these two: one on a
+       [SupplyParameterFromForm] property is what raises BL0008 (issue #36).
+       Both are bound from the post by their own prefix, so the create form's
+       fields and an action form's fields never meet. *@
+    [SupplyParameterFromForm]
+    private CreateModel? CreateInput { get; set; }
+
+    [SupplyParameterFromForm]
+    private ActionModel? ActionInput { get; set; }
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private IReadOnlyList<UserSummary> users = [];
+
+    private int? actingUserId;
+
+    private string? statusMessage;
+
+    private bool statusIsRefusal;
+
+    private int ActiveAdministratorCount => users.Count(a => a.IsAdministrator && a.IsActive);
+
+    protected override async Task OnInitializedAsync()
+    {
+        CreateInput ??= new CreateModel();
+        ActionInput ??= new ActionModel();
+
+        // The acting User, by id. UserAdminService takes it as a parameter
+        // rather than resolving one for itself (ADR 0004), and the id is what
+        // the self-guards compare - a username could not be compared safely
+        // against however the target's name was spelled.
+        //
+        // Users carry no tenant filter, so this read needs no scoping step.
+        // The page sets no tenant at all: it reads nobody's library.
+        var username = HttpContext.User.Identity?.Name;
+
+        actingUserId = await Db.Users
+            .Where(u => u.Username == username)
+            .Select(u => (int?)u.Id)
+            .FirstOrDefaultAsync();
+
+        await LoadUsersAsync();
+    }
+
+    private async Task HandleCreate()
+    {
+        var input = CreateInput ?? new CreateModel();
+
+        await RunAsync(() => UserAdmin.CreateAsync(
+            actingUserId!.Value, input.Username, input.Password, input.IsAdministrator));
+
+        if (!statusIsRefusal)
+        {
+            // Cleared so the form comes back empty rather than re-offering
+            // the password that has just been handed over.
+            CreateInput = new CreateModel();
+        }
+    }
+
+    // One handler for every action in a User's panel. Which User is the
+    // form's own identity - Blazor dispatched this post to the form named
+    // after that user - so the only thing read from the fields is what to
+    // do and, for a reset, the password to set.
+    private async Task HandleAction(UserSummary user)
+    {
+        var input = ActionInput ?? new ActionModel();
+
+        await RunAsync(() => input.Action switch
+        {
+            UserAction.ResetPassword =>
+                UserAdmin.ResetPasswordAsync(actingUserId!.Value, user.Username, input.NewPassword),
+            UserAction.Promote =>
+                UserAdmin.SetAdministratorAsync(actingUserId!.Value, user.Username, isAdministrator: true),
+            UserAction.Demote =>
+                UserAdmin.SetAdministratorAsync(actingUserId!.Value, user.Username, isAdministrator: false),
+            UserAction.Deactivate =>
+                UserAdmin.SetActiveAsync(actingUserId!.Value, user.Username, isActive: false),
+            UserAction.Reactivate =>
+                UserAdmin.SetActiveAsync(actingUserId!.Value, user.Username, isActive: true),
+            UserAction.Delete =>
+                UserAdmin.DeleteAsync(actingUserId!.Value, user.Username),
+            // A post naming no action at all. Nothing to do and nothing to
+            // say about it: a form submitted by Enter in the password field
+            // reaches here on some browsers.
+            _ => Task.FromResult(UserAdminResult.Ok(string.Empty)),
+        });
+    }
+
+    // Runs an action, keeps what it answered, and re-reads the table - the
+    // page re-renders in the response to the post, so a stale list would show
+    // the change as not having happened.
+    private async Task RunAsync(Func<Task<UserAdminResult>> action)
+    {
+        // The cookie names a User who no longer exists, which the router
+        // cannot catch: the policy fails closed for them, so this is only
+        // reachable if the user went away mid-session.
+        if (actingUserId is null)
+        {
+            statusMessage = Constants.UserAdmin.NotAnAdministrator;
+            statusIsRefusal = true;
+            return;
+        }
+
+        var result = await action();
+
+        statusIsRefusal = !result.Succeeded;
+        statusMessage = string.IsNullOrEmpty(result.Message) ? null : result.Message;
+
+        Logger.Log(
+            result.Succeeded ? LogLevel.Information : LogLevel.Warning,
+            "[{ip}] Users page action by [{username}]: {message}",
+            IPService.ClientIP, HttpContext.User.Identity?.Name, result.Message);
+
+        await LoadUsersAsync();
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        users = await UserAdmin.GetUsersAsync();
+    }
+
+    private bool IsSelf(UserSummary user) => user.Id == actingUserId;
+
+    // Whether this user is the only active Administrator left, which is
+    // the other reason an action is refused (ADR 0006). Computed from the
+    // list already on screen, so the panel can say why a button is disabled
+    // without asking the server anything.
+    private bool IsLastActiveAdministrator(UserSummary user) =>
+        user.IsAdministrator && user.IsActive && ActiveAdministratorCount <= 1;
+
+    private bool IsGuarded(UserSummary user) => GuardReason(user) is not null;
+
+    // Named in the same order the service refuses in, so the sentence the
+    // panel shows before the click is the one the post would answer with.
+    private string? GuardReason(UserSummary user) =>
+        IsLastActiveAdministrator(user) ? Constants.Users.LastAdministratorGuardReason
+        : IsSelf(user) ? Constants.Users.SelfGuardReason
+        : null;
+
+    private static string RoleText(UserSummary user) =>
+        user.IsAdministrator ? Constants.Users.RoleAdministrator : Constants.Users.RoleUser;
+
+    private static string StatusText(UserSummary user) =>
+        user.IsActive ? Constants.Users.StatusActive : Constants.Users.StatusInactive;
+
+    private static string PanelId(UserSummary user) =>
+        string.Format(Constants.Users.PanelIdFormat, user.Id);
+
+    private static string PanelHref(UserSummary user) => AppRoutes.UsersPanel(PanelId(user));
+
+    // The two names the browser posts an action under. Built from the model
+    // they bind into rather than typed out, because nothing else keeps them
+    // in step: a plain <form> writes its own field names (there is no
+    // InputText to derive them), and a renamed property would otherwise
+    // leave a form that posts and quietly changes nothing.
+    private const string ActionFieldName = $"{nameof(ActionInput)}.{nameof(ActionModel.Action)}";
+
+    private const string NewPasswordFieldName = $"{nameof(ActionInput)}.{nameof(ActionModel.NewPassword)}";
+
+    // Pairs the panel's password field with its <label>, per User - the one
+    // id on this page that cannot be a literal, because there is one of these
+    // per row.
+    private static string ResetFieldId(UserSummary user) =>
+        string.Format(Constants.Users.ResetFieldIdFormat, user.Id);
+
+    private static string ActionFormName(UserSummary user) =>
+        string.Format(Constants.Users.ActionFormNameFormat, user.Id);
+
+    // What the toolbar's filter matches a row against, including the two
+    // states that have badges rather than words of their own - so typing
+    // "provisional" or "inactive" finds the rows that need attention.
+    private static string SearchText(UserSummary user) => string.Join(' ',
+        user.Username,
+        RoleText(user),
+        StatusText(user),
+        user.HasProvisionalPassword ? Constants.Users.PasswordProvisional : string.Empty);
+
+    private class CreateModel
+    {
+        public string? Username { get; set; }
+
+        public string? Password { get; set; }
+
+        public bool IsAdministrator { get; set; }
+    }
+
+    private class ActionModel
+    {
+        public UserAction Action { get; set; }
+
+        public string? NewPassword { get; set; }
+    }
+}

@@ -53,7 +53,7 @@ public class DeviceDashboardServiceTests : IntegrationTestBase
     [Fact]
     public async Task GetDeviceAsync_UnknownId_ReturnsNull()
     {
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var service = new DeviceDashboardService(db);
 
@@ -101,7 +101,7 @@ public class DeviceDashboardServiceTests : IntegrationTestBase
 
     private async Task<List<DeviceSummary>> GetDevicesAsync()
     {
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var service = new DeviceDashboardService(db);
         return await service.GetDevicesAsync();

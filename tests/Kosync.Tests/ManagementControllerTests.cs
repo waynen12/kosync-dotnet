@@ -1,4 +1,5 @@
 using System.Net;
+using Kosync.Database.Entities;
 using Kosync.Models;
 using Kosync.Tests.TestSupport;
 
@@ -27,7 +28,7 @@ public class ManagementControllerTests : IntegrationTestBase
     [Fact]
     public async Task GetUsers_Admin_ReturnsUsersWithDocumentCount()
     {
-        await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
+        await CreateSyncingUserAsync("reader", "pw");
         await PutAsync("/syncs/progress", new DocumentRequest
         {
             document = "hash1",
@@ -58,6 +59,17 @@ public class ManagementControllerTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    // An Administrator typed this password and will hand it over, so it is
+    // Provisional: it identifies the new User and grants them nothing until
+    // they replace it (ADR 0006).
+    [Fact]
+    public async Task CreateUser_GivesTheNewUserAProvisionalPassword()
+    {
+        await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
+
+        Assert.Equal(PasswordState.Provisional, Factory.StoredPasswordStateOf("reader"));
+    }
+
     [Fact]
     public async Task CreateUser_DuplicateUsername_Returns400()
     {
@@ -68,14 +80,21 @@ public class ManagementControllerTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    // This used to succeed: the endpoint let a non-Administrator through for
+    // their own account. Issue #28 refuses self-deletion outright - an
+    // account is removed by an Administrator who is not the one being
+    // removed - so what is left of the old carve-out is a plain
+    // "you may not use this endpoint".
     [Fact]
-    public async Task DeleteUser_SelfDelete_Returns200()
+    public async Task DeleteUser_NonAdminDeletingThemselves_Returns401()
     {
         await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
 
         var response = await DeleteAsync("/manage/users?username=reader", "reader", "pw");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Contains("reader", (await BodyAsync(await GetAsync("/manage/users", "admin", "admin")))
+            .EnumerateArray().Select(u => u.GetProperty("username").GetString()));
     }
 
     [Fact]
@@ -89,12 +108,33 @@ public class ManagementControllerTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    // The blanket "cannot delete admin user" refusal is gone, and this is
+    // what replaced it: on a fresh install the admin is the only
+    // Administrator, so deleting that account would leave the server with
+    // nobody who can manage Users (issue #28, ADR 0006). Same status code,
+    // a different and much narrower reason.
     [Fact]
-    public async Task DeleteUser_CannotDeleteAdmin_Returns400()
+    public async Task DeleteUser_LastAdministrator_Returns400()
     {
         var response = await DeleteAsync("/manage/users?username=admin", "admin", "admin");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(
+            Constants.UserAdmin.LastAdministratorRefused,
+            (await BodyAsync(response)).GetProperty("message").GetString());
+    }
+
+    // What the blanket refusal used to prevent and the guards allow: another
+    // Administrator may be deleted, because one remains.
+    [Fact]
+    public async Task DeleteUser_AnotherAdministratorWhileOneRemains_Returns200()
+    {
+        await PostAsync("/manage/users", new UserCreateRequest { username = "second-admin", password = "pw" }, "admin", "admin");
+        Factory.MakeAdministrator("second-admin");
+
+        var response = await DeleteAsync("/manage/users?username=second-admin", "admin", "admin");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
@@ -108,7 +148,7 @@ public class ManagementControllerTests : IntegrationTestBase
     [Fact]
     public async Task GetDocuments_SelfAccess_ReturnsOwnDocuments()
     {
-        await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
+        await CreateSyncingUserAsync("reader", "pw");
         await PutAsync("/syncs/progress", new DocumentRequest
         {
             document = "hash1",
@@ -128,6 +168,50 @@ public class ManagementControllerTests : IntegrationTestBase
         Assert.Equal(0.42m, document.GetProperty("percentage").GetDecimal());
         Assert.Equal("Kobo", document.GetProperty("device").GetString());
         Assert.Equal("device-1", document.GetProperty("deviceId").GetString());
+    }
+
+    // Issue #27 / ADR 0004: tenancy is absolute. An Administrator manages
+    // accounts and never reads another User's library, so this is refused
+    // with exactly the answer a non-Administrator gets - being an
+    // Administrator is not a wider version of this endpoint, it is no
+    // version of it.
+    // The hand-written `d.UserId == user.Id` predicate this endpoint used to
+    // carry was replaced by the tenant filters, so the scoping is worth
+    // asserting through the new mechanism. A KOReader document hash is
+    // derived from the file's contents, so two Users reading the same book
+    // really do share one - which makes this the case where an unscoped read
+    // returns somebody else's row rather than nothing.
+    [Fact]
+    public async Task GetDocuments_SelfAccess_ExcludesAnotherUsersSameHashedDocument()
+    {
+        await CreateSyncingUserAsync("reader", "pw");
+        await PushSharedHashAsync("admin", "admin", percentage: 0.10m, deviceId: "admin-device");
+        await PushSharedHashAsync("reader", "pw", percentage: 0.90m, deviceId: "reader-device");
+
+        var body = await BodyAsync(await GetAsync("/manage/users/documents?username=admin", "admin", "admin"));
+
+        var document = body.EnumerateArray().Single();
+        Assert.Equal(0.10m, document.GetProperty("percentage").GetDecimal());
+        Assert.Equal("admin-device", document.GetProperty("deviceId").GetString());
+    }
+
+    [Fact]
+    public async Task GetDocuments_AdminRequestingAnotherUser_Returns401()
+    {
+        await CreateSyncingUserAsync("reader", "pw");
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1",
+            progress = "42%",
+            percentage = 0.42m,
+            device = "Kobo",
+            device_id = "device-1"
+        }, "reader", "pw");
+
+        var response = await GetAsync("/manage/users/documents?username=reader", "admin", "admin");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.DoesNotContain("hash1", await response.Content.ReadAsStringAsync());
     }
 
     [Fact]
@@ -162,12 +246,156 @@ public class ManagementControllerTests : IntegrationTestBase
         Assert.Empty(body.EnumerateArray());
     }
 
+    // The deliberate carve-out from "tenancy is absolute": an Administrator
+    // may delete another User's Document, because a Document whose hash went
+    // bad is exactly the kind of thing an Administrator gets asked to sort
+    // out, and deleting the whole account instead is wildly disproportionate
+    // (ADR 0004, issue #35). Reading that library stays banned - the GET
+    // above is the endpoint that refuses.
+    [Fact]
+    public async Task DeleteUserDocument_Admin_DeletesAnotherUsersDocument()
+    {
+        await CreateSyncingUserAsync("reader", "pw");
+        await PushProgressAsync("hash1", "reader", "pw");
+
+        var deleteResponse = await DeleteAsync("/manage/users/documents?username=reader&documentHash=hash1", "admin", "admin");
+
+        Assert.Equal(HttpStatusCode.OK, deleteResponse.StatusCode);
+        Assert.Empty((await BodyAsync(await GetAsync("/manage/users/documents?username=reader", "reader", "pw"))).EnumerateArray());
+    }
+
+    // ... and only an Administrator may. A plain User reaches their own
+    // library and nothing else, which is the rule the carve-out is carved
+    // out of.
+    [Fact]
+    public async Task DeleteUserDocument_NonAdmin_AnotherUsersDocument_Returns401AndKeepsIt()
+    {
+        await CreateSyncingUserAsync("reader", "pw");
+        await CreateSyncingUserAsync("other", "pw");
+        await PushProgressAsync("hash1", "reader", "pw");
+
+        var deleteResponse = await DeleteAsync("/manage/users/documents?username=reader&documentHash=hash1", "other", "pw");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, deleteResponse.StatusCode);
+        Assert.Single((await BodyAsync(await GetAsync("/manage/users/documents?username=reader", "reader", "pw"))).EnumerateArray());
+    }
+
+    // Deleting one of your own Documents needs no capability at all - it is
+    // your library.
+    [Fact]
+    public async Task DeleteUserDocument_NonAdmin_OwnDocument_Succeeds()
+    {
+        await CreateSyncingUserAsync("reader", "pw");
+        await PushProgressAsync("hash1", "reader", "pw");
+
+        var deleteResponse = await DeleteAsync("/manage/users/documents?username=reader&documentHash=hash1", "reader", "pw");
+
+        Assert.Equal(HttpStatusCode.OK, deleteResponse.StatusCode);
+        Assert.Empty((await BodyAsync(await GetAsync("/manage/users/documents?username=reader", "reader", "pw"))).EnumerateArray());
+    }
+
+    // A Book with no Documents left is a phantom in the reader's library
+    // (ADR 0001), so the delete sweeps up the Book it orphaned - including
+    // when the Document belonged to somebody else, which is the case the
+    // sweep has to reach across Users for.
+    [Fact]
+    public async Task DeleteUserDocument_SweepsTheBookItOrphaned()
+    {
+        await CreateSyncingUserAsync("reader", "pw");
+        await PushProgressAsync("hash1", "reader", "pw");
+        Assert.Equal(1, Factory.CountOfEveryStoredRow<Book>());
+
+        await DeleteAsync("/manage/users/documents?username=reader&documentHash=hash1", "admin", "admin");
+
+        Assert.Equal(0, Factory.CountOfEveryStoredRow<Book>());
+    }
+
+    // The Book stays when a second Document is still on it, which is the
+    // other half of the sweep: a merged Book outlives any one of its files.
+    [Fact]
+    public async Task DeleteUserDocument_KeepsABookAnotherDocumentIsStillOn()
+    {
+        await PushProgressAsync("hash1", "admin", "admin");
+        await PushProgressAsync("hash2", "admin", "admin");
+        await MergeIntoOneBookAsync("hash1", "hash2");
+
+        await DeleteAsync("/manage/users/documents?username=admin&documentHash=hash2", "admin", "admin");
+
+        Assert.Equal(1, Factory.CountOfEveryStoredRow<Book>());
+        var documents = (await BodyAsync(await GetAsync("/manage/users/documents?username=admin", "admin", "admin"))).EnumerateArray();
+        Assert.Equal("hash1", documents.Single().GetProperty("documentHash").GetString());
+    }
+
+    // A User naming themselves in the wrong case is still naming themselves -
+    // the endpoint has always matched the caller's own name
+    // case-insensitively. So this is a miss on the hash, answered like any
+    // other miss, rather than a refusal for reaching at somebody else.
+    [Fact]
+    public async Task DeleteUserDocument_NonAdmin_OwnNameInAnotherCase_Returns404NotRefused()
+    {
+        await CreateSyncingUserAsync("reader", "pw");
+
+        var response = await DeleteAsync("/manage/users/documents?username=READER&documentHash=missing", "reader", "pw");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(
+            Constants.UserAdmin.DocumentNotFound,
+            (await BodyAsync(response)).GetProperty("message").GetString());
+    }
+
+    // A request that leaves the username off is turned away by
+    // [ApiController]'s model validation before any of this endpoint's own
+    // rules run. Worth pinning rather than assuming: it is why the guard
+    // below can compare a username at all, and the neighbouring 500 issue
+    // #35 came to fix was exactly a username nothing had checked.
+    [Fact]
+    public async Task DeleteUserDocument_NoUsernameAtAll_Returns400NotServerError()
+    {
+        await CreateSyncingUserAsync("reader", "pw");
+
+        var response = await DeleteAsync("/manage/users/documents?documentHash=missing", "reader", "pw");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     [Fact]
     public async Task DeleteUserDocument_NotFound_Returns404()
     {
         var response = await DeleteAsync("/manage/users/documents?username=admin&documentHash=missing", "admin", "admin");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    // The username used to be dereferenced without a null check, so an
+    // unknown one was a NullReferenceException and a 500 rather than a 404
+    // (issue #35).
+    [Fact]
+    public async Task DeleteUserDocument_UnknownUsername_Returns404NotServerError()
+    {
+        var response = await DeleteAsync("/manage/users/documents?username=nobody&documentHash=missing", "admin", "admin");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    // An Administrator may delete another User's Document, so this endpoint
+    // cannot hide its outcome the way the GET does (ADR 0004). It can still
+    // decline to confirm which half of the question missed, so "no such User"
+    // and "no such Document" are one answer that names neither (issue #35).
+    [Fact]
+    public async Task DeleteUserDocument_NotFound_DoesNotDiscloseTheTarget()
+    {
+        await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
+
+        var knownUser = await DeleteAsync("/manage/users/documents?username=reader&documentHash=missing", "admin", "admin");
+        var unknownUser = await DeleteAsync("/manage/users/documents?username=nobody&documentHash=missing", "admin", "admin");
+
+        var knownBody = (await BodyAsync(knownUser)).GetProperty("message").GetString();
+        var unknownBody = (await BodyAsync(unknownUser)).GetProperty("message").GetString();
+
+        Assert.Equal(Constants.UserAdmin.DocumentNotFound, knownBody);
+        Assert.Equal(knownBody, unknownBody);
+        Assert.DoesNotContain("reader", knownBody);
+        Assert.DoesNotContain("missing", knownBody);
     }
 
     [Fact]
@@ -185,12 +413,30 @@ public class ManagementControllerTests : IntegrationTestBase
         Assert.Equal("User marked as active", reactivateBody.GetProperty("message").GetString());
     }
 
+    // Also narrowed from "cannot update admin user" to the guard that was
+    // behind it: the admin here is deactivating the only active
+    // Administrator, which is themselves.
     [Fact]
-    public async Task UpdateUserActive_CannotToggleAdmin_Returns400()
+    public async Task UpdateUserActive_DeactivatingTheLastAdministrator_Returns400()
     {
         var response = await PutAsync<object?>("/manage/users/active?username=admin", null, "admin", "admin");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(
+            Constants.UserAdmin.LastAdministratorRefused,
+            (await BodyAsync(response)).GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public async Task UpdateUserActive_DeactivatingAnotherAdministrator_Returns200()
+    {
+        await PostAsync("/manage/users", new UserCreateRequest { username = "second-admin", password = "pw" }, "admin", "admin");
+        Factory.MakeAdministrator("second-admin");
+
+        var response = await PutAsync<object?>("/manage/users/active?username=second-admin", null, "admin", "admin");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(Constants.UserAdmin.MarkedInactive, (await BodyAsync(response)).GetProperty("message").GetString());
     }
 
     [Fact]
@@ -211,15 +457,93 @@ public class ManagementControllerTests : IntegrationTestBase
         var response = await PutAsync("/manage/users/password?username=reader", new PasswordChangeRequest { password = "new-password" }, "admin", "admin");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
+        // The real sequence, in order. A password an Administrator set is
+        // Provisional, so the new password is refused first (ADR 0006) - and
+        // refused for *that* reason rather than for being the wrong password,
+        // which the old password could not tell apart.
+        var beforeChange = await GetAsync("/users/auth", "reader", "new-password");
+        Assert.Equal(HttpStatusCode.Unauthorized, beforeChange.StatusCode);
+        Assert.Contains("Password change required", (await BodyAsync(beforeChange)).GetProperty("message").GetString());
+
+        // Then the User replaces it, and the password the Administrator set is
+        // the one that was replaced - which is what this test is really about.
+        Factory.SetPasswordState("reader", PasswordState.UserChosen);
+
         var authResponse = await GetAsync("/users/auth", "reader", "new-password");
         Assert.Equal(HttpStatusCode.OK, authResponse.StatusCode);
     }
 
+    // This endpoint used to refuse any admin target outright, which meant an
+    // Administrator could not change their own password by any route at all -
+    // and the seeded admin's password is Provisional, so replacing it is the
+    // one thing the account has to be able to do (ADR 0006).
     [Fact]
-    public async Task UpdatePassword_CannotUpdateAdmin_Returns400()
+    public async Task UpdatePassword_AdminChangingTheirOwn_AllowsAuthWithNewPassword()
     {
         var response = await PutAsync("/manage/users/password?username=admin", new PasswordChangeRequest { password = "new-password" }, "admin", "admin");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await GetAsync("/users/auth", "admin", "new-password")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await GetAsync("/users/auth", "admin", "admin")).StatusCode);
+    }
+
+    // The distinction that replaces the blanket refusal: a password you set
+    // for yourself is your own choice and nothing forces you to replace it.
+    [Fact]
+    public async Task UpdatePassword_AdminChangingTheirOwn_MakesItTheirOwnChoice()
+    {
+        await PutAsync("/manage/users/password?username=admin", new PasswordChangeRequest { password = "new-password" }, "admin", "admin");
+
+        Assert.Equal(PasswordState.UserChosen, Factory.StoredPasswordStateOf("admin"));
+    }
+
+    // Whereas a password an Administrator sets for somebody else is exactly
+    // what a Provisional Password is, however the account came to exist. The
+    // User here had already replaced their initial password, so this is the
+    // state being raised a second time - which is the thing a one-shot
+    // "has changed it once" flag could not have expressed (ADR 0006).
+    [Fact]
+    public async Task UpdatePassword_AdminSettingAnothersPassword_ReturnsItToProvisional()
+    {
+        await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
+        Factory.SetPasswordState("reader", PasswordState.UserChosen);
+
+        await PutAsync("/manage/users/password?username=reader", new PasswordChangeRequest { password = "handed-over" }, "admin", "admin");
+
+        Assert.Equal(PasswordState.Provisional, Factory.StoredPasswordStateOf("reader"));
+    }
+
+    // One progress push, which is how a Document comes to exist at all
+    // (GLOSSARY "Document") - for the delete tests, which care only that
+    // there is something there to delete. Fails loudly if the push did not
+    // land, so a delete test cannot pass by deleting nothing.
+    private async Task PushProgressAsync(string documentHash, string username, string password)
+    {
+        var response = await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = documentHash,
+            progress = "p1",
+            percentage = 0.1m,
+            device = "Kobo",
+            device_id = $"device-{documentHash}",
+        }, username, password);
+
+        response.EnsureSuccessStatusCode();
+    }
+
+    // Pushes the one hash every caller of this shares, which is the point
+    // rather than an incidental fixture value: a KOReader hash is derived
+    // from the file's contents, so two Users reading the same book really do
+    // hold the same hash.
+    private Task<HttpResponseMessage> PushSharedHashAsync(string username, string password, decimal percentage, string deviceId)
+    {
+        return PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "shared-hash",
+            progress = "p1",
+            percentage = percentage,
+            device = deviceId,
+            device_id = deviceId,
+        }, username, password);
     }
 }

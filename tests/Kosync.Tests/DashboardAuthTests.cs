@@ -42,15 +42,23 @@ public class DashboardAuthTests : IntegrationTestBase
 
         Assert.Equal(HttpStatusCode.Found, response.StatusCode);
         Assert.Equal(AppRoutes.Dashboard, response.Headers.Location!.PathAndQuery);
-        Assert.Contains(
-            response.Headers.GetValues("Set-Cookie"),
-            v => v.StartsWith(".AspNetCore.Cookies="));
+        DashboardLogin.AssertIssuedASessionCookie(response);
 
         var dashboardResponse = await client.GetAsync(AppRoutes.Dashboard);
         var dashboardHtml = await dashboardResponse.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, dashboardResponse.StatusCode);
-        Assert.Contains("Logged in as admin.", dashboardHtml);
+        // The signed-in Username as the folded-in nav renders it: bare, in
+        // `hub-nav-user`, where the pre-hub shell wrote a "Logged in as ..."
+        // sentence. Asserted with its element, not as a bare ">admin<" - that
+        // was a deliberately loose assertion while the copy was in flux
+        // during the UI prototype, and the nav has been settled since #17.
+        //
+        // A literal class name, like every other `hub-` assertion in the
+        // suite: these names are markup structure rather than copy, so the
+        // stylesheet is the other half of the pair and HubClasses is what
+        // checks the two agree. Constants.cs carries the copy instead.
+        Assert.Contains(@"<span class=""hub-nav-user"">admin</span>", dashboardHtml);
     }
 
     [Fact]
@@ -64,19 +72,35 @@ public class DashboardAuthTests : IntegrationTestBase
         Assert.False(response.Headers.Contains("Set-Cookie"));
 
         var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("Invalid username or password.", html);
+        // Read from the same constant the login screen renders, so the
+        // assertion can't drift from the copy (CLAUDE.md). The string lives
+        // in Constants.cs rather than the prototype's own constants, which
+        // is what unblocked deleting that folder (issue #13, then #19).
+        Assert.Contains(Constants.LoginErrorText, html);
     }
 
+    // Issue #36: a post that carries the handler and the antiforgery token but
+    // none of the form's own fields. Blazor binds the form model to null for
+    // such a body - which is what BL0008 warns about - and /login is an
+    // unauthenticated endpoint, so an unhandled NullReferenceException there
+    // is a 500 anyone can ask for.
     [Fact]
-    public async Task Login_WithNonAdminAccount_DoesNotIssueCookie()
+    public async Task Login_WithNoFormFields_FailsTheLoginRatherThanThrowing()
     {
-        await PostAsync("/manage/users", new UserCreateRequest { username = "reader", password = "pw" }, "admin", "admin");
-
         using var client = Factory.NoRedirectClient();
 
-        var response = await DashboardLogin.LogInAsync(client, "reader", "pw");
+        var response = await PortalForms.SubmitAsync(client, AppRoutes.Login, new Dictionary<string, string>());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.False(response.Headers.Contains("Set-Cookie"));
+
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains(Constants.LoginErrorText, html);
     }
+
+    // A non-Administrator logging in used to be refused here. Issue #26
+    // reversed that - every User logs into the portal with their sync
+    // credentials (ADR 0004) - and PortalLoginForEveryUserTests owns the
+    // behaviour now, including the one precondition that survived it
+    // (an inactive account).
 }

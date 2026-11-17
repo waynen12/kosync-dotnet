@@ -1,0 +1,149 @@
+using Kosync.Database;
+using Kosync.Database.Entities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Kosync.Tests.TestSupport;
+
+// Every read through KosyncDbContext is scoped to a User (ADR 0004), so a
+// test reaching into the database directly has to say whose view it is
+// taking. These are the two answers: "whatever is actually stored", for
+// tests asserting on the data, and "this User's view", for tests exercising
+// the scoping itself or predating it.
+public static class TestDb
+{
+    // A context that can see every row, the way startup code does.
+    public static KosyncDbContext CreateSystemContext(DbContextOptions<KosyncDbContext> options)
+    {
+        return new KosyncDbContext(
+            options,
+            TenantContext.ForSystemOperation(Constants.Tenancy.TestFixtureBypassReason));
+    }
+
+    public static IServiceScope CreateSystemScope(this KosyncWebApplicationFactory factory)
+    {
+        var scope = factory.Services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<TenantContext>()
+            .BypassFilters(Constants.Tenancy.TestFixtureBypassReason);
+
+        return scope;
+    }
+
+    // Whose choice a User's stored password was (ADR 0006). Read from the
+    // database because it has no endpoint of its own: nothing a caller can
+    // ask for turns on it yet, only what the server will later refuse.
+    public static PasswordState StoredPasswordStateOf(this KosyncWebApplicationFactory factory, string username)
+    {
+        using var scope = factory.CreateSystemScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+
+        return db.Users.Single(u => u.Username == username).PasswordState;
+    }
+
+    // Whether the database holds a User by that name at all. What a refused
+    // account-creation route needs asserting about it (issue #23): that it
+    // left no row behind, which no User's own view could show.
+    public static bool StoredUserExists(this KosyncWebApplicationFactory factory, string username)
+    {
+        using var scope = factory.CreateSystemScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+
+        return db.Users.Any(u => u.Username == username);
+    }
+
+    // Grants the Administrator capability directly. /manage/* has no route
+    // that does this - creating an Administrator is the portal's job
+    // (issue #28) - so a test about what an Administrator may do to *another*
+    // Administrator has to arrange the second one here.
+    public static void MakeAdministrator(this KosyncWebApplicationFactory factory, string username)
+    {
+        using var scope = factory.CreateSystemScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+
+        db.Users.Single(u => u.Username == username).IsAdministrator = true;
+        db.SaveChanges();
+    }
+
+    // Whether a User holds the Administrator capability, read from the
+    // database: the portal shows it as a badge and /manage/users as a flag,
+    // and a test about which of those is right needs the fact itself.
+    public static bool IsAdministrator(this KosyncWebApplicationFactory factory, string username)
+    {
+        using var scope = factory.CreateSystemScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+
+        return db.Users.Single(u => u.Username == username).IsAdministrator;
+    }
+
+    // How many rows of a kind the database actually holds, across every User.
+    // For the assertions no User's own view can make: a Book left behind by a
+    // deleted User belongs to nobody, so it is invisible from every scope
+    // that has a tenant.
+    public static int CountOfEveryStoredRow<TEntity>(this KosyncWebApplicationFactory factory)
+        where TEntity : class
+    {
+        using var scope = factory.CreateSystemScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+
+        return db.Set<TEntity>().Count();
+    }
+
+    // Deletes a User out from under a live session, which is the one way to
+    // arrange the state a cookie naming a User who no longer exists is in -
+    // nothing a caller can ask for produces it, and it is what the
+    // change-password page's dead end exists for (issue #43). Deleted
+    // directly rather than through UserAdminService, because that route
+    // refuses to delete the admin and the admin is who the session is.
+    public static void DeleteStoredUser(this KosyncWebApplicationFactory factory, string username)
+    {
+        using var scope = factory.CreateSystemScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+
+        db.Users.Remove(db.Users.Single(u => u.Username == username));
+        db.SaveChanges();
+    }
+
+    // Who a test is acting as, for the services that take the acting User's
+    // id rather than resolving one ambiently (ADR 0004) - UserAdminService
+    // being the first. Throws if the User does not exist, so a typo fails
+    // rather than quietly acting as nobody.
+    public static int UserIdOf(this KosyncWebApplicationFactory factory, string username)
+    {
+        using var scope = factory.CreateSystemScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+
+        return db.Users.Single(u => u.Username == username).Id;
+    }
+
+    // Stands in for a User completing the forced password change, which has
+    // no route of its own yet - the portal page that does it is issue #24.
+    // Lets a test arrange a User who is past that point and assert on what
+    // happens to them next.
+    //
+    // KosyncWebApplicationFactory sets the same column from inside
+    // CreateHost and cannot call this: there is no factory.Services to take a
+    // scope from until the host it is building exists.
+    public static void SetPasswordState(
+        this KosyncWebApplicationFactory factory, string username, PasswordState state)
+    {
+        using var scope = factory.CreateSystemScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+
+        db.Users.Single(u => u.Username == username).PasswordState = state;
+        db.SaveChanges();
+    }
+
+    // A scope that sees exactly what the named User sees - the same view the
+    // dashboard takes. Throws if the User does not exist, so a typo surfaces
+    // as a failure rather than as a mysteriously empty result.
+    public static IServiceScope CreateScopeForUser(this KosyncWebApplicationFactory factory, string username)
+    {
+        var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
+        var userId = db.Users.Single(u => u.Username == username).Id;
+
+        scope.ServiceProvider.GetRequiredService<TenantContext>().SetUser(userId);
+
+        return scope;
+    }
+}

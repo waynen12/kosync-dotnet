@@ -106,14 +106,17 @@ public class BookDashboardServiceTests : IntegrationTestBase
         var current = Assert.Single(doc.History, h => h.IsCurrent);
         Assert.Equal(0.50m, current.Percentage);
 
-        var regression = Assert.Single(doc.History, h => !h.IsCurrent);
+        // BlockedRegression, not !IsCurrent: with two pushes the two happen
+        // to pick out the same event, which is why this shape hid issue #38
+        // for as long as it did.
+        var regression = Assert.Single(doc.History, h => h.BlockedRegression);
         Assert.Equal(0.30m, regression.Percentage);
     }
 
     [Fact]
     public async Task GetBookAsync_UnknownId_ReturnsNull()
     {
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var service = new BookDashboardService(db);
 
@@ -261,13 +264,13 @@ public class BookDashboardServiceTests : IntegrationTestBase
             .Options;
 
         int keepBookId, mergeBookId;
-        using (var setup = new KosyncDbContext(options))
+        using (var setup = TestDb.CreateSystemContext(options))
         {
             setup.Database.Migrate();
 
             var user = new User { Username = "u", PasswordHash = "x" };
-            var keepBook = new Book();
-            var mergeBook = new Book();
+            var keepBook = new Book { User = user };
+            var mergeBook = new Book { User = user };
             setup.Users.Add(user);
             setup.Books.AddRange(keepBook, mergeBook);
             await setup.SaveChangesAsync();
@@ -284,7 +287,7 @@ public class BookDashboardServiceTests : IntegrationTestBase
             .AddInterceptors(new ThrowOnSecondSaveInterceptor())
             .Options;
 
-        using (var faultyContext = new KosyncDbContext(faultyOptions))
+        using (var faultyContext = TestDb.CreateSystemContext(faultyOptions))
         {
             var service = new BookDashboardService(faultyContext);
 
@@ -292,7 +295,7 @@ public class BookDashboardServiceTests : IntegrationTestBase
                 () => service.MergeBooksAsync(keepBookId, mergeBookId));
         }
 
-        using var verify = new KosyncDbContext(options);
+        using var verify = TestDb.CreateSystemContext(options);
         var document = await verify.Documents.SingleAsync(d => d.DocumentHash == "hash1");
         Assert.Equal(mergeBookId, document.BookId);
         Assert.NotNull(await verify.Books.FindAsync(mergeBookId));
@@ -393,6 +396,41 @@ public class BookDashboardServiceTests : IntegrationTestBase
         Assert.Single(doc.History, h => h.IsReset);
     }
 
+    // A reset is recorded per occurrence rather than as a last-one-wins
+    // timestamp on the Document (issue #40), so resetting twice leaves two
+    // markers in the history - both resets happened, and the earlier one is
+    // what tells a reader why the push after it was allowed to go backwards.
+    [Fact]
+    public async Task ResetProgressAsync_Twice_LeavesAResetEntryForEach()
+    {
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p1", percentage = 0.80m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        var bookId = await GetBookIdAsync("hash1");
+        var documentId = await GetDocumentIdAsync("hash1");
+
+        await ResetProgressAsync(documentId);
+
+        await PutAsync("/syncs/progress", new DocumentRequest
+        {
+            document = "hash1", progress = "p0", percentage = 0.05m, device = "Kobo", device_id = "device-1"
+        }, "admin", "admin");
+
+        await ResetProgressAsync(documentId);
+
+        var book = await GetBookAsync(bookId);
+        var doc = Assert.Single(book!.Documents);
+
+        // Newest first, each reset sitting above the push it cleared: the
+        // order is what makes the timeline readable, and it is also the order
+        // ProgressRegressionRule replays promotion over.
+        Assert.Equal(
+            [(true, 0m), (false, 0.05m), (true, 0m), (false, 0.80m)],
+            doc.History.Select(h => (h.IsReset, h.Percentage)));
+    }
+
     [Fact]
     public async Task ResetProgressAsync_NextPushBecomesCurrentRegardlessOfPercentage()
     {
@@ -449,7 +487,7 @@ public class BookDashboardServiceTests : IntegrationTestBase
 
     private async Task<List<BookSummary>> GetBooksAsync()
     {
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var service = new BookDashboardService(db);
         return await service.GetBooksAsync();
@@ -457,7 +495,7 @@ public class BookDashboardServiceTests : IntegrationTestBase
 
     private async Task<BookSummary?> GetBookAsync(int id)
     {
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var service = new BookDashboardService(db);
         return await service.GetBookAsync(id);
@@ -465,7 +503,7 @@ public class BookDashboardServiceTests : IntegrationTestBase
 
     private async Task<int> GetBookIdAsync(string documentHash)
     {
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var document = await db.Documents.SingleAsync(d => d.DocumentHash == documentHash);
         return document.BookId;
@@ -473,7 +511,7 @@ public class BookDashboardServiceTests : IntegrationTestBase
 
     private async Task<MergeBooksResult> MergeBooksAsync(int keepBookId, int mergeBookId)
     {
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var service = new BookDashboardService(db);
         return await service.MergeBooksAsync(keepBookId, mergeBookId);
@@ -481,7 +519,7 @@ public class BookDashboardServiceTests : IntegrationTestBase
 
     private async Task<int> GetDocumentIdAsync(string documentHash)
     {
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var document = await db.Documents.SingleAsync(d => d.DocumentHash == documentHash);
         return document.Id;
@@ -489,7 +527,7 @@ public class BookDashboardServiceTests : IntegrationTestBase
 
     private async Task<ResetProgressResult> ResetProgressAsync(int documentId)
     {
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateScopeForUser("admin");
         var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
         var service = new BookDashboardService(db);
         return await service.ResetProgressAsync(documentId);

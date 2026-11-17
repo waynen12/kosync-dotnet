@@ -1,0 +1,58 @@
+@* The portal's sign-out control, wherever it appears (issue #43). One click
+   signs out, with no interstitial - but still by posting, which is the part
+   that matters and the part the deleted confirm screen actually existed for.
+
+   A bare GET endpoint is signed out by anything that merely fetches the URL -
+   a link preview, a prefetching browser - so this is a real form submit
+   carrying an antiforgery token, and AppRoutes.Logout answers POST only.
+
+   Deliberately *not* a Blazor named form, unlike every other form in the
+   portal. A named form posts back to the page it is rendered on and is
+   dispatched by the component that declared it, and this control is rendered
+   in the chrome: its page is whichever one the User happens to be looking at.
+   Posting to one endpoint instead keeps the sign-out in one place and keeps
+   it out of a circuit - SignOutAsync writes to the response, which needs an
+   HttpContext an interactive render does not have (ADR 0003). *@
+
+<form class="hub-signout" method="post" action="@AppRoutes.Logout">
+    <AntiforgeryToken />
+
+    @* aria-label only where there is no visible text to name the button -
+       which is the nav, where the control is an icon. Setting it
+       unconditionally was wrong: it overrides the accessible name, so the
+       button reading "Sign out instead" on /change-password would have been
+       announced as "Sign out", and a visible label has to be contained in
+       the accessible name (WCAG 2.5.3 Label in Name). Blazor omits a null
+       attribute, so the call site that has text simply leaves it unset and
+       the text becomes the name. *@
+    <button type="submit" class="@Class"
+            title="@Constants.Logout.ControlTitle"
+            aria-label="@Label"
+            aria-describedby="@Constants.Logout.ExplanationId">
+        @ChildContent
+    </button>
+
+    @* The Explanation, for everyone rather than only a mouse. It is on the
+       button's `title` too, but a tooltip needs a hover: a screen reader
+       would never reach it, and a touch device has nothing to hover with.
+       Described-by rather than a second label, because it is not what the
+       control is called - it is the reassurance that signing out of the
+       portal is not what stopped a Device syncing. *@
+    <span id="@Constants.Logout.ExplanationId" class="hub-sr-only">@Constants.Logout.Explanation</span>
+</form>
+
+@code {
+    // The look of the button, which is the call site's business: the nav wants
+    // a round icon button on the gradient band, and a login card wants the
+    // same understated link its other way-out wears.
+    [Parameter]
+    public string Class { get; set; } = "";
+
+    // The accessible name, for a call site whose ChildContent is an icon and
+    // so names nothing. Left null by a call site with visible text.
+    [Parameter]
+    public string? Label { get; set; }
+
+    [Parameter, EditorRequired]
+    public RenderFragment ChildContent { get; set; } = default!;
+}
