@@ -223,6 +223,28 @@ public static class Constants
             "Password change required — log in at {0} to set a new password.";
     }
 
+    // Where this server keeps its SQLite database. Defaults only - the live
+    // value comes from the "Storage" configuration section via
+    // StorageOptions.
+    public static class Storage
+    {
+        public const string ConfigurationSection = "Storage";
+
+        // Relative to the content root, the way every install before this
+        // issue found its database: Program.cs always combined "data" onto
+        // the content root rather than letting an operator say otherwise.
+        // Kept relative (rather than resolved to an absolute path here) so
+        // Path.Combine's own rule - an absolute second argument replaces the
+        // first outright - is what lets a container bind mount override it
+        // with Storage__DataDirectory=/data (issue #47).
+        public const string DefaultDataDirectory = "data";
+
+        // The one spelling of the database's filename, read by both
+        // Program.cs and the design-time KosyncDbContextFactory so a rename
+        // cannot happen in one and not the other.
+        public const string DatabaseFileName = "kosync.sqlite3";
+    }
+
     // PasswordChangeGateMiddleware, which holds a Provisional-Password User
     // on the change-password page (ADR 0006). Routing rather than copy,
     // which is why it is not in ChangePassword below.

@@ -34,10 +34,17 @@ builder.Services.AddScoped<DeviceDashboardService, DeviceDashboardService>();
 builder.Services.AddScoped<BookDashboardService, BookDashboardService>();
 builder.Services.AddScoped<DocumentRegistry, DocumentRegistry>();
 
-var dataDirectory = Path.Combine(builder.Environment.ContentRootPath, "data");
+// Bound directly rather than through DI: this value is needed to build the
+// DbContext registration itself and to seed/migrate the database below,
+// both of which happen before anything else could resolve IOptions from the
+// container.
+var storageOptions = new StorageOptions();
+builder.Configuration.GetSection(Constants.Storage.ConfigurationSection).Bind(storageOptions);
+
+var dataDirectory = Path.Combine(builder.Environment.ContentRootPath, storageOptions.ResolvedDataDirectory);
 
 builder.Services.AddDbContext<KosyncDbContext>(options =>
-    options.UseSqlite($"Data Source={Path.Combine(dataDirectory, "kosync.sqlite3")}"));
+    options.UseSqlite($"Data Source={Path.Combine(dataDirectory, Constants.Storage.DatabaseFileName)}"));
 
 
 builder.Services.AddControllers();

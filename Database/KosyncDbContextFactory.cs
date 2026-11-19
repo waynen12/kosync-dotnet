@@ -10,7 +10,8 @@ public class KosyncDbContextFactory : IDesignTimeDbContextFactory<KosyncDbContex
     public KosyncDbContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<KosyncDbContext>();
-        optionsBuilder.UseSqlite("Data Source=data/kosync.sqlite3");
+        optionsBuilder.UseSqlite(
+            $"Data Source={Path.Combine(Constants.Storage.DefaultDataDirectory, Constants.Storage.DatabaseFileName)}");
 
         // One of the three places ADR 0004 lets out of the tenant filters.
         // At design time there is no request, no session and no User to scope
