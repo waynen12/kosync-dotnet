@@ -245,6 +245,56 @@ public static class Constants
         public const string DatabaseFileName = "kosync.sqlite3";
     }
 
+    // The Destructive Migration gate (ADR 0009, GLOSSARY.md, issue #49): a
+    // deploy that finds one of these pending refuses to start rather than
+    // apply it unattended.
+    public static class Migrations
+    {
+        // Full EF migration ids, spelled exactly as GetPendingMigrations()
+        // returns them - not just the class name - so there is no separate
+        // mapping between this list and the assembly to drift out of sync.
+        // Destructiveness is declared here rather than detected, because
+        // nothing in EF Core can say whether a migration deletes or rewrites
+        // rows - that lives in arbitrary Up() bodies and raw SQL (ADR 0009).
+        //
+        // Each entry's comment is what an Operator needs to decide whether
+        // to permit it, without reading the migration itself.
+        public static readonly string[] Destructive =
+        [
+            // Deletes every Book with no Documents while backfilling
+            // Books.UserId from the Documents each Book already has.
+            "20261020194356_AddBookUserId",
+
+            // Rewrites every existing User row's PasswordState to UserChosen,
+            // since an installed server's existing passwords already work
+            // and are not the Provisional ones ADR 0006 governs.
+            "20261025190645_AddUserPasswordState",
+
+            // Drops Documents.LastResetAt after carrying each value it held
+            // into a new ProgressResets row - the column is gone once this
+            // completes, not merely emptied.
+            "20261103204304_AddProgressResets",
+
+            // Deletes every duplicate Document sharing a (UserId,
+            // DocumentHash) pair but one, after folding each one's history
+            // and metadata onto the survivor (ADR 0008).
+            "20261105204525_AddDocumentHashUniqueIndex",
+        ];
+
+        // What the refusal says about the migration it stopped on, and what
+        // setting it to ALLOW_DESTRUCTIVE_MIGRATIONS would have done
+        // instead. Named rather than inline in DestructiveMigrationGate so
+        // the wording the log and the thrown exception share cannot drift
+        // apart.
+        public const string RefusalLogFormat =
+            "Refusing to start: pending migration [{MigrationId}] is a Destructive Migration "
+            + "(deletes or rewrites rows - see Constants.Migrations.Destructive for what it does) "
+            + "and is not permitted. Set {Variable}={MigrationId} to permit it, after taking a backup.";
+
+        public const string RefusalExceptionFormat =
+            "Refusing to start with pending Destructive Migration(s) not permitted by {0}: {1}.";
+    }
+
     // PasswordChangeGateMiddleware, which holds a Provisional-Password User
     // on the change-password page (ADR 0006). Routing rather than copy,
     // which is why it is not in ChangePassword below.
@@ -681,6 +731,16 @@ public static class Constants
         // whose default had flipped to "disabled" would read as a double
         // negative in every compose file.
         public const string SelfRegistrationEnabled = "SELF_REGISTRATION_ENABLED";
+
+        // Names which of Constants.Migrations.Destructive the Operator
+        // permits to run, as a comma-separated list of full migration ids
+        // (ADR 0009, issue #49). Deliberately not a boolean: a standing
+        // `true` left in a compose file would disable the gate forever,
+        // which is the failure ADR 0006 already removed from ADMIN_PASSWORD.
+        // Naming ids instead is self-expiring - the next Destructive
+        // Migration has a different id, does not match, and the gate fires
+        // again even with this variable still set.
+        public const string AllowDestructiveMigrations = "ALLOW_DESTRUCTIVE_MIGRATIONS";
     }
 
     // The first account, created on a fresh install (ADR 0006).

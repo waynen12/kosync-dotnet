@@ -23,6 +23,8 @@ public static class KosyncDbInitializer
             Directory.CreateDirectory(dataDirectory);
         }
 
+        DestructiveMigrationGate.EnsureNoUnattendedDestructiveMigration(db, logger);
+
         db.Database.Migrate();
 
         LiteDbMigrator.MigrateIfNeeded(db, Path.Combine(dataDirectory, "Kosync.db"), passwordHasher, logger);
