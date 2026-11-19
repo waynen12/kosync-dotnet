@@ -35,4 +35,17 @@ public class DestructiveMigrationListTests
     {
         Assert.Equal(Constants.Migrations.Destructive.Length, Constants.Migrations.Destructive.Distinct().Count());
     }
+
+    // DestructiveDescriptions is what the refusal actually says a pending
+    // migration does - a missing entry would silently fall back to a
+    // KeyNotFoundException instead of the message an operator needs, and an
+    // orphaned one would just be dead weight. Either way the two lists have
+    // drifted apart.
+    [Fact]
+    public void EveryDeclaredId_HasExactlyOneDescription()
+    {
+        Assert.Equal(
+            Constants.Migrations.Destructive.OrderBy(id => id),
+            Constants.Migrations.DestructiveDescriptions.Keys.OrderBy(id => id));
+    }
 }

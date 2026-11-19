@@ -38,14 +38,20 @@ public static class DestructiveMigrationGate
             logger.LogError(
                 Constants.Migrations.RefusalLogFormat,
                 id,
+                Constants.Migrations.DestructiveDescriptions[id],
                 Constants.EnvironmentVariables.AllowDestructiveMigrations,
                 id);
         }
 
+        var detail = string.Join(", ", unattended.Select(id => string.Format(
+            Constants.Migrations.RefusalExceptionEntryFormat,
+            id,
+            Constants.Migrations.DestructiveDescriptions[id])));
+
         throw new InvalidOperationException(string.Format(
             Constants.Migrations.RefusalExceptionFormat,
             Constants.EnvironmentVariables.AllowDestructiveMigrations,
-            string.Join(", ", unattended)));
+            detail));
     }
 
     // Pure beyond the environment-variable read: which of the pending ids

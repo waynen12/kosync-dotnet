@@ -243,6 +243,26 @@ public static class Constants
         // Program.cs and the design-time KosyncDbContextFactory so a rename
         // cannot happen in one and not the other.
         public const string DatabaseFileName = "kosync.sqlite3";
+
+        // Pre-migration backups (ADR 0009, issue #48) land in a subdirectory
+        // of the data directory rather than beside it, so the one bind mount
+        // that already covers the database covers its backups too.
+        public const string BackupsDirectoryName = "backups";
+
+        // Named for the UTC instant the backup was taken and the migration
+        // it was taken ahead of, so a file on disk says what moment and what
+        // change it is a backup of without reading anything else.
+        public const string BackupFileNameFormat = "{0:yyyyMMddTHHmmssZ}_{1}.sqlite3";
+
+        public const string BackupWrittenLogFormat =
+            "Backed up database to [{0}] before applying pending migration(s): {1}.";
+
+        public const string BackupFailedLogFormat =
+            "Refusing to start: could not write the pre-migration backup to [{0}], which was "
+            + "protecting against pending migration(s): {1}.";
+
+        public const string BackupFailedExceptionFormat =
+            "Refusing to start without a pre-migration backup at [{0}]: {1}";
     }
 
     // The Destructive Migration gate (ADR 0009, GLOSSARY.md, issue #49): a
@@ -257,8 +277,8 @@ public static class Constants
         // nothing in EF Core can say whether a migration deletes or rewrites
         // rows - that lives in arbitrary Up() bodies and raw SQL (ADR 0009).
         //
-        // Each entry's comment is what an Operator needs to decide whether
-        // to permit it, without reading the migration itself.
+        // Each entry's comment is what a human deciding whether to permit it
+        // needs, without reading the migration itself.
         public static readonly string[] Destructive =
         [
             // Deletes every Book with no Documents while backfilling
@@ -281,18 +301,40 @@ public static class Constants
             "20261105204525_AddDocumentHashUniqueIndex",
         ];
 
+        // The same four facts as the comments above, keyed by id rather than
+        // left as source comments - so the refusal below can say what a
+        // pending migration actually does instead of pointing someone at
+        // this file to find out. DestructiveMigrationListTests asserts the
+        // two stay in step.
+        public static readonly Dictionary<string, string> DestructiveDescriptions = new()
+        {
+            ["20261020194356_AddBookUserId"] =
+                "deletes every Book with no Documents while backfilling Books.UserId",
+            ["20261025190645_AddUserPasswordState"] =
+                "rewrites every existing User row's PasswordState to UserChosen",
+            ["20261103204304_AddProgressResets"] =
+                "drops Documents.LastResetAt after carrying each value into a new ProgressResets row",
+            ["20261105204525_AddDocumentHashUniqueIndex"] =
+                "deletes every duplicate Document sharing a (UserId, DocumentHash) pair but one",
+        };
+
         // What the refusal says about the migration it stopped on, and what
         // setting it to ALLOW_DESTRUCTIVE_MIGRATIONS would have done
         // instead. Named rather than inline in DestructiveMigrationGate so
         // the wording the log and the thrown exception share cannot drift
         // apart.
         public const string RefusalLogFormat =
-            "Refusing to start: pending migration [{MigrationId}] is a Destructive Migration "
-            + "(deletes or rewrites rows - see Constants.Migrations.Destructive for what it does) "
-            + "and is not permitted. Set {Variable}={MigrationId} to permit it, after taking a backup.";
+            "Refusing to start: pending migration [{MigrationId}] is a Destructive Migration - "
+            + "it {Description} - and is not permitted. Set {Variable}={MigrationId} to permit "
+            + "it, after taking a backup.";
 
         public const string RefusalExceptionFormat =
             "Refusing to start with pending Destructive Migration(s) not permitted by {0}: {1}.";
+
+        // One unattended migration's contribution to RefusalExceptionFormat's
+        // id list, carrying its own description rather than leaving the
+        // thrown message to name ids alone.
+        public const string RefusalExceptionEntryFormat = "{0} ({1})";
     }
 
     // PasswordChangeGateMiddleware, which holds a Provisional-Password User
@@ -732,8 +774,8 @@ public static class Constants
         // negative in every compose file.
         public const string SelfRegistrationEnabled = "SELF_REGISTRATION_ENABLED";
 
-        // Names which of Constants.Migrations.Destructive the Operator
-        // permits to run, as a comma-separated list of full migration ids
+        // Names which of Constants.Migrations.Destructive are permitted to
+        // run, as a comma-separated list of full migration ids
         // (ADR 0009, issue #49). Deliberately not a boolean: a standing
         // `true` left in a compose file would disable the gate forever,
         // which is the failure ADR 0006 already removed from ADMIN_PASSWORD.
