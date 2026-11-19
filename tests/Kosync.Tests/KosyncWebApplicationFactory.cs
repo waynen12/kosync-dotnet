@@ -68,6 +68,14 @@ public class KosyncWebApplicationFactory : WebApplicationFactory<Program>
 
     public string DataDirectory => Path.Combine(ContentRoot, "data");
 
+    // Swaps the usual private in-memory connection for a real file under
+    // DataDirectory - the one gap the in-memory default cannot cover: a
+    // pre-migration backup test needs an actual file on disk, because
+    // SQLite's write-ahead log is a property of the file, not of any one
+    // connection to it (issue #48). Must be set before the first
+    // client/server is created.
+    public bool FileBacked { get; init; }
+
     public KosyncWebApplicationFactory()
     {
         ContentRoot = Directory.CreateTempSubdirectory("kosync-tests-").FullName;
@@ -185,7 +193,15 @@ public class KosyncWebApplicationFactory : WebApplicationFactory<Program>
 
             services.AddDbContext<KosyncDbContext>(options =>
             {
-                options.UseSqlite(_connection);
+                if (FileBacked)
+                {
+                    options.UseSqlite(
+                        $"Data Source={Path.Combine(DataDirectory, Constants.Storage.DatabaseFileName)}");
+                }
+                else
+                {
+                    options.UseSqlite(_connection);
+                }
 
                 if (DbInterceptor is not null)
                 {

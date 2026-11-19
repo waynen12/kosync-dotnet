@@ -29,6 +29,45 @@ public static class MigrationTestDatabase
         return connection;
     }
 
+    // A file-backed database migrated as far as migrationName and no
+    // further, at the given path - the one gap the in-memory helper above
+    // cannot cover: a pre-migration backup test needs a real file, because
+    // SQLite's write-ahead log is a property of the file, not of the
+    // connection (issue #48). Closing every open connection to the file
+    // triggers SQLite's automatic checkpoint-on-close, which would erase the
+    // very WAL content such a test exists to prove survives - pair with
+    // KeepFileAliveAt before closing the connection this returns, if that
+    // matters to the test.
+    public static SqliteConnection OpenFileBackedAt(string path, string migrationName)
+    {
+        var connection = new SqliteConnection($"Data Source={path}");
+        connection.Open();
+
+        // Production's database is WAL-mode because the EF provider sets it
+        // while creating a brand-new file (confirmed in
+        // docs/deploy/phase5-findings.md). Migrating to a named target here
+        // goes through IMigrator directly rather than through that
+        // creation path, so the pragma is set explicitly to match what a
+        // real deployment's file actually carries in its header.
+        connection.Execute("PRAGMA journal_mode=WAL;");
+
+        MigrateTo(connection, migrationName);
+
+        return connection;
+    }
+
+    // A second connection to a file database that is already open, so that
+    // closing some other connection to the same file does not drop the
+    // count to zero - the condition under which SQLite checkpoints the
+    // write-ahead log automatically.
+    public static SqliteConnection KeepFileAliveAt(string path)
+    {
+        var connection = new SqliteConnection($"Data Source={path}");
+        connection.Open();
+
+        return connection;
+    }
+
     public static void MigrateTo(this SqliteConnection connection, string migrationName)
     {
         using var db = TestDb.CreateSystemContext(OptionsFor(connection));
