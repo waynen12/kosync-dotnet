@@ -24,4 +24,27 @@ public class StorageOptions
     // files.
     public string ResolvedDataDirectory =>
         string.IsNullOrWhiteSpace(DataDirectory) ? Constants.Storage.DefaultDataDirectory : DataDirectory;
+
+    // Bound as a string and parsed below, like SyncTraceOptions.MaxBodyCharacters:
+    // binding straight to an `int` throws on a mistyped value, and a typo in
+    // a retention setting must not be a worse outage than the disk it is
+    // there to protect (issue #50).
+    public string? MaxBackupsRetained { get; set; }
+
+    // What the post-backup prune in DatabaseBackup keeps. Not a number at
+    // all falls back to the shipped default; anything below the minimum
+    // means the same as the minimum, so a configured 0 cannot prune away
+    // the backup that was just taken.
+    public int ResolvedMaxBackupsRetained
+    {
+        get
+        {
+            if (!int.TryParse(MaxBackupsRetained?.Trim(), out int configured))
+            {
+                return Constants.Storage.DefaultMaxBackupsRetained;
+            }
+
+            return Math.Max(Constants.Storage.MinimumMaxBackupsRetained, configured);
+        }
+    }
 }

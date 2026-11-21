@@ -9,7 +9,13 @@ public static class KosyncDbInitializer
     // places ADR 0004 allows outside the tenant filters, and a caller handing
     // over a tenant that is already acting for a User gets an exception
     // instead of a silently half-scoped migration.
-    public static void Initialize(KosyncDbContext db, TenantContext tenant, string dataDirectory, PasswordHasher passwordHasher, ILogger logger)
+    public static void Initialize(
+        KosyncDbContext db,
+        TenantContext tenant,
+        string dataDirectory,
+        PasswordHasher passwordHasher,
+        ILogger logger,
+        int maxBackupsRetained = Constants.Storage.DefaultMaxBackupsRetained)
     {
         // Startup migrates the schema, imports the legacy LiteDB file and
         // seeds the first admin. All of that happens before any User could
@@ -23,7 +29,7 @@ public static class KosyncDbInitializer
             Directory.CreateDirectory(dataDirectory);
         }
 
-        DatabaseBackup.BackupBeforeMigrating(db, dataDirectory, logger);
+        DatabaseBackup.BackupBeforeMigrating(db, dataDirectory, logger, maxBackupsRetained);
 
         DestructiveMigrationGate.EnsureNoUnattendedDestructiveMigration(db, logger);
 

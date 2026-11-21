@@ -37,4 +37,44 @@ public class StorageOptionsTests
 
         Assert.Equal("/data", options.ResolvedDataDirectory);
     }
+
+    // Bound retention (issue #50), parsed the same lenient way as
+    // SyncTraceOptions.MaxBodyCharacters: binding straight to an `int` would
+    // throw on a mistyped value, and a typo here must not be a worse outage
+    // than the disk it is there to protect.
+    [Fact]
+    public void WithNothingConfigured_RetentionIsTodaysDefault()
+    {
+        Assert.Equal(Constants.Storage.DefaultMaxBackupsRetained, new StorageOptions().ResolvedMaxBackupsRetained);
+    }
+
+    [Fact]
+    public void AConfiguredRetentionCount_IsWhatGetsUsed()
+    {
+        Assert.Equal(3, new StorageOptions { MaxBackupsRetained = "3" }.ResolvedMaxBackupsRetained);
+    }
+
+    // A limit below the minimum would let the backup just taken be pruned on
+    // the same pass that created it, so it is clamped up rather than honoured
+    // as-is.
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-5")]
+    public void ARetentionCountBelowTheMinimum_IsClampedUpToIt(string configured)
+    {
+        var options = new StorageOptions { MaxBackupsRetained = configured };
+
+        Assert.Equal(Constants.Storage.MinimumMaxBackupsRetained, options.ResolvedMaxBackupsRetained);
+    }
+
+    [Theory]
+    [InlineData("lots")]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void AnUnparseableRetentionCount_FallsBackToTheShippedDefault(string configured)
+    {
+        var options = new StorageOptions { MaxBackupsRetained = configured };
+
+        Assert.Equal(Constants.Storage.DefaultMaxBackupsRetained, options.ResolvedMaxBackupsRetained);
+    }
 }

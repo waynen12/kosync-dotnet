@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 
 namespace Kosync.Database;
@@ -9,7 +10,11 @@ namespace Kosync.Database;
 // bypass this.
 public static class DatabaseBackup
 {
-    public static void BackupBeforeMigrating(KosyncDbContext db, string dataDirectory, ILogger logger)
+    public static void BackupBeforeMigrating(
+        KosyncDbContext db,
+        string dataDirectory,
+        ILogger logger,
+        int maxBackupsRetained = Constants.Storage.DefaultMaxBackupsRetained)
     {
         var connection = (SqliteConnection)db.Database.GetDbConnection();
 
@@ -92,5 +97,40 @@ public static class DatabaseBackup
         }
 
         logger.LogInformation(Constants.Storage.BackupWrittenLogFormat, backupPath, string.Join(", ", pending));
+
+        // Only reached once the backup above has actually succeeded
+        // (issue #50): the catch block above throws before this line, so a
+        // failed backup prunes nothing and the previous backup it would
+        // have replaced is never put at risk.
+        PruneOldBackups(backupsDirectory, maxBackupsRetained, logger);
+    }
+
+    // Keeps the newest maxBackupsRetained files this mechanism wrote and
+    // deletes the rest - matched by BackupFileNamePattern rather than by
+    // taking the directory's contents on faith, so a file something else
+    // put in the backups directory is never a candidate for deletion.
+    // Filenames sort chronologically as plain strings because the leading
+    // timestamp is fixed-width and zero-padded, so no parsing is needed to
+    // find the oldest ones.
+    private static void PruneOldBackups(string backupsDirectory, int maxBackupsRetained, ILogger logger)
+    {
+        var stale = Directory.GetFiles(backupsDirectory)
+            .Where(path => Regex.IsMatch(Path.GetFileName(path), Constants.Storage.BackupFileNamePattern))
+            .OrderByDescending(path => Path.GetFileName(path), StringComparer.Ordinal)
+            .Skip(maxBackupsRetained)
+            .ToList();
+
+        if (stale.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var path in stale)
+        {
+            File.Delete(path);
+        }
+
+        logger.LogInformation(
+            Constants.Storage.BackupsPrunedLogFormat, stale.Count, backupsDirectory, maxBackupsRetained);
     }
 }
