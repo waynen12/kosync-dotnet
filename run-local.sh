@@ -56,4 +56,5 @@ Portal__BaseUrl="http://${HOST_IP}:${PORT}" \
 SyncTrace__Enabled="${SyncTrace__Enabled:-true}" \
 Logging__LogLevel__Microsoft_EntityFrameworkCore=Warning \
 SINGLE_LINE_LOGGING=true \
+Authentication__CookieSecurePolicy=SameAsRequest \
 exec dotnet run --no-launch-profile

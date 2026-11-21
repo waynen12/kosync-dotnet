@@ -198,6 +198,24 @@ public static class Constants
         public const int DefaultMinimumPasswordLength = 8;
     }
 
+    // The portal's session cookie (ADR 0002, ADR 0004). Defaults only - the
+    // live value comes from the "Authentication" configuration section via
+    // AuthenticationOptions.
+    public static class Authentication
+    {
+        public const string ConfigurationSection = "Authentication";
+
+        // Inverts what shipped through Phase 0-3 deliberately (issue #51):
+        // forgetting this setting in production under a SameAsRequest
+        // default sends session cookies over plain HTTP and nothing
+        // complains; forgetting it locally under an Always default breaks
+        // login immediately and visibly. Fail loud in development, fail
+        // safe in production. run-local.sh and KosyncWebApplicationFactory
+        // both set the override back to SameAsRequest, since the dev loop
+        // and this suite talk plain HTTP.
+        public const CookieSecurePolicy DefaultCookieSecurePolicy = CookieSecurePolicy.Always;
+    }
+
     // Where this server's portal can be reached from outside (ADR 0006).
     // Defaults only - the live value comes from the "Portal" configuration
     // section via PortalOptions.
@@ -254,6 +272,24 @@ public static class Constants
         // change it is a backup of without reading anything else.
         public const string BackupFileNameFormat = "{0:yyyyMMddTHHmmssZ}_{1}.sqlite3";
 
+        // What a file has to look like to be recognised as one this
+        // mechanism wrote, matching BackupFileNameFormat's own shape - so
+        // pruning (issue #50) can tell its own output apart from whatever
+        // else an operator has dropped into the same directory and leave
+        // the rest alone.
+        public const string BackupFileNamePattern = @"^\d{8}T\d{6}Z_.+\.sqlite3$";
+
+        // How many backups survive pruning (issue #50), unless overridden on
+        // StorageOptions. ADR 0009's own Consequences flagged this: without
+        // a limit, the fix for data loss becomes a slower-motion disk
+        // exhaustion instead.
+        public const int DefaultMaxBackupsRetained = 5;
+
+        // A limit below this would let the backup just written be pruned on
+        // the same pass that created it, leaving a deploy with no backup at
+        // all - defeating the reason ADR 0009 takes one in the first place.
+        public const int MinimumMaxBackupsRetained = 1;
+
         public const string BackupWrittenLogFormat =
             "Backed up database to [{0}] before applying pending migration(s): {1}.";
 
@@ -263,6 +299,28 @@ public static class Constants
 
         public const string BackupFailedExceptionFormat =
             "Refusing to start without a pre-migration backup at [{0}]: {1}";
+
+        public const string BackupsPrunedLogFormat =
+            "Pruned {0} old backup(s) from [{1}], retaining the most recent {2}.";
+    }
+
+    // Which networks' X-Forwarded-Proto and X-Forwarded-For this server
+    // trusts (issue #52). Defaults only - the live value comes from the
+    // "ForwardedHeaders" configuration section via ForwardedHeadersSettings.
+    // Not TRUSTED_PROXIES (Services/ProxyService.cs) - see that class's
+    // comment and ForwardedHeadersSettings for why the two are separate.
+    public static class ForwardedHeaders
+    {
+        public const string ConfigurationSection = "ForwardedHeaders";
+
+        // What this server rewrites once a network is trusted: the scheme
+        // (X-Forwarded-Proto) and the connecting address (X-Forwarded-For).
+        // Not X-Forwarded-Host or -Prefix - PortalOptions.BaseUrl is this
+        // server's own answer to "what host am I reachable at", not
+        // something to take from a header a container-mate could send.
+        public const Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders Enabled =
+            Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+            | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor;
     }
 
     // The Destructive Migration gate (ADR 0009, GLOSSARY.md, issue #49): a

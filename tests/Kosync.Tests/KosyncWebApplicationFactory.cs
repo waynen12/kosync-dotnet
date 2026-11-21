@@ -3,6 +3,7 @@ using Kosync.Database.Entities;
 using Kosync.Services;
 using Kosync.Tests.TestSupport;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -54,6 +55,26 @@ public class KosyncWebApplicationFactory : WebApplicationFactory<Program>
     // Stands in for the operator's own SyncTrace:MaxBodyCharacters. Null
     // leaves it unconfigured, so bodies are cut at the shipped default.
     public int? SyncTraceMaxBodyCharacters { get; init; }
+
+    // Stands in for the operator's own ForwardedHeaders:KnownNetworks. Null
+    // leaves it unconfigured, so the shipped default - trust nothing, rewrite
+    // nothing - is what ForwardedHeadersTests asserts.
+    public string? ForwardedHeadersKnownNetworks { get; init; }
+
+    // Stands in for run-local.sh's own Authentication__CookieSecurePolicy
+    // override. Defaults to SameAsRequest, not null, because roughly two
+    // dozen tests in this suite log in over the plain-HTTP TestServer client
+    // and need the cookie to come back on the next request; a test about the
+    // shipped default itself (issue #51) sets this to null to prove the app
+    // falls back to Always without it.
+    // Fully qualified on the right-hand side: the property shares its name
+    // with the enum, and an unqualified reference here would resolve to the
+    // property (itself) rather than the type.
+    public CookieSecurePolicy? CookieSecurePolicy { get; init; } = Microsoft.AspNetCore.Http.CookieSecurePolicy.SameAsRequest;
+
+    // Stands in for the operator's own Storage:MaxBackupsRetained. Null
+    // leaves it unconfigured, so pruning keeps the shipped default count.
+    public int? MaxBackupsRetained { get; init; }
 
     // Every log entry the app has written. The Sync Trace's whole observable
     // behaviour is what lands in here.
@@ -179,6 +200,27 @@ public class KosyncWebApplicationFactory : WebApplicationFactory<Program>
             builder.UseSetting(
                 $"{Constants.SyncTrace.ConfigurationSection}:MaxBodyCharacters",
                 SyncTraceMaxBodyCharacters.Value.ToString());
+        }
+
+        if (MaxBackupsRetained is not null)
+        {
+            builder.UseSetting(
+                $"{Constants.Storage.ConfigurationSection}:MaxBackupsRetained",
+                MaxBackupsRetained.Value.ToString());
+        }
+
+        if (CookieSecurePolicy is not null)
+        {
+            builder.UseSetting(
+                $"{Constants.Authentication.ConfigurationSection}:CookieSecurePolicy",
+                CookieSecurePolicy.Value.ToString());
+        }
+
+        if (ForwardedHeadersKnownNetworks is not null)
+        {
+            builder.UseSetting(
+                $"{Constants.ForwardedHeaders.ConfigurationSection}:KnownNetworks",
+                ForwardedHeadersKnownNetworks);
         }
 
         builder.ConfigureLogging(logging => logging.AddProvider(Logs));

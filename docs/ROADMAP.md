@@ -79,7 +79,7 @@ response.
 | Dashboard + Users layout | Sidebar shell + dense table, not a card grid — cards go ragged at realistic density | Firm (2026-10-12 prototype) |
 | Dashboard data access | Components call domain/EF Core services directly, in-process — no HTTP hop through `/manage/*` (ADR 0003) | Firm |
 | Component-level testing | No `bUnit` for v1 — service-layer integration tests cover the logic that matters | Firm, revisit if UI logic gets complex |
-| Auth cookie `SecurePolicy` | `SameAsRequest` for V1 (plain HTTP, local machine only) — **must** become `Always` before the droplet deployment goes internet-facing | Firm for V1, flagged for the pre-deployment pass |
+| Auth cookie `SecurePolicy` | Shipped default is `Always` (HTTPS-only); `run-local.sh` and `KosyncWebApplicationFactory` override it to `SameAsRequest` for the dev loop and this suite, which still talk plain HTTP (ADR 0004, issue [#51](https://github.com/waynen12/kosync-dotnet/issues/51)) | Done |
 | Storage | Migrate LiteDB → SQLite + EF Core | Firm |
 | Project layout | Single project, organized by folder | Firm for now, revisit if real seams appear |
 | Dashboard auth | Hand-rolled cookie session (ADR 0002) — but **every User** logs in with their sync credentials, not just an admin (ADR 0004) | Firm |
@@ -126,8 +126,8 @@ response.
   LiteDB data file is found (`LiteDbMigrator`).
 - Hand-rolled cookie auth for the dashboard login (ADR 0002); `/login` is
   Static SSR, everything past it is `InteractiveServer` (ADR 0003).
-  `Cookie.SecurePolicy = SameAsRequest` for now — see the pre-deployment
-  checklist below.
+  `Cookie.SecurePolicy = SameAsRequest` at the time — flipped to the
+  `Always` shipped default in issue [#51](https://github.com/waynen12/kosync-dotnet/issues/51).
 - Regression protection implemented in `PUT /syncs/progress`: every push
   inserts a SyncEvent, only promoted to the Document's current-progress
   pointer if percentage ≥ current.
@@ -822,7 +822,6 @@ other people's reading history, not just the operator's own.
 - HTTPS is non-negotiable before this is reachable from the internet. The
   KOReader protocol sends `md5(password)` as a password-equivalent in a
   header, which ADR 0005 cannot fix — only transport encryption can.
-- Auth cookie `SecurePolicy` → `Always` (HTTPS-only).
 - Reverse proxy in front of the droplet must forward WebSocket upgrade
   headers and not aggressively time out idle connections — Blazor
   `InteractiveServer` (ADR 0003) needs a persistent connection.

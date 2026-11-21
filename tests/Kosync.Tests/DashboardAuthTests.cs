@@ -104,3 +104,26 @@ public class DashboardAuthTests : IntegrationTestBase
     // behaviour now, including the one precondition that survived it
     // (an inactive account).
 }
+
+// Split from DashboardAuthTests because its subject is the shipped default
+// rather than a login the fixture has made work over plain HTTP: the setting
+// binds at startup, so "HTTPS-only unless told otherwise" can only be shown
+// by a host whose CookieSecurePolicy override was never applied (issue #51).
+public class SessionCookieSecureByDefaultTests : IntegrationTestBase
+{
+    protected override KosyncWebApplicationFactory CreateFactory() =>
+        new() { CookieSecurePolicy = null };
+
+    [Fact]
+    public async Task Login_WithNothingConfigured_IssuesAnHttpsOnlyCookie()
+    {
+        using var client = Factory.NoRedirectClient();
+
+        var response = await DashboardLogin.LogInAsync(client, "admin", "admin");
+
+        Assert.Equal(HttpStatusCode.Found, response.StatusCode);
+        Assert.Contains(
+            response.Headers.GetValues("Set-Cookie"),
+            v => v.StartsWith(".AspNetCore.Cookies=") && v.Contains("secure", StringComparison.OrdinalIgnoreCase));
+    }
+}
