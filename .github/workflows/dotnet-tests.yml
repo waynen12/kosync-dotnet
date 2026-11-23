@@ -6,9 +6,14 @@ on:
     branches:
       - main
 
+env:
+  SOLUTION: Kosync.slnx
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout repository
@@ -20,10 +25,10 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore Kosync.slnx
+        run: dotnet restore ${{ env.SOLUTION }}
 
       - name: Build
-        run: dotnet build Kosync.slnx --no-restore --configuration Release
+        run: dotnet build ${{ env.SOLUTION }} --no-restore --configuration Release
 
       - name: Test
-        run: dotnet test Kosync.slnx --no-build --configuration Release
+        run: dotnet test ${{ env.SOLUTION }} --no-build --configuration Release
