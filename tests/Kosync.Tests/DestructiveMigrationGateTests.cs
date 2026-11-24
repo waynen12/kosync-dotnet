@@ -31,7 +31,7 @@ public class DestructiveMigrationGateTests : IDisposable
     public DestructiveMigrationGateTests()
     {
         _dataDirectory = Directory.CreateTempSubdirectory("kosync-gate-tests-").FullName;
-        _databasePath = Path.Combine(_dataDirectory, "kosync.sqlite3");
+        _databasePath = Path.Combine(_dataDirectory, Constants.Storage.DatabaseFileName);
 
         // Read straight from the process environment, so an ambient value
         // in the shell or on CI cannot decide what these tests boot with.
