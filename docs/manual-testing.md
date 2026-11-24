@@ -116,6 +116,28 @@ whether a later push can trample a hand-typed title.
       test pins the sentence, but only a device can show you where KOReader
       puts it
 
+### F. The droplet deploy
+
+Nothing below has been checked anywhere but this repository; the droplet
+itself has not been stood up yet. **Deploy one proves none of this** — nine
+migrations land on an empty database, so the fresh-install rule
+(`DatabaseBackup`, `DestructiveMigrationGate`) skips both the backup and the
+gate on it, the same way it already does for `run-local.sh --fresh` above.
+**Deploy two, onto a database that already holds real history, is the first
+deploy that actually exercises either mechanism** — an uneventful first
+deploy is not evidence that either one works (ADR 0009).
+
+- [ ] `http://kosync.notrauto.org` **times out** rather than redirecting to
+      `https://` — port 80 is firewalled shut at the host, so Caddy never
+      gets a request to redirect (README, "reverse proxy"). This is the fact
+      that makes a wrong `Portal__BaseUrl` silent: left as `http://`, it
+      would not show up as a redirect loop or a certificate error, only as
+      a sync refusal naming an address that hangs rather than loads.
+- [ ] After the **second** deploy — the first that lands on a non-empty
+      database with a migration pending — a new file appears in
+      `<data>/backups/`, named for the UTC instant and the migration it
+      precedes.
+
 ---
 
 ## Known limitation: two CrossPoint readers are one Device
