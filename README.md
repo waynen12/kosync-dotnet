@@ -54,6 +54,22 @@ An admin user with the username `admin` will be created when the server first st
 
 This is a change in behaviour: **editing `ADMIN_PASSWORD` on an existing install now does nothing.** Earlier versions reapplied it on every startup, which meant a password you set yourself was silently reverted the next time the container restarted.
 
+### Upgrading: the session cookie is now HTTPS-only by default
+
+Another change in behaviour, and the one most likely to bite on upgrade. **If you serve the dashboard over plain HTTP, logging in will stop working** until you say so explicitly:
+
+```
+      - Authentication__CookieSecurePolicy=SameAsRequest
+```
+
+The dashboard's session cookie is now marked `Secure` by default, so a browser will not send it back over an unencrypted connection — you get bounced to the login page on every request instead. Nothing is broken and no data is affected; the server simply never sees the cookie it just set.
+
+The default is this way round deliberately. The old default followed the request, which meant an operator who put this on a public address and forgot to think about it shipped session cookies in clear text with nothing complaining. Getting it wrong now costs a confusing login loop on a LAN; getting it wrong before cost other people's credentials. Loud on a private network beats silent on a public one.
+
+The KOReader sync protocol is unaffected either way — a Device sends credentials per request and holds no session, so devices keep syncing regardless of this setting.
+
+**Prefer fixing it with TLS rather than with the override.** The sync protocol sends `md5(password)` in a header as a password-equivalent, which no amount of server-side hashing can protect in transit; only an encrypted connection can. If this server is reachable from the internet, put a reverse proxy with a certificate in front of it and leave the default alone — see [Running behind a reverse proxy](#running-behind-a-reverse-proxy) below. The override exists for a server on a trusted network you reach over `http://`.
+
 A password somebody else chose for you — the one `ADMIN_PASSWORD` seeds, or one an administrator sets when creating an account — is recorded as *provisional*: it identifies the account, and it is meant to be replaced by a password of your own rather than kept. An administrator can change their own password through `PUT /manage/users/password`, which no longer refuses admin accounts.
 
 **While a password is provisional the account cannot sync.** `/users/auth`, `PUT /syncs/progress` and `GET /syncs/progress/{documentHash}` all refuse it with a `401`, so a fresh install syncs nothing until somebody has logged into the portal and replaced `admin`/`admin`. This is deliberate: it keeps a password an administrator typed from quietly becoming a device's long-lived credential. The accepted cost is that a new user has to visit the portal before their KOReader device will sync. See [ADR 0006](docs/adr/0006-forced-first-login-password-change.md).
@@ -112,6 +128,8 @@ The per-endpoint log lines only cover requests that reached an endpoint. When a 
 Only requests from sync clients are traced — the dashboard's own traffic is left out, so the device's exchange is not buried in it. `x-auth-key` and any `password` field are replaced with `[redacted]`, but everything else is written out verbatim, including document hashes and reading positions. It is a diagnostic to turn on while you chase a problem and off again afterwards, which is why it ships disabled.
 
 Mapping user to `1000:1000` is just a way to ensure the database files are created using your own user, rather than root. If your operating system user ID is different from `1000:1000`, change it to yours.
+
+### Running behind a reverse proxy
 
 This example doesn't expose any ports for the container, however the sync server is accessible via port `8080` inside the container. Put a reverse proxy in front of it — this fork's own deployment uses [Caddy](https://caddyserver.com/), which issues and renews TLS certificates automatically through its built-in ACME client and proxies the dashboard's WebSocket traffic with no extra configuration. A minimal block, added to an existing Caddyfile:
 
