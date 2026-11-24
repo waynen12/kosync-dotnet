@@ -1,0 +1,84 @@
+# /opt/kosync/docker-compose.yml — the droplet's actual first-deploy artefact
+# (issue #54, docs/deploy/phase5-spec.md task 8).
+#
+# A separate compose project from /opt/n8n, so kosync's lifecycle is
+# independent and nothing inside the n8n starter kit's own clone gets edited
+# - see phase5-droplet-survey.md, "Recommended shape for kosync".
+#
+# No `ports:` here, deliberately. This droplet's DO cloud firewall allows
+# only 22, 443 and 3000 inbound (phase5-droplet-survey.md, "The firewall") -
+# publishing a host port would expose the sync server directly, bypassing
+# Caddy and TLS entirely. Caddy reaches this container by name over the
+# shared n8n_demo network instead - see the Caddy block in README.md.
+services:
+  kosync:
+    container_name: kosync
+    image: ghcr.io/waynen12/kosync-dotnet:v2.0.0
+    networks:
+      - n8n_demo
+    # A bind mount, not a named volume: it is what survives
+    # `docker compose down -v` (phase5-findings.md, item 1), and it is what
+    # task 2's backup-before-migrate relies on being writable.
+    volumes:
+      - ./data:/app/data
+    # Roughly double expected usage (phase5-droplet-survey.md, "Capacity") -
+    # enough headroom that a GC spike does not trip it, while still leaving
+    # the host's OOM killer nothing to choose between this and Postgres over
+    # on a 1.9 GiB box.
+    mem_limit: 512m
+    # A gate exit (Constants.Migrations.Destructive, ADR 0009) is deliberate
+    # and must not loop forever; `unless-stopped` would do exactly that. On
+    # three failures the crash loop stays visible instead of hiding behind
+    # an endless restart.
+    restart: on-failure:3
+    healthcheck:
+      # curl is not in the alpine runtime image; wget is - confirmed against
+      # the pinned base image in phase5-droplet-survey.md.
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    environment:
+      # https://, not http:// - port 80 is firewalled shut on this box, so
+      # an http:// value times out rather than redirecting, and this is the
+      # URL ADR 0006's refusal names to a reader whose password is
+      # Provisional (phase5-droplet-survey.md, "The firewall").
+      - Portal__BaseUrl=https://kosync.notrauto.org
+      # Seed-only (ADR 0006) - applies once, when the admin row is first
+      # created, and never again. Set to a strong value before the first
+      # `docker compose up` (phase5-spec.md, "The first deploy, by hand").
+      # Unset here on purpose: this file is checked into the repo and must
+      # not carry a real credential.
+      - ADMIN_PASSWORD=__SET_BEFORE_FIRST_UP__
+      # Off. SyncTrace logs reading positions and document hashes verbatim -
+      # fine while diagnosing, not as a standing setting once other people's
+      # books are on this box.
+      - SyncTrace__Enabled=false
+      # SELF_REGISTRATION_ENABLED is deliberately absent: accounts come from
+      # an administrator, not from KOReader's own Register button, on a
+      # server facing the internet (ADR 0006).
+      #
+      # Authentication__CookieSecurePolicy is deliberately absent too - the
+      # shipped default is already Always in production (issue #51), so
+      # there is nothing this box needs to override.
+      #
+      # ASPNETCORE_URLS / ASPNETCORE_HTTP_PORTS are deliberately absent: the
+      # aspnet:10.0-alpine base image already sets ASPNETCORE_HTTP_PORTS=8080,
+      # which binds all interfaces (phase5-findings.md, "Two corrections to
+      # that table"). Setting ASPNETCORE_URLS by hand is the local-dev
+      # hazard run-local.sh exists to override, not something this compose
+      # file should introduce on its own.
+      #
+      # ForwardedHeaders__KnownNetworks trusts n8n_demo's own subnet, not a
+      # single container's address, because a container on a user-defined
+      # bridge network can be re-assigned its address on restart (issue
+      # #52). Read the live value with `docker network inspect n8n_demo`
+      # (the "Subnet" field under IPAM) before the first `up` - it cannot be
+      # hardcoded here because it is a fact about the droplet's Docker
+      # daemon, not about this application.
+      - ForwardedHeaders__KnownNetworks=__SET_FROM_DOCKER_NETWORK_INSPECT_N8N_DEMO__
+
+networks:
+  n8n_demo:
+    external: true

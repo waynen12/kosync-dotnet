@@ -30,12 +30,14 @@ The recommendation is to use [Docker](https://www.docker.com/) with [Docker Comp
 
 Published images are available for `linux/amd64` and `linux/arm64`; Docker automatically selects the correct image for the host architecture.
 
+This example floats on `:latest`, which is fine for a self-host you upgrade manually. The compose file this repository's own droplet runs instead pins an exact tag (`:v2.0.0`) — worth doing once other people's data is on the line, since an untested major-version pull landing on a restart is a worse surprise than a slightly stale server.
+
 ```
 version: "3"
 services:
   kosync:
     container_name: kosync
-    image: ghcr.io/jberlyn/kosync-dotnet:latest
+    image: ghcr.io/waynen12/kosync-dotnet:latest
     restart: unless-stopped
     volumes:
       - </path/to/data>:/app/data
@@ -111,7 +113,17 @@ Only requests from sync clients are traced — the dashboard's own traffic is le
 
 Mapping user to `1000:1000` is just a way to ensure the database files are created using your own user, rather than root. If your operating system user ID is different from `1000:1000`, change it to yours.
 
-This example doesn't expose any ports for the container, however the sync server is accessible via port `8080` inside the container. The recommendation is to expose the server via a reverse proxy such as [Nginx Proxy Manager](https://nginxproxymanager.com/).
+This example doesn't expose any ports for the container, however the sync server is accessible via port `8080` inside the container. Put a reverse proxy in front of it — this fork's own deployment uses [Caddy](https://caddyserver.com/), which issues and renews TLS certificates automatically through its built-in ACME client and proxies the dashboard's WebSocket traffic with no extra configuration. A minimal block, added to an existing Caddyfile:
+
+```
+kosync.example.org {
+    reverse_proxy kosync:8080
+}
+```
+
+If port 80 is firewalled off at your host, Caddy falls back to the TLS-ALPN-01 challenge on port 443 instead of the usual HTTP-01 challenge on port 80, so certificates still issue and renew with no firewall change needed — but `http://` then times out rather than redirecting, so `Portal__BaseUrl` above must be `https://`. The same fact is a trap if you ever put a CDN or another proxy in front of the hostname afterwards: TLS-ALPN-01 needs Caddy itself to be the thing terminating TLS for that hostname, so routing it through something like Cloudflare's proxy breaks renewal **silently** — you will not notice until the certificate actually expires, up to 60 days later. [docs/deploy/](docs/deploy/) has the exact compose file and Caddy block this repository's own droplet deployment uses, if a worked example is more useful than a template.
+
+Earlier versions of this README recommended [Nginx Proxy Manager](https://nginxproxymanager.com/); that was inherited from the upstream project this fork started from and never described how this fork is actually deployed.
 
 Prior to .NET 8, the default port was `80`. This was changed for [various reasons](https://learn.microsoft.com/en-us/dotnet/core/compatibility/containers/8.0/aspnet-port) by Microsoft. You can manually set the port using the `ASPNETCORE_HTTP_PORTS` environment variable, if this is something you would like to configure.
 
