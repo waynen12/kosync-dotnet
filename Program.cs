@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,6 +19,9 @@ builder.Services.Configure<PortalOptions>(
 builder.Services.Configure<SyncTraceOptions>(
     builder.Configuration.GetSection(Constants.SyncTrace.ConfigurationSection));
 
+builder.Services.Configure<ForwardedHeadersSettings>(
+    builder.Configuration.GetSection(Constants.ForwardedHeaders.ConfigurationSection));
+
 builder.Services.AddMemoryCache();
 
 builder.Services.AddSingleton<ProxyService, ProxyService>();
@@ -34,10 +38,17 @@ builder.Services.AddScoped<DeviceDashboardService, DeviceDashboardService>();
 builder.Services.AddScoped<BookDashboardService, BookDashboardService>();
 builder.Services.AddScoped<DocumentRegistry, DocumentRegistry>();
 
-var dataDirectory = Path.Combine(builder.Environment.ContentRootPath, "data");
+// Bound directly rather than through DI: this value is needed to build the
+// DbContext registration itself and to seed/migrate the database below,
+// both of which happen before anything else could resolve IOptions from the
+// container.
+var storageOptions = new StorageOptions();
+builder.Configuration.GetSection(Constants.Storage.ConfigurationSection).Bind(storageOptions);
+
+var dataDirectory = Path.Combine(builder.Environment.ContentRootPath, storageOptions.ResolvedDataDirectory);
 
 builder.Services.AddDbContext<KosyncDbContext>(options =>
-    options.UseSqlite($"Data Source={Path.Combine(dataDirectory, "kosync.sqlite3")}"));
+    options.UseSqlite($"Data Source={Path.Combine(dataDirectory, Constants.Storage.DatabaseFileName)}"));
 
 
 builder.Services.AddControllers();
@@ -47,11 +58,18 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddCascadingAuthenticationState();
 
+// Bound directly rather than through DI, matching storageOptions above: the
+// cookie's SecurePolicy is set inside the AddCookie delegate below, which
+// Program.cs builds before anything could resolve IOptions from the
+// container.
+var authenticationOptions = new AuthenticationOptions();
+builder.Configuration.GetSection(Constants.Authentication.ConfigurationSection).Bind(authenticationOptions);
+
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
         options.LoginPath = AppRoutes.Login;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.Cookie.SecurePolicy = authenticationOptions.ResolvedCookieSecurePolicy;
     });
 
 // The one named policy: the Users administration page (issue #28). The
@@ -87,7 +105,7 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<KosyncDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     var passwordHasher = scope.ServiceProvider.GetRequiredService<PasswordHasher>();
-    KosyncDbInitializer.Initialize(db, tenant, dataDirectory, passwordHasher, logger);
+    KosyncDbInitializer.Initialize(db, tenant, dataDirectory, passwordHasher, logger, storageOptions.ResolvedMaxBackupsRetained);
 
     // Said once, out loud, when the trace is on. Without it an operator who
     // sees no trace lines cannot tell "the setting did not take" from "the
@@ -99,7 +117,43 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-app.UseForwardedHeaders();
+// Explicit options rather than the parameterless UseForwardedHeaders(),
+// which reads ForwardedHeadersOptions from DI and defaults it to
+// ForwardedHeaders.None - a silent no-op nothing here ever configured
+// (issue #52).
+//
+// The middleware is added at all only when a network was configured. Its
+// own CheckKnownAddress only runs when KnownProxies or KnownIPNetworks is
+// non-empty (checkKnownIps in ForwardedHeadersMiddleware) - with both
+// empty it skips that check and trusts the header from anyone, which is the
+// opposite of what an unconfigured install must do. Leaving the middleware
+// out of the pipeline entirely is what actually reproduces "rewrite
+// nothing", matching the no-op this replaces.
+var forwardedHeadersSettings = app.Services.GetRequiredService<IOptions<ForwardedHeadersSettings>>().Value;
+
+if (forwardedHeadersSettings.ParsedKnownNetworks.Count > 0)
+{
+    var forwardedHeadersOptions = new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = Constants.ForwardedHeaders.Enabled,
+    };
+
+    // ForwardedHeadersOptions ships KnownProxies and KnownIPNetworks
+    // pre-populated with the IPv6 loopback and 127.0.0.0/8 - harmless
+    // defaults for a process running directly on a host, but this one runs
+    // in a container alongside others on the same Docker network, where
+    // "loopback" does not mean "nothing else can reach this". Cleared so
+    // the configured list above is the only thing trusted.
+    forwardedHeadersOptions.KnownProxies.Clear();
+    forwardedHeadersOptions.KnownIPNetworks.Clear();
+
+    foreach (var network in forwardedHeadersSettings.ParsedKnownNetworks)
+    {
+        forwardedHeadersOptions.KnownIPNetworks.Add(network);
+    }
+
+    app.UseForwardedHeaders(forwardedHeadersOptions);
+}
 
 // First in the pipeline, because the requests worth tracing are the ones
 // that never reach an endpoint: a 404 on a path we do not serve is the

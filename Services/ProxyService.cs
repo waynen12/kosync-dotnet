@@ -5,6 +5,18 @@ using System.Net.Sockets;
 
 namespace Kosync.Services;
 
+// TRUSTED_PROXIES: which addresses this server believes when a header
+// *names* a client, for attribution after the fact - the Sync Trace and
+// ManagementController print whatever this says instead of the connecting
+// address. It never touches Request.Scheme or HttpContext.Connection.
+//
+// Not the same mechanism as ForwardedHeadersSettings' "ForwardedHeaders"
+// configuration section (issue #52), which decides whether ASP.NET Core's
+// own ForwardedHeadersMiddleware rewrites the request's scheme and
+// connection address at all, earlier in the pipeline than anything here
+// runs. The two lists have no reason to agree - a deployment could
+// legitimately trust one proxy's header for logging and a different
+// network's X-Forwarded-Proto for the scheme - and are read independently.
 public class ProxyService
 {
     private readonly ILogger<ProxyService>? _logger;

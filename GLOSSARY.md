@@ -230,6 +230,23 @@ _Avoid_: audit log (nothing here is kept or accountable to anything),
 request log (too generic — this is the sync surface only), debug logging
 (names a level, not this thing)
 
+### Deployment
+
+**Destructive Migration**:
+A schema migration whose `Up` method deletes or rewrites existing rows,
+not merely one that changes column or table shape. Declared explicitly in
+`Constants.Migrations.Destructive` rather than detected — nothing can
+answer "does this delete rows" from the migration alone, since that lives
+in arbitrary `migrationBuilder.Sql` and `Up` method bodies, so a migration
+earns the label by a human reading it and adding its id. A deploy that
+finds one pending and not separately permitted refuses to start rather
+than apply it unattended (ADR 0009). A migration that only adds a nullable
+column or a new table is not one, however much existing data ends up
+behind it.
+_Avoid_: breaking migration (a different axis — about failing a build or a
+caller, not about losing rows), schema change (too broad: most migrations
+are schema changes, and most are not Destructive)
+
 ### Design system
 
 **Hub design language**:
@@ -245,9 +262,10 @@ Theme here is light/dark)
 **Design token**:
 A CSS custom property in `wwwroot/css/app.css` that names a design
 decision — a colour, radius, gutter or font stack — so rules reference the
-decision instead of the value. `--hub-*` are the live tokens; `--ks-*` are
-the pre-hub names, kept as aliases onto them so the never-prototyped
-detail pages keep working (ADR-adjacent; see docs/ROADMAP.md).
+decision instead of the value. `--hub-*` are the live tokens; `--ks-*` were
+the pre-hub names, kept briefly as aliases onto them and then deleted once
+nothing referenced them (issue #39) — `app.css` has none left, and
+`DesignSystemTests` asserts their absence.
 _Avoid_: variable, constant (`Constants.cs` is the C# helper, a different
 thing)
 

@@ -30,12 +30,14 @@ The recommendation is to use [Docker](https://www.docker.com/) with [Docker Comp
 
 Published images are available for `linux/amd64` and `linux/arm64`; Docker automatically selects the correct image for the host architecture.
 
+This example floats on `:latest`, which is fine for a self-host you upgrade manually. The compose file this repository's own droplet runs instead pins an exact tag (`:v2.0.0`) — worth doing once other people's data is on the line, since an untested major-version pull landing on a restart is a worse surprise than a slightly stale server.
+
 ```
 version: "3"
 services:
   kosync:
     container_name: kosync
-    image: ghcr.io/jberlyn/kosync-dotnet:latest
+    image: ghcr.io/waynen12/kosync-dotnet:latest
     restart: unless-stopped
     volumes:
       - </path/to/data>:/app/data
@@ -51,6 +53,22 @@ services:
 An admin user with the username `admin` will be created when the server first starts. `ADMIN_PASSWORD` sets that account's password **when it is created, and never again** — it is seed-only. If you do not provide a value, the password is set to `admin`. The recommendation is to set this to a strong password generated with a password manager like [Bitwarden](https://bitwarden.com/). This admin user can be used to interact with the management API.
 
 This is a change in behaviour: **editing `ADMIN_PASSWORD` on an existing install now does nothing.** Earlier versions reapplied it on every startup, which meant a password you set yourself was silently reverted the next time the container restarted.
+
+### Upgrading: the session cookie is now HTTPS-only by default
+
+Another change in behaviour, and the one most likely to bite on upgrade. **If you serve the dashboard over plain HTTP, logging in will stop working** until you say so explicitly:
+
+```
+      - Authentication__CookieSecurePolicy=SameAsRequest
+```
+
+The dashboard's session cookie is now marked `Secure` by default, so a browser will not send it back over an unencrypted connection — you get bounced to the login page on every request instead. Nothing is broken and no data is affected; the server simply never sees the cookie it just set.
+
+The default is this way round deliberately. The old default followed the request, which meant an operator who put this on a public address and forgot to think about it shipped session cookies in clear text with nothing complaining. Getting it wrong now costs a confusing login loop on a LAN; getting it wrong before cost other people's credentials. Loud on a private network beats silent on a public one.
+
+The KOReader sync protocol is unaffected either way — a Device sends credentials per request and holds no session, so devices keep syncing regardless of this setting.
+
+**Prefer fixing it with TLS rather than with the override.** The sync protocol sends `md5(password)` in a header as a password-equivalent, which no amount of server-side hashing can protect in transit; only an encrypted connection can. If this server is reachable from the internet, put a reverse proxy with a certificate in front of it and leave the default alone — see [Running behind a reverse proxy](#running-behind-a-reverse-proxy) below. The override exists for a server on a trusted network you reach over `http://`.
 
 A password somebody else chose for you — the one `ADMIN_PASSWORD` seeds, or one an administrator sets when creating an account — is recorded as *provisional*: it identifies the account, and it is meant to be replaced by a password of your own rather than kept. An administrator can change their own password through `PUT /manage/users/password`, which no longer refuses admin accounts.
 
@@ -111,7 +129,19 @@ Only requests from sync clients are traced — the dashboard's own traffic is le
 
 Mapping user to `1000:1000` is just a way to ensure the database files are created using your own user, rather than root. If your operating system user ID is different from `1000:1000`, change it to yours.
 
-This example doesn't expose any ports for the container, however the sync server is accessible via port `8080` inside the container. The recommendation is to expose the server via a reverse proxy such as [Nginx Proxy Manager](https://nginxproxymanager.com/).
+### Running behind a reverse proxy
+
+This example doesn't expose any ports for the container, however the sync server is accessible via port `8080` inside the container. Put a reverse proxy in front of it — this fork's own deployment uses [Caddy](https://caddyserver.com/), which issues and renews TLS certificates automatically through its built-in ACME client and proxies the dashboard's WebSocket traffic with no extra configuration. A minimal block, added to an existing Caddyfile:
+
+```
+kosync.example.org {
+    reverse_proxy kosync:8080
+}
+```
+
+If port 80 is firewalled off at your host, Caddy falls back to the TLS-ALPN-01 challenge on port 443 instead of the usual HTTP-01 challenge on port 80, so certificates still issue and renew with no firewall change needed — but `http://` then times out rather than redirecting, so `Portal__BaseUrl` above must be `https://`. The same fact is a trap if you ever put a CDN or another proxy in front of the hostname afterwards: TLS-ALPN-01 needs Caddy itself to be the thing terminating TLS for that hostname, so routing it through something like Cloudflare's proxy breaks renewal **silently** — you will not notice until the certificate actually expires, up to 60 days later. [docs/deploy/](docs/deploy/) has the exact compose file and Caddy block this repository's own droplet deployment uses, if a worked example is more useful than a template.
+
+Earlier versions of this README recommended [Nginx Proxy Manager](https://nginxproxymanager.com/); that was inherited from the upstream project this fork started from and never described how this fork is actually deployed.
 
 Prior to .NET 8, the default port was `80`. This was changed for [various reasons](https://learn.microsoft.com/en-us/dotnet/core/compatibility/containers/8.0/aspnet-port) by Microsoft. You can manually set the port using the `ASPNETCORE_HTTP_PORTS` environment variable, if this is something you would like to configure.
 

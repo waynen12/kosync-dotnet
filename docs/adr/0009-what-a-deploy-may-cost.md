@@ -115,6 +115,32 @@ If this becomes annoying in practice, the fix is small and local —
 keys sit beside the database and survive both a deploy and a daemon restart.
 Revisit it on that evidence, not pre-emptively.
 
+## Amended, 2026-11-24
+
+The decisions above all stand — back up before migrating, gate a Destructive
+Migration, accept unprotected portal sessions. Two mechanisms the "Back up
+before migrating, automatically" section committed to turned out, during the
+implementation that followed (tasks 2-4 of issue #46, recorded in issue #55),
+not to be what shipped:
+
+- **No `sqlite3` CLI was added to the runtime image, and `apk add --no-cache
+  sqlite` above was never run.** `Microsoft.Data.Sqlite` — already a
+  dependency of the EF Core SQLite provider this project already uses —
+  turned out to expose the same online backup mechanism in process, as
+  `SqliteConnection.BackupDatabase`, called directly against the connection
+  `Migrate()` is about to use. That was confirmed only once the
+  implementation reached for it, not known when the section above was
+  written. The image needs no new package and no `docker exec` step.
+- **The backup does not run on every start.** It runs only when
+  `GetPendingMigrations()` reports something pending, which also removes the
+  accumulation problem the Consequences section below flags as open: a
+  backup now exists only immediately ahead of a schema change, so the many
+  ordinary restarts that find nothing pending write nothing, and there is
+  nothing from them to retain against. `DatabaseBackup` still prunes to a
+  bounded number of the backups it does write, after each successful one —
+  a second line of defence, not the load-bearing fix the open consequence
+  below describes.
+
 ## Consequences
 
 - The startup path gains a reason to refuse to start. That is new: today a

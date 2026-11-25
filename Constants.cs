@@ -198,6 +198,24 @@ public static class Constants
         public const int DefaultMinimumPasswordLength = 8;
     }
 
+    // The portal's session cookie (ADR 0002, ADR 0004). Defaults only - the
+    // live value comes from the "Authentication" configuration section via
+    // AuthenticationOptions.
+    public static class Authentication
+    {
+        public const string ConfigurationSection = "Authentication";
+
+        // Inverts what shipped through Phase 0-3 deliberately (issue #51):
+        // forgetting this setting in production under a SameAsRequest
+        // default sends session cookies over plain HTTP and nothing
+        // complains; forgetting it locally under an Always default breaks
+        // login immediately and visibly. Fail loud in development, fail
+        // safe in production. run-local.sh and KosyncWebApplicationFactory
+        // both set the override back to SameAsRequest, since the dev loop
+        // and this suite talk plain HTTP.
+        public const CookieSecurePolicy DefaultCookieSecurePolicy = CookieSecurePolicy.Always;
+    }
+
     // Where this server's portal can be reached from outside (ADR 0006).
     // Defaults only - the live value comes from the "Portal" configuration
     // section via PortalOptions.
@@ -221,6 +239,160 @@ public static class Constants
         // channel that reaches them (ADR 0006).
         public const string PasswordChangeRequiredFormat =
             "Password change required — log in at {0} to set a new password.";
+    }
+
+    // Where this server keeps its SQLite database. Defaults only - the live
+    // value comes from the "Storage" configuration section via
+    // StorageOptions.
+    public static class Storage
+    {
+        public const string ConfigurationSection = "Storage";
+
+        // Relative to the content root, the way every install before this
+        // issue found its database: Program.cs always combined "data" onto
+        // the content root rather than letting an operator say otherwise.
+        // Kept relative (rather than resolved to an absolute path here) so
+        // Path.Combine's own rule - an absolute second argument replaces the
+        // first outright - is what lets a container bind mount override it
+        // with Storage__DataDirectory=/data (issue #47).
+        public const string DefaultDataDirectory = "data";
+
+        // The one spelling of the database's filename, read by both
+        // Program.cs and the design-time KosyncDbContextFactory so a rename
+        // cannot happen in one and not the other.
+        public const string DatabaseFileName = "kosync.sqlite3";
+
+        // Pre-migration backups (ADR 0009, issue #48) land in a subdirectory
+        // of the data directory rather than beside it, so the one bind mount
+        // that already covers the database covers its backups too.
+        public const string BackupsDirectoryName = "backups";
+
+        // Named for the UTC instant the backup was taken and the migration
+        // it was taken ahead of, so a file on disk says what moment and what
+        // change it is a backup of without reading anything else.
+        public const string BackupFileNameFormat = "{0:yyyyMMddTHHmmssZ}_{1}.sqlite3";
+
+        // What a file has to look like to be recognised as one this
+        // mechanism wrote, matching BackupFileNameFormat's own shape - so
+        // pruning (issue #50) can tell its own output apart from whatever
+        // else an operator has dropped into the same directory and leave
+        // the rest alone.
+        public const string BackupFileNamePattern = @"^\d{8}T\d{6}Z_.+\.sqlite3$";
+
+        // How many backups survive pruning (issue #50), unless overridden on
+        // StorageOptions. ADR 0009's own Consequences flagged this: without
+        // a limit, the fix for data loss becomes a slower-motion disk
+        // exhaustion instead.
+        public const int DefaultMaxBackupsRetained = 5;
+
+        // A limit below this would let the backup just written be pruned on
+        // the same pass that created it, leaving a deploy with no backup at
+        // all - defeating the reason ADR 0009 takes one in the first place.
+        public const int MinimumMaxBackupsRetained = 1;
+
+        public const string BackupWrittenLogFormat =
+            "Backed up database to [{0}] before applying pending migration(s): {1}.";
+
+        public const string BackupFailedLogFormat =
+            "Refusing to start: could not write the pre-migration backup to [{0}], which was "
+            + "protecting against pending migration(s): {1}.";
+
+        public const string BackupFailedExceptionFormat =
+            "Refusing to start without a pre-migration backup at [{0}]: {1}";
+
+        public const string BackupsPrunedLogFormat =
+            "Pruned {0} old backup(s) from [{1}], retaining the most recent {2}.";
+    }
+
+    // Which networks' X-Forwarded-Proto and X-Forwarded-For this server
+    // trusts (issue #52). Defaults only - the live value comes from the
+    // "ForwardedHeaders" configuration section via ForwardedHeadersSettings.
+    // Not TRUSTED_PROXIES (Services/ProxyService.cs) - see that class's
+    // comment and ForwardedHeadersSettings for why the two are separate.
+    public static class ForwardedHeaders
+    {
+        public const string ConfigurationSection = "ForwardedHeaders";
+
+        // What this server rewrites once a network is trusted: the scheme
+        // (X-Forwarded-Proto) and the connecting address (X-Forwarded-For).
+        // Not X-Forwarded-Host or -Prefix - PortalOptions.BaseUrl is this
+        // server's own answer to "what host am I reachable at", not
+        // something to take from a header a container-mate could send.
+        public const Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders Enabled =
+            Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+            | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor;
+    }
+
+    // The Destructive Migration gate (ADR 0009, GLOSSARY.md, issue #49): a
+    // deploy that finds one of these pending refuses to start rather than
+    // apply it unattended.
+    public static class Migrations
+    {
+        // Full EF migration ids, spelled exactly as GetPendingMigrations()
+        // returns them - not just the class name - so there is no separate
+        // mapping between this list and the assembly to drift out of sync.
+        // Destructiveness is declared here rather than detected, because
+        // nothing in EF Core can say whether a migration deletes or rewrites
+        // rows - that lives in arbitrary Up() bodies and raw SQL (ADR 0009).
+        //
+        // Each entry's comment is what a human deciding whether to permit it
+        // needs, without reading the migration itself.
+        public static readonly string[] Destructive =
+        [
+            // Deletes every Book with no Documents while backfilling
+            // Books.UserId from the Documents each Book already has.
+            "20261020194356_AddBookUserId",
+
+            // Rewrites every existing User row's PasswordState to UserChosen,
+            // since an installed server's existing passwords already work
+            // and are not the Provisional ones ADR 0006 governs.
+            "20261025190645_AddUserPasswordState",
+
+            // Drops Documents.LastResetAt after carrying each value it held
+            // into a new ProgressResets row - the column is gone once this
+            // completes, not merely emptied.
+            "20261103204304_AddProgressResets",
+
+            // Deletes every duplicate Document sharing a (UserId,
+            // DocumentHash) pair but one, after folding each one's history
+            // and metadata onto the survivor (ADR 0008).
+            "20261105204525_AddDocumentHashUniqueIndex",
+        ];
+
+        // The same four facts as the comments above, keyed by id rather than
+        // left as source comments - so the refusal below can say what a
+        // pending migration actually does instead of pointing someone at
+        // this file to find out. DestructiveMigrationListTests asserts the
+        // two stay in step.
+        public static readonly Dictionary<string, string> DestructiveDescriptions = new()
+        {
+            ["20261020194356_AddBookUserId"] =
+                "deletes every Book with no Documents while backfilling Books.UserId",
+            ["20261025190645_AddUserPasswordState"] =
+                "rewrites every existing User row's PasswordState to UserChosen",
+            ["20261103204304_AddProgressResets"] =
+                "drops Documents.LastResetAt after carrying each value into a new ProgressResets row",
+            ["20261105204525_AddDocumentHashUniqueIndex"] =
+                "deletes every duplicate Document sharing a (UserId, DocumentHash) pair but one",
+        };
+
+        // What the refusal says about the migration it stopped on, and what
+        // setting it to ALLOW_DESTRUCTIVE_MIGRATIONS would have done
+        // instead. Named rather than inline in DestructiveMigrationGate so
+        // the wording the log and the thrown exception share cannot drift
+        // apart.
+        public const string RefusalLogFormat =
+            "Refusing to start: pending migration [{MigrationId}] is a Destructive Migration - "
+            + "it {Description} - and is not permitted. Set {Variable}={MigrationId} to permit "
+            + "it, after taking a backup.";
+
+        public const string RefusalExceptionFormat =
+            "Refusing to start with pending Destructive Migration(s) not permitted by {0}: {1}.";
+
+        // One unattended migration's contribution to RefusalExceptionFormat's
+        // id list, carrying its own description rather than leaving the
+        // thrown message to name ids alone.
+        public const string RefusalExceptionEntryFormat = "{0} ({1})";
     }
 
     // PasswordChangeGateMiddleware, which holds a Provisional-Password User
@@ -659,6 +831,16 @@ public static class Constants
         // whose default had flipped to "disabled" would read as a double
         // negative in every compose file.
         public const string SelfRegistrationEnabled = "SELF_REGISTRATION_ENABLED";
+
+        // Names which of Constants.Migrations.Destructive are permitted to
+        // run, as a comma-separated list of full migration ids
+        // (ADR 0009, issue #49). Deliberately not a boolean: a standing
+        // `true` left in a compose file would disable the gate forever,
+        // which is the failure ADR 0006 already removed from ADMIN_PASSWORD.
+        // Naming ids instead is self-expiring - the next Destructive
+        // Migration has a different id, does not match, and the gate fires
+        // again even with this variable still set.
+        public const string AllowDestructiveMigrations = "ALLOW_DESTRUCTIVE_MIGRATIONS";
     }
 
     // The first account, created on a fresh install (ADR 0006).
